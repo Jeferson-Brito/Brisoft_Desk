@@ -1,0 +1,28 @@
+# Dependências do Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Variáveis de ambiente (contém credenciais sensíveis!)
+.env
+server/.env
+
+# Dados locais gerados em runtime
+server/data/tickets.json
+server/data/*.json
+
+# Sessão do WhatsApp (tokens de autenticação locais)
+server/src/sessions/
+server/.wwebjs_auth/
+server/.wwebjs_cache/
+server/session_auth/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.suo
+*.user

@@ -1,0 +1,76 @@
+/* ==========================================================================
+   GRUPO COMBATE - DESIGN TOKENS & VARIABLES
+   ========================================================================== */
+
+:root {
+  /* Brand Identity */
+  --brand-primary: #2563eb;
+  --brand-primary-hover: #1d4ed8;
+  --brand-red: #e11d48;
+  --brand-dark: #0f172a;
+  
+  /* Layout & Backgrounds */
+  --bg-app: #f1f5f9;
+  --bg-sidebar: #0f172a;
+  --bg-sidebar-active: #2563eb;
+  --bg-topbar: #ffffff;
+  --bg-card: #ffffff;
+  --bg-chat-bubble-in: #ffffff;
+  --bg-chat-bubble-out: #dcfce7;
+  
+  /* Text Colors */
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
+  --text-sidebar: #94a3b8;
+  --text-sidebar-active: #ffffff;
+  
+  /* Borders & Dividers */
+  --border-color: #e2e8f0;
+  --border-subtle: #f1f5f9;
+  
+  /* Departments Badge Colors */
+  --dept-financeiro-bg: #eff6ff;
+  --dept-financeiro-text: #2563eb;
+  --dept-comercial-bg: #f5f3ff;
+  --dept-comercial-text: #7c3aed;
+  --dept-operacional-bg: #ecfdf5;
+  --dept-operacional-text: #059669;
+  --dept-suporte-bg: #fff7ed;
+  --dept-suporte-text: #ea580c;
+  
+  /* Status Colors */
+  --status-active-bg: #ecfdf5;
+  --status-active-text: #16a34a;
+  --status-inactive-bg: #f1f5f9;
+  --status-inactive-text: #64748b;
+  --status-finished-bg: #eff6ff;
+  --status-finished-text: #2563eb;
+  
+  /* Customer Segment Badges */
+  --seg-corp-bg: #eff6ff;
+  --seg-corp-text: #1d4ed8;
+  --seg-peq-bg: #f8fafc;
+  --seg-peq-text: #475569;
+  --seg-med-bg: #fefce8;
+  --seg-med-text: #854d0e;
+
+  /* Dimensions & Spacings */
+  --sidebar-width: 250px;
+  --sidebar-width-collapsed: 72px;
+  --topbar-height: 60px;
+  
+  /* Shapes & Shadows */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+  
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.07), 0 1px 2px -1px rgba(0, 0, 0, 0.07);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.08);
+
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
