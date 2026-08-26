@@ -11,7 +11,7 @@ if (!globalThis.WebSocket) {
 }
 
 const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 let supabase = null;
 
@@ -19,7 +19,7 @@ if (supabaseUrl && supabaseKey && !supabaseUrl.includes('seu-projeto')) {
   supabase = createClient(supabaseUrl, supabaseKey);
   console.log('✅ Supabase conectado com sucesso!');
 } else {
-  console.warn('⚠️ Supabase URL/Key não configurados no arquivo .env. Operando em modo de memória/mock.');
+  console.warn('⚠️ SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY não configurados. Operando em modo de memória/mock.');
 }
 
 module.exports = {

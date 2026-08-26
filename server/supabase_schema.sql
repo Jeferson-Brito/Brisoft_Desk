@@ -55,24 +55,28 @@ CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     email VARCHAR(150) UNIQUE,
-    role VARCHAR(50) DEFAULT 'Atendente',
+    role VARCHAR(50) DEFAULT 'Analista',
     department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
     avatar_url TEXT,
+    phone VARCHAR(30),
+    password_hash TEXT,
+    is_active BOOLEAN DEFAULT true,
+    is_temporary BOOLEAN DEFAULT false,
     status VARCHAR(20) DEFAULT 'online',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Inserir usuário administrador padrão
-INSERT INTO users (name, email, role, status) VALUES
-    ('Jeferson Brito', 'jeferson@brisoft.com.br', 'Administrador', 'online'),
-    ('Carlos Silva', 'carlos@brisoft.com.br', 'Atendente', 'online'),
-    ('Ana Beatriz', 'ana@brisoft.com.br', 'Atendente', 'online')
-ON CONFLICT (email) DO NOTHING;
+-- Adicionar colunas se já existir a tabela (para bancos já criados)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_temporary BOOLEAN DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(30);
+
 
 -- 6. Tabela de Atendimentos / Chamados (Tickets)
 CREATE TABLE IF NOT EXISTS tickets (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    protocol VARCHAR(50) NOT NULL UNIQUE,
+    protocol VARCHAR(50) UNIQUE,
     client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
     contact_id UUID REFERENCES contacts(id) ON DELETE SET NULL,
     user_id UUID REFERENCES users(id) ON DELETE SET NULL, -- Atendente responsável
@@ -81,6 +85,17 @@ CREATE TABLE IF NOT EXISTS tickets (
     priority VARCHAR(20) DEFAULT 'normal', -- 'baixa', 'normal', 'alta', 'urgente'
     subject VARCHAR(255),
     preview_message TEXT,
+    preview TEXT,
+    client_name VARCHAR(255),
+    initials VARCHAR(10),
+    phone VARCHAR(30),
+    jid TEXT,
+    raw_jid TEXT,
+    time VARCHAR(20),
+    assumed BOOLEAN DEFAULT false,
+    agent_name VARCHAR(255),
+    encerrado_em VARCHAR(20),
+    encerrado_por VARCHAR(255),
     channel VARCHAR(30) DEFAULT 'whatsapp',
     
     -- Métricas de SLA
@@ -98,7 +113,10 @@ CREATE TABLE IF NOT EXISTS tickets (
 CREATE TABLE IF NOT EXISTS messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     ticket_id UUID REFERENCES tickets(id) ON DELETE CASCADE NOT NULL,
-    sender_type VARCHAR(20) NOT NULL, -- 'client', 'agent', 'system', 'internal_note'
+    sender_type VARCHAR(20),
+    sender VARCHAR(20) NOT NULL, -- 'client', 'agent', 'system'
+    type VARCHAR(30),
+    time VARCHAR(20),
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     text TEXT,
     media_url TEXT,
@@ -123,6 +141,9 @@ CREATE TABLE IF NOT EXISTS ratings (
     ticket_id UUID REFERENCES tickets(id) ON DELETE CASCADE NOT NULL,
     client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
     score INT NOT NULL CHECK (score >= 1 AND score <= 5),
+    agent_name VARCHAR(255),
+    phone VARCHAR(30),
+    jid TEXT,
     comment TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -138,6 +159,12 @@ CREATE TABLE IF NOT EXISTS quick_messages (
     is_favorite BOOLEAN DEFAULT false,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS system_settings (
+    key VARCHAR(100) PRIMARY KEY,
+    value JSONB NOT NULL DEFAULT 'null'::jsonb,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Inserir mensagens rápidas padrão
@@ -158,3 +185,33 @@ ALTER TABLE tickets ADD COLUMN IF NOT EXISTS awaiting_rating BOOLEAN DEFAULT fal
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS assumed_at TIMESTAMPTZ;
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS unread_count INT DEFAULT 0;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS preview TEXT;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS client_name VARCHAR(255);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS initials VARCHAR(10);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS phone VARCHAR(30);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS jid TEXT;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS raw_jid TEXT;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS time VARCHAR(20);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS assumed BOOLEAN DEFAULT false;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS agent_name VARCHAR(255);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS encerrado_em VARCHAR(20);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS encerrado_por VARCHAR(255);
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender VARCHAR(20);
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS type VARCHAR(30);
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS time VARCHAR(20);
+ALTER TABLE ratings ADD COLUMN IF NOT EXISTS agent_name VARCHAR(255);
+ALTER TABLE ratings ADD COLUMN IF NOT EXISTS phone VARCHAR(30);
+ALTER TABLE ratings ADD COLUMN IF NOT EXISTS jid TEXT;
+
+-- A aplicação acessa estas tabelas somente pelo backend com service role.
+-- Bloqueia acesso direto pelas chaves públicas/anon do Supabase.
+ALTER TABLE departments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tickets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contact_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ratings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quick_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
