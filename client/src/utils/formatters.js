@@ -6,8 +6,9 @@
  * Formata telefone brasileiro ou internacional de forma legível
  */
 export function formatPhone(phone) {
-  if (!phone) return '—';
+  if (!phone || phone === 'undefined' || phone === 'null') return '—';
   const clean = String(phone).replace(/\D/g, '');
+  if (!clean) return '—';
   
   if (clean.length === 13 && clean.startsWith('55')) {
     return `+55 (${clean.slice(2, 4)}) ${clean.slice(4, 9)}-${clean.slice(9)}`;
@@ -30,7 +31,7 @@ export function formatPhone(phone) {
     return `WhatsApp (ID: ${clean.slice(0, 4)}...${clean.slice(-4)})`;
   }
   
-  return phone;
+  return clean || '—';
 }
 
 /**

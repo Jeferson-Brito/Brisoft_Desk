@@ -337,7 +337,7 @@ class WhatsAppService {
         defaultQueryTimeoutMs: 30000,
         keepAliveIntervalMs: 10000,
         generateHighQualityLinkPreview: false,
-        syncFullHistory: true,
+        syncFullHistory: false,
         emitOwnEvents: false
       });
       account.sock = sock;
@@ -378,11 +378,6 @@ class WhatsAppService {
     account.sock.ev.on('contacts.upsert', updateContacts);
     account.sock.ev.on('contacts.update', updateContacts);
     account.sock.ev.on('contacts.set', data => updateContacts(data?.contacts));
-    account.sock.ev.on('messaging-history.set', ({ contacts, chats }) => {
-      updateContacts(contacts);
-      updateChats(chats);
-      this.syncLidContactsToDatabase(account).catch(() => {});
-    });
     account.sock.ev.on('chats.upsert', updateChats);
     account.sock.ev.on('chats.update', updateChats);
     account.sock.ev.on('chats.set', data => updateChats(data?.chats));
@@ -414,7 +409,6 @@ class WhatsAppService {
         console.log(`[WhatsApp:${account.name}] conectado${account.phone ? ` (${account.phone})` : ''}.`);
         await this.saveConfigs();
         this.emitAccounts();
-        this.syncLidContactsToDatabase(account).catch(() => {});
       }
 
       if (connection === 'close') {
@@ -434,114 +428,46 @@ class WhatsAppService {
     });
   }
 
-  async resolveLidToPhone(account, jid, msg = null) {
+  extractPhone(account, jid, msg = null) {
     if (!jid) return '';
-    const cleanJid = jid.replace(/:\d+@/, '@');
+    const cleanJid = jid.replace(/:\d+@/, '@').replace(/:\d+$/, '');
     
-    // Se não é @lid, extrai o telefone diretamente
+    // 1. Se não é @lid, extrai diretamente o número (ex: 5583981131352@s.whatsapp.net -> 5583981131352)
     if (!cleanJid.includes('@lid')) {
       return cleanJid.replace('@s.whatsapp.net', '').replace(/:\d+$/, '');
     }
 
     const rawLid = cleanJid.replace('@lid', '').replace(/:\d+$/, '');
-    const mapped = account.lidMap.get(jid) || account.lidMap.get(cleanJid) || account.lidMap.get(rawLid);
+
+    // 2. Se temos mapeamento em memória
+    const mapped = account?.lidMap?.get(jid) || account?.lidMap?.get(cleanJid) || account?.lidMap?.get(rawLid);
     if (mapped && !mapped.includes('@lid')) {
       return mapped.replace('@s.whatsapp.net', '').replace(/:\d+$/, '');
     }
 
-    // Tenta obter do participant da mensagem
+    // 3. Se a mensagem veio com participant em formato de telefone
     const participant = msg?.key?.participant || msg?.participant;
     if (participant && !participant.includes('@lid')) {
-      const phone = participant.replace('@s.whatsapp.net', '').replace(/:\d+$/, '');
-      recordLidPair(account, participant, jid);
-      saveLidMap(account);
-      return phone;
-    }
-
-    // Tenta obter de campos de telefone explícitos da mensagem
-    const pn = msg?.key?.participantPn || msg?.key?.senderPn || msg?.key?.remoteJidPn;
-    if (pn && !String(pn).includes('@lid')) {
-      const phone = String(pn).replace(/\D/g, '');
-      if (phone.length >= 10 && phone.length <= 13) {
-        recordLidPair(account, phone, jid);
+      const pPhone = participant.replace('@s.whatsapp.net', '').replace(/:\d+$/, '');
+      if (pPhone.length >= 10 && pPhone.length <= 13) {
+        recordLidPair(account, participant, jid);
         saveLidMap(account);
-        return phone;
+        return pPhone;
       }
     }
 
-    // Tenta consulta USync no Baileys sob demanda
-    if (account.sock?.executeUSyncQuery) {
-      try {
-        const baileys = await import('@whiskeysockets/baileys');
-        const usyncQuery = new baileys.USyncQuery()
-          .withContext('interactive')
-          .withMode('query')
-          .withUser(new baileys.USyncUser().withId(cleanJid))
-          .withContactProtocol();
-
-        const result = await account.sock.executeUSyncQuery(usyncQuery);
-        if (result?.list?.length) {
-          for (const item of result.list) {
-            if (item?.id && !item.id.includes('@lid')) {
-              const phone = item.id.replace('@s.whatsapp.net', '').replace(/:\d+$/, '');
-              recordLidPair(account, item.id, jid);
-              saveLidMap(account);
-              return phone;
-            }
-          }
-        }
-      } catch (_) {}
+    // 4. Se a mensagem contém número no participantPn ou senderPn
+    const pn = msg?.key?.participantPn || msg?.key?.senderPn || msg?.key?.remoteJidPn;
+    if (pn && !String(pn).includes('@lid')) {
+      const pPhone = String(pn).replace(/\D/g, '');
+      if (pPhone.length >= 10 && pPhone.length <= 13) {
+        recordLidPair(account, pPhone, jid);
+        saveLidMap(account);
+        return pPhone;
+      }
     }
 
     return rawLid;
-  }
-
-  async syncLidContactsToDatabase(account) {
-    if (!isSupabaseConfigured() || account.lidMap.size === 0) return;
-    try {
-      // 1. Corrige tickets que foram gravados com o LID como telefone (>= 14 dígitos)
-      const { data: tickets, error: ticketError } = await supabase
-        .from('tickets')
-        .select('id, phone, jid, raw_jid, contact_id')
-        .limit(200);
-
-      if (!ticketError && tickets) {
-        for (const t of tickets) {
-          const rawPhone = String(t.phone || '').replace(/\D/g, '');
-          if (rawPhone.length >= 14) {
-            const mappedPhone = await this.resolveLidToPhone(account, t.raw_jid || t.jid || `${rawPhone}@lid`);
-            if (mappedPhone && mappedPhone !== rawPhone && mappedPhone.length <= 13) {
-              console.log(`[WhatsApp:${account.name}] Atualizando telefone do ticket ${t.id}: ${rawPhone} -> ${mappedPhone}`);
-              await supabase.from('tickets').update({ phone: mappedPhone, jid: `${mappedPhone}@s.whatsapp.net` }).eq('id', t.id);
-              if (t.contact_id) {
-                await supabase.from('contacts').update({ phone: mappedPhone }).eq('id', t.contact_id);
-              }
-            }
-          }
-        }
-      }
-
-      // 2. Corrige contatos gravados com o LID como telefone
-      const { data: contacts, error: contactError } = await supabase
-        .from('contacts')
-        .select('id, phone')
-        .limit(200);
-
-      if (!contactError && contacts) {
-        for (const c of contacts) {
-          const rawPhone = String(c.phone || '').replace(/\D/g, '');
-          if (rawPhone.length >= 14) {
-            const mappedPhone = await this.resolveLidToPhone(account, `${rawPhone}@lid`);
-            if (mappedPhone && mappedPhone !== rawPhone && mappedPhone.length <= 13) {
-              console.log(`[WhatsApp:${account.name}] Atualizando telefone do contato ${c.id}: ${rawPhone} -> ${mappedPhone}`);
-              await supabase.from('contacts').update({ phone: mappedPhone }).eq('id', c.id);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn(`[WhatsApp:${account.name}] aviso na sincronização de LIDs: ${e.message}`);
-    }
   }
 
   bindMessages(account, downloadMediaMessage, downloadContentFromMessage) {
@@ -554,11 +480,8 @@ class WhatsAppService {
         const messageKey = `${account.id}:${msg.key.id || `${rawJid}:${msg.messageTimestamp}`}`;
         if (this.recentMessageIds.has(messageKey)) continue;
         this.rememberMessageId(messageKey);
-        let orderingJid = resolveJid(rawJid, account);
-        const participant = msg.key.participant || msg.participant;
-        if (orderingJid.includes('@lid') && participant && !participant.includes('@lid')) orderingJid = participant;
 
-        this.messageQueue.enqueue(`${account.id}:${orderingJid}`, () => (
+        this.messageQueue.enqueue(`${account.id}:${rawJid}`, () => (
           this.processIncomingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage)
         )).catch(error => {
           this.recentMessageIds.delete(messageKey);
@@ -581,11 +504,7 @@ class WhatsAppService {
 
   async processIncomingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage) {
     const rawJid = msg.key.remoteJid;
-    let resolvedJid = resolveJid(rawJid, account);
-    const phone = await this.resolveLidToPhone(account, rawJid, msg);
-    if (phone && !phone.includes('@') && phone.length <= 13) {
-      resolvedJid = `${phone}@s.whatsapp.net`;
-    }
+    const phone = this.extractPhone(account, rawJid, msg);
     const content = unwrapMessageContent(msg.message);
     const media = await this.downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage);
     const text = content.conversation || content.extendedTextMessage?.text ||
@@ -599,7 +518,7 @@ class WhatsAppService {
       sendMediaMessage: (target, buffer, type, caption, fileName) => this.sendMediaMessage(target, buffer, type, caption, fileName, account.id)
     };
     const result = await ticketService.processIncomingMessage({
-      from: resolvedJid,
+      from: rawJid,
       rawJid,
       phone,
       senderName,
