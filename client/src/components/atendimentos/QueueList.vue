@@ -4,7 +4,7 @@
     <div class="queue-header">
       <div class="queue-header-title-wrap">
         <span class="queue-title">Fila de Atendimentos</span>
-        <span class="queue-live-badge" title="Atualização em tempo real">
+        <span class="queue-live-badge" title="Total de atendimentos visíveis">
           <span class="live-dot"></span>
           {{ totalActiveCount }}
         </span>
@@ -13,7 +13,7 @@
       <div class="queue-header-actions">
         <button
           class="btn-icon"
-          :class="{ 'fa-spin': isRefreshing }"
+          :class="{ 'spin-anim': isRefreshing }"
           title="Recarregar atendimentos"
           @click="refreshQueue"
         >
@@ -22,7 +22,7 @@
 
         <button
           class="btn-icon"
-          :class="{ 'active-filter': hasActiveFilter }"
+          :class="{ 'active-filter': hasActiveFilter || showFilterPopover }"
           title="Filtros avançados"
           @click="showFilterPopover = !showFilterPopover"
         >
@@ -32,11 +32,11 @@
       </div>
     </div>
 
-    <!-- Filtro Avançado Flutuante / Expansível -->
-    <Transition name="fade-slide">
+    <!-- Painel de Filtros Integrado e Bem Alinhado -->
+    <Transition name="filter-slide">
       <div v-if="showFilterPopover" class="queue-filter-panel">
-        <div class="filter-panel-row">
-          <label>Departamento:</label>
+        <div class="filter-group">
+          <label class="filter-label">Departamento</label>
           <select v-model="selectedDepartment" class="filter-select">
             <option value="">Todos os Departamentos</option>
             <option v-for="d in settingsStore.departments" :key="d.id" :value="d.name">
@@ -45,8 +45,8 @@
           </select>
         </div>
 
-        <div class="filter-panel-row">
-          <label>Ordenar por:</label>
+        <div class="filter-group">
+          <label class="filter-label">Ordenar por</label>
           <select v-model="sortBy" class="filter-select">
             <option value="recent">Mais recentes</option>
             <option value="unread">Não lidos primeiro</option>
@@ -54,22 +54,25 @@
           </select>
         </div>
 
-        <div v-if="hasActiveFilter" class="filter-panel-footer">
-          <button class="filter-reset-btn" @click="resetFilters">
+        <div class="filter-panel-footer">
+          <button v-if="hasActiveFilter" class="filter-reset-btn" @click="resetFilters">
             <i class="fa-solid fa-xmark"></i> Limpar filtros
+          </button>
+          <button class="filter-close-btn" @click="showFilterPopover = false">
+            Fechar
           </button>
         </div>
       </div>
     </Transition>
 
-    <!-- Abas / Segmentos da Fila -->
+    <!-- Abas da Fila: Apenas Aguardando e Em Atendimento (100% de largura, sem scroll horizontal) -->
     <div class="queue-tabs">
       <button
         class="queue-tab-btn"
         :class="{ active: activeTab === 'aguardando' }"
         @click="activeTab = 'aguardando'"
       >
-        <span>Aguardando</span>
+        <span class="tab-text">Aguardando</span>
         <span
           class="queue-tab-badge"
           :class="ticketStore.waitingTickets.length > 0 ? 'badge-waiting-active' : 'badge-neutral'"
@@ -83,35 +86,12 @@
         :class="{ active: activeTab === 'em_atendimento' }"
         @click="activeTab = 'em_atendimento'"
       >
-        <span>Atendendo</span>
+        <span class="tab-text">Atendendo</span>
         <span
           class="queue-tab-badge"
           :class="ticketStore.inProgressTickets.length > 0 ? 'badge-progress-active' : 'badge-neutral'"
         >
           {{ ticketStore.inProgressTickets.length }}
-        </span>
-      </button>
-
-      <button
-        v-if="ticketStore.chatbotTickets.length > 0 || activeTab === 'chatbot'"
-        class="queue-tab-btn"
-        :class="{ active: activeTab === 'chatbot' }"
-        @click="activeTab = 'chatbot'"
-      >
-        <span>Bot</span>
-        <span class="queue-tab-badge badge-bot-active">
-          {{ ticketStore.chatbotTickets.length }}
-        </span>
-      </button>
-
-      <button
-        class="queue-tab-btn"
-        :class="{ active: activeTab === 'todos' }"
-        @click="activeTab = 'todos'"
-      >
-        <span>Todos</span>
-        <span class="queue-tab-badge badge-neutral">
-          {{ totalActiveCount }}
         </span>
       </button>
     </div>
@@ -123,7 +103,7 @@
         <input
           v-model="searchTerm"
           type="text"
-          placeholder="Buscar por nome, telefone, mensagem..."
+          placeholder="Buscar atendimento..."
         />
         <button
           v-if="searchTerm"
@@ -139,15 +119,15 @@
 
     <!-- Chip de Filtro Ativo -->
     <div v-if="selectedDepartment" class="queue-active-chip">
-      <span>Filtro: <strong>{{ selectedDepartment }}</strong></span>
-      <i class="fa-solid fa-xmark" @click="selectedDepartment = ''"></i>
+      <span>Setor: <strong>{{ selectedDepartment }}</strong></span>
+      <i class="fa-solid fa-xmark" title="Remover filtro" @click="selectedDepartment = ''"></i>
     </div>
 
     <!-- Lista de Atendimentos -->
     <div class="queue-list" id="queueListContainer">
       <!-- Loading Skeleton -->
       <div v-if="ticketStore.loading && filteredTickets.length === 0" class="queue-skeleton-wrap">
-        <div v-for="n in 4" :key="n" class="queue-skeleton-card">
+        <div v-for="n in 3" :key="n" class="queue-skeleton-card">
           <div class="skeleton-avatar"></div>
           <div class="skeleton-lines">
             <div class="skeleton-line short"></div>
@@ -165,17 +145,13 @@
         <div class="empty-state-icon-box">
           <i v-if="searchTerm || selectedDepartment" class="fa-solid fa-magnifying-glass"></i>
           <i v-else-if="activeTab === 'aguardando'" class="fa-solid fa-inbox"></i>
-          <i v-else-if="activeTab === 'em_atendimento'" class="fa-solid fa-headset"></i>
-          <i v-else-if="activeTab === 'chatbot'" class="fa-solid fa-robot"></i>
-          <i v-else class="fa-regular fa-comments"></i>
+          <i v-else class="fa-solid fa-headset"></i>
         </div>
 
         <strong class="empty-state-title">
           <template v-if="searchTerm || selectedDepartment">Nenhum atendimento encontrado</template>
           <template v-else-if="activeTab === 'aguardando'">Fila de espera vazia</template>
-          <template v-else-if="activeTab === 'em_atendimento'">Nenhum atendimento em curso</template>
-          <template v-else-if="activeTab === 'chatbot'">Nenhum cliente no robô</template>
-          <template v-else>Nenhum atendimento ativo</template>
+          <template v-else>Nenhum atendimento em curso</template>
         </strong>
 
         <p class="empty-state-desc">
@@ -185,11 +161,8 @@
           <template v-else-if="activeTab === 'aguardando'">
             Tudo em dia! Novas mensagens que chegarem aparecerão aqui automaticamente.
           </template>
-          <template v-else-if="activeTab === 'em_atendimento'">
-            Assuma um cliente na fila de espera para iniciar um atendimento.
-          </template>
           <template v-else>
-            As conversas em andamento e na fila serão listadas aqui.
+            Assuma um cliente na fila de espera para iniciar o atendimento.
           </template>
         </p>
 
@@ -218,7 +191,7 @@
         Exibindo <strong>{{ filteredTickets.length }}</strong> de {{ totalActiveCount }}
       </span>
       <button class="queue-footer-sync" title="Sincronizar" @click="refreshQueue">
-        <i class="fa-solid fa-arrows-rotate" :class="{ 'fa-spin': isRefreshing }"></i>
+        <i class="fa-solid fa-arrows-rotate" :class="{ 'spin-anim': isRefreshing }"></i>
       </button>
     </div>
   </div>
@@ -252,7 +225,6 @@ function resetFilters() {
   searchTerm.value = ''
   selectedDepartment.value = ''
   sortBy.value = 'recent'
-  showFilterPopover.value = false
 }
 
 async function refreshQueue() {
@@ -268,16 +240,9 @@ async function refreshQueue() {
 }
 
 const filteredTickets = computed(() => {
-  let list = []
-  if (activeTab.value === 'aguardando') {
-    list = ticketStore.waitingTickets
-  } else if (activeTab.value === 'em_atendimento') {
-    list = ticketStore.inProgressTickets
-  } else if (activeTab.value === 'chatbot') {
-    list = ticketStore.chatbotTickets
-  } else {
-    list = ticketStore.visibleTickets
-  }
+  let list = activeTab.value === 'aguardando'
+    ? ticketStore.waitingTickets
+    : ticketStore.inProgressTickets
 
   // Filtro por departamento
   if (selectedDepartment.value) {
@@ -320,72 +285,71 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  width: 100%;
   min-width: 0;
   overflow: hidden;
   position: relative;
+  box-sizing: border-box;
 }
 
 /* ─── Header ─────────────────────────────────────────── */
 .queue-header {
-  padding: 14px 16px 10px;
+  padding: 12px 14px 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid #f1f5f9;
+  box-sizing: border-box;
 }
 
 .queue-header-title-wrap {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .queue-title {
-  font-size: 14.5px;
+  font-size: 14px;
   font-weight: 700;
   color: #0f172a;
-  letter-spacing: -0.2px;
+  white-space: nowrap;
 }
 
 .queue-live-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   background: #f0fdf4;
   color: #16a34a;
   border: 1px solid #bbf7d0;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  padding: 2px 7px;
+  padding: 1.5px 6px;
   border-radius: 12px;
 }
 
 .live-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   background: #22c55e;
   border-radius: 50%;
-  animation: pulseLive 2s infinite ease-in-out;
-}
-
-@keyframes pulseLive {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.8); }
 }
 
 .queue-header-actions {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .btn-icon {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 6px;
   border: none;
   background: transparent;
   color: #64748b;
@@ -406,49 +370,69 @@ onMounted(() => {
 
 .filter-dot {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 5px;
+  right: 5px;
   width: 6px;
   height: 6px;
   background: #2563eb;
   border-radius: 50%;
 }
 
+.spin-anim {
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}
+
 /* ─── Painel Filtros ─────────────────────────────────── */
 .queue-filter-panel {
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
-  padding: 12px 16px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  box-sizing: border-box;
 }
 
-.filter-panel-row {
+.filter-group {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 12px;
-  color: #475569;
-  font-weight: 500;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 .filter-select {
-  flex: 1;
-  max-width: 180px;
-  padding: 5px 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 10px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   font-size: 12px;
   background: #ffffff;
   color: #1e293b;
   outline: none;
+  transition: border-color 0.15s;
+}
+
+.filter-select:focus {
+  border-color: #2563eb;
 }
 
 .filter-panel-footer {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   padding-top: 4px;
 }
 
@@ -462,23 +446,41 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 6px;
+  padding: 2px 4px;
 }
 
-/* ─── Abas / Segmentos ───────────────────────────────── */
+.filter-close-btn {
+  background: #e2e8f0;
+  border: none;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.filter-close-btn:hover {
+  background: #cbd5e1;
+}
+
+/* ─── Abas da Fila (50% / 50% sem scroll) ─────────────── */
 .queue-tabs {
   display: flex;
   background: #f8fafc;
   padding: 4px 8px;
   gap: 4px;
   border-bottom: 1px solid #e2e8f0;
-  overflow-x: auto;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .queue-tab-btn {
   flex: 1;
-  min-width: fit-content;
-  padding: 6px 10px;
+  width: 50%;
+  padding: 7px 8px;
   font-size: 12px;
   font-weight: 600;
   color: #64748b;
@@ -491,6 +493,7 @@ onMounted(() => {
   justify-content: center;
   gap: 6px;
   transition: all 0.15s ease;
+  box-sizing: border-box;
 }
 
 .queue-tab-btn:hover {
@@ -502,6 +505,10 @@ onMounted(() => {
   background: #ffffff;
   color: #2563eb;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.tab-text {
+  white-space: nowrap;
 }
 
 .queue-tab-badge {
@@ -527,23 +534,19 @@ onMounted(() => {
   color: #2563eb;
 }
 
-.badge-bot-active {
-  background: #f3e8ff;
-  color: #9333ea;
-}
-
 /* ─── Search Bar ─────────────────────────────────────── */
 .queue-search-bar {
-  padding: 10px 14px;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
   gap: 8px;
   border-bottom: 1px solid #f1f5f9;
+  box-sizing: border-box;
 }
 
 .search-input-wrap {
   position: relative;
-  flex: 1;
+  width: 100%;
 }
 
 .search-input-wrap i.fa-magnifying-glass {
@@ -552,31 +555,32 @@ onMounted(() => {
   top: 50%;
   transform: translateY(-50%);
   color: #94a3b8;
-  font-size: 12px;
+  font-size: 11.5px;
   pointer-events: none;
 }
 
 .search-input-wrap input {
   width: 100%;
-  padding: 7px 28px 7px 30px;
+  box-sizing: border-box;
+  padding: 6px 26px 6px 28px;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 12px;
   outline: none;
   background-color: #f8fafc;
   color: #1e293b;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .search-input-wrap input:focus {
   background-color: #ffffff;
   border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
 }
 
 .search-clear-btn {
   position: absolute;
-  right: 8px;
+  right: 6px;
   top: 50%;
   transform: translateY(-50%);
   background: none;
@@ -593,8 +597,8 @@ onMounted(() => {
 
 /* ─── Active Chip ────────────────────────────────────── */
 .queue-active-chip {
-  margin: 6px 14px 0;
-  padding: 4px 10px;
+  margin: 6px 12px 0;
+  padding: 4px 8px;
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   border-radius: 6px;
@@ -629,7 +633,7 @@ onMounted(() => {
 
 /* ─── Empty State ────────────────────────────────────── */
 .queue-empty-state {
-  padding: 48px 20px;
+  padding: 40px 16px;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -639,8 +643,8 @@ onMounted(() => {
 }
 
 .empty-state-icon-box {
-  width: 56px;
-  height: 56px;
+  width: 50px;
+  height: 50px;
   background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
   border: 1px solid #e0f2fe;
   border-radius: 50%;
@@ -648,36 +652,35 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  margin-bottom: 14px;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+  font-size: 20px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.08);
 }
 
 .empty-state-title {
-  font-size: 13.5px;
+  font-size: 13px;
   color: #1e293b;
   font-weight: 700;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
 }
 
 .empty-state-desc {
-  font-size: 12px;
+  font-size: 11.5px;
   color: #64748b;
   line-height: 1.45;
-  max-width: 230px;
-  margin: 0 0 14px;
+  max-width: 220px;
+  margin: 0 0 12px;
 }
 
 .empty-state-btn {
   background: #f1f5f9;
   border: 1px solid #cbd5e1;
   color: #334155;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
-  padding: 5px 12px;
-  border-radius: 6px;
+  padding: 4px 10px;
+  border-radius: 5px;
   cursor: pointer;
-  transition: all 0.15s ease;
 }
 
 .empty-state-btn:hover {
@@ -686,23 +689,23 @@ onMounted(() => {
 
 /* ─── Skeletons ──────────────────────────────────────── */
 .queue-skeleton-wrap {
-  padding: 12px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .queue-skeleton-card {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   padding: 10px;
   background: #f8fafc;
   border-radius: 8px;
 }
 
 .skeleton-avatar {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: #e2e8f0;
   animation: pulseSkeleton 1.5s infinite;
@@ -712,12 +715,12 @@ onMounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   justify-content: center;
 }
 
 .skeleton-line {
-  height: 8px;
+  height: 7px;
   background: #e2e8f0;
   border-radius: 4px;
   animation: pulseSkeleton 1.5s infinite;
@@ -734,7 +737,7 @@ onMounted(() => {
 
 /* ─── Footer ─────────────────────────────────────────── */
 .queue-footer {
-  padding: 8px 14px;
+  padding: 7px 12px;
   background: #f8fafc;
   border-top: 1px solid #e2e8f0;
   display: flex;
@@ -742,6 +745,7 @@ onMounted(() => {
   justify-content: space-between;
   font-size: 11px;
   color: #64748b;
+  box-sizing: border-box;
 }
 
 .queue-footer-sync {
@@ -751,7 +755,6 @@ onMounted(() => {
   cursor: pointer;
   padding: 2px;
   font-size: 11px;
-  transition: color 0.15s;
 }
 
 .queue-footer-sync:hover {
