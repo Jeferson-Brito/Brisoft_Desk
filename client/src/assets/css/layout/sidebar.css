@@ -20,7 +20,7 @@
 }
 
 .sidebar.collapsed .logo-text,
-.sidebar.collapsed .nav-item span,
+.sidebar.collapsed .nav-label,
 .sidebar.collapsed .sidebar-footer-text {
   display: none;
 }
@@ -33,10 +33,32 @@
 .sidebar.collapsed .nav-item {
   justify-content: center;
   padding: 10px;
+  position: relative;
 }
 
 .sidebar.collapsed .nav-item i {
   margin-right: 0;
+}
+
+.sidebar.collapsed .nav-badge {
+  display: flex !important;
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  margin-left: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 9px;
+  border-radius: 8px;
+  background: #ef4444;
+  color: #fff;
+  font-weight: 700;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px var(--bg-sidebar, #0f172a);
+  z-index: 10;
+  line-height: 1;
 }
 
 .sidebar.collapsed .sidebar-bottom {

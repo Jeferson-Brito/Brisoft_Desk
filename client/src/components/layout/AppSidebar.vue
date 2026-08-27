@@ -11,46 +11,48 @@
 
     <!-- Navigation Links -->
     <nav class="sidebar-nav">
-      <RouterLink class="nav-item" to="/" exact-active-class="active">
+      <RouterLink class="nav-item" to="/" exact-active-class="active" title="Dashboard">
         <i class="fa-solid fa-table-columns"></i>
-        <span>Dashboard</span>
+        <span class="nav-label">Dashboard</span>
       </RouterLink>
-      <RouterLink class="nav-item" to="/atendimentos" active-class="active">
+      <RouterLink class="nav-item" to="/atendimentos" active-class="active" title="Atendimentos">
         <i class="fa-regular fa-comment-dots"></i>
-        <span>Atendimentos</span>
-        <span v-if="waitingCount > 0" class="nav-badge">{{ waitingCount }}</span>
+        <span class="nav-label">Atendimentos</span>
+        <span v-if="waitingCount > 0" class="nav-badge" :title="`${waitingCount} atendimento(s) aguardando`">
+          {{ waitingCount > 99 ? '99+' : waitingCount }}
+        </span>
       </RouterLink>
-      <RouterLink class="nav-item" to="/historico" active-class="active">
+      <RouterLink class="nav-item" to="/historico" active-class="active" title="Histórico">
         <i class="fa-solid fa-clock-rotate-left"></i>
-        <span>Histórico</span>
+        <span class="nav-label">Histórico</span>
       </RouterLink>
-      <RouterLink class="nav-item" to="/clientes" active-class="active">
+      <RouterLink class="nav-item" to="/clientes" active-class="active" title="Clientes">
         <i class="fa-solid fa-user-group"></i>
-        <span>Clientes</span>
+        <span class="nav-label">Clientes</span>
       </RouterLink>
-      <RouterLink class="nav-item" to="/contatos" active-class="active">
+      <RouterLink class="nav-item" to="/contatos" active-class="active" title="Contatos">
         <i class="fa-solid fa-address-book"></i>
-        <span>Contatos</span>
+        <span class="nav-label">Contatos</span>
       </RouterLink>
-      <RouterLink class="nav-item" to="/kanban" active-class="active">
+      <RouterLink class="nav-item" to="/kanban" active-class="active" title="Kanban">
         <i class="fa-solid fa-border-all"></i>
-        <span>Kanban</span>
+        <span class="nav-label">Kanban</span>
       </RouterLink>
-      <RouterLink class="nav-item" to="/mensagens-rapidas" active-class="active">
+      <RouterLink class="nav-item" to="/mensagens-rapidas" active-class="active" title="Mensagens rápidas">
         <i class="fa-regular fa-comments"></i>
-        <span>Mensagens rápidas</span>
+        <span class="nav-label">Mensagens rápidas</span>
       </RouterLink>
-      <RouterLink class="nav-item" to="/relatorios" active-class="active">
+      <RouterLink class="nav-item" to="/relatorios" active-class="active" title="Relatórios">
         <i class="fa-solid fa-chart-simple"></i>
-        <span>Relatórios</span>
+        <span class="nav-label">Relatórios</span>
       </RouterLink>
-      <RouterLink class="nav-item" to="/avaliacoes" active-class="active">
+      <RouterLink class="nav-item" to="/avaliacoes" active-class="active" title="Avaliações">
         <i class="fa-regular fa-star"></i>
-        <span>Avaliações</span>
+        <span class="nav-label">Avaliações</span>
       </RouterLink>
-      <RouterLink v-if="auth.isAdmin" class="nav-item" to="/configuracoes" active-class="active" id="settingsNavUsuarios">
+      <RouterLink v-if="auth.isAdmin" class="nav-item" to="/configuracoes" active-class="active" id="settingsNavUsuarios" title="Configurações">
         <i class="fa-solid fa-gear"></i>
-        <span>Configurações</span>
+        <span class="nav-label">Configurações</span>
       </RouterLink>
     </nav>
 
@@ -58,7 +60,7 @@
     <div class="sidebar-bottom">
       <button class="collapse-sidebar-btn" @click="collapsed = !collapsed" title="Recolher menu lateral">
         <i class="fa-solid fa-chevron-left" :class="{ 'fa-rotate-180': collapsed }"></i>
-        <span class="sidebar-footer-text">Recolher menu</span>
+        <span class="sidebar-footer-text">{{ collapsed ? 'Expandir' : 'Recolher menu' }}</span>
       </button>
     </div>
   </aside>
@@ -89,15 +91,39 @@ const waitingCount = computed(() => tickets.waitingTickets.length)
 </script>
 
 <style scoped>
+.nav-item {
+  position: relative;
+}
+
 .nav-badge {
   margin-left: auto;
   background: #ef4444;
   color: #fff;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
-  padding: 1px 6px;
+  padding: 1.5px 6px;
   border-radius: 20px;
   min-width: 18px;
-  text-align: center;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+:deep(.sidebar.collapsed) .nav-badge,
+.sidebar.collapsed .nav-badge {
+  display: flex !important;
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  margin-left: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 9px;
+  border-radius: 8px;
+  box-shadow: 0 0 0 2px #0f172a;
+  z-index: 10;
 }
 </style>
