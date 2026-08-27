@@ -23,47 +23,54 @@
             style="font-size:11px;color:#94a3b8;transition:transform 0.2s ease;"
           ></i>
         </div>
-        <span class="badge badge-whatsapp">
-          <i class="fa-brands fa-whatsapp"></i> {{ whatsappAccountLabel }}
-        </span>
       </div>
 
       <div class="chat-header-actions">
-        <!-- Botão Transferir -->
-        <button
-          v-if="ticket"
-          type="button"
-          class="btn-secondary"
-          title="Transferir atendimento"
-          style="padding:5px 12px;font-size:11.5px;display:inline-flex;gap:6px;"
-          @click="showTransferModal = true"
-        >
-          <i class="fa-solid fa-arrow-right-arrow-left"></i> Transferir
-        </button>
-
         <!-- Botão Assumir -->
         <button
           v-if="canAssume"
           type="button"
           class="btn-primary"
           id="btnAssumirChat"
-          style="padding:5px 12px;font-size:11.5px;display:inline-flex;"
+          style="padding:5px 12px;font-size:11.5px;display:inline-flex;align-items:center;gap:6px;"
           @click="handleAssume"
         >
           <i class="fa-solid fa-hand-pointer"></i> Assumir
         </button>
 
-        <!-- Botão Encerrar -->
-        <button
-          v-if="canClose"
-          type="button"
-          class="btn-secondary"
-          id="btnEncerrarChat"
-          style="padding:5px 12px;font-size:11.5px;color:#ef4444;border-color:rgba(239,68,68,0.3);display:inline-flex;"
-          @click="ui.openModal('encerrar')"
-        >
-          <i class="fa-solid fa-check"></i> Encerrar
-        </button>
+        <!-- Menu Suspenso de Ações -->
+        <div v-if="ticket" class="actions-dropdown-wrapper" ref="actionsDropdownRef">
+          <button
+            type="button"
+            class="btn-actions-trigger"
+            :class="{ active: showActionsMenu }"
+            title="Ações do atendimento"
+            @click.stop="showActionsMenu = !showActionsMenu"
+          >
+            <i class="fa-solid fa-ellipsis-vertical"></i>
+          </button>
+
+          <div v-if="showActionsMenu" class="actions-menu-dropdown">
+            <button
+              type="button"
+              class="actions-menu-item"
+              @click="openTransfer"
+            >
+              <i class="fa-solid fa-arrow-right-arrow-left"></i>
+              <span>Transferir atendimento</span>
+            </button>
+
+            <button
+              v-if="canClose"
+              type="button"
+              class="actions-menu-item danger"
+              @click="openClose"
+            >
+              <i class="fa-solid fa-check"></i>
+              <span>Encerrar atendimento</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -275,6 +282,8 @@ const authStore = useAuthStore()
 const ui = useUiStore()
 
 const showTransferModal = ref(false)
+const showActionsMenu = ref(false)
+const actionsDropdownRef = ref(null)
 const msgBoxRef = ref(null)
 const chatInputRef = ref(null)
 const fileInputRef = ref(null)
@@ -423,14 +432,32 @@ function scrollToBottomSmooth() {
   }
 }
 
+function handleClickOutside(event) {
+  if (actionsDropdownRef.value && !actionsDropdownRef.value.contains(event.target)) {
+    showActionsMenu.value = false
+  }
+}
+
+function openTransfer() {
+  showActionsMenu.value = false
+  showTransferModal.value = true
+}
+
+function openClose() {
+  showActionsMenu.value = false
+  ui.openModal('encerrar')
+}
+
 onMounted(() => {
   focusInput()
+  document.addEventListener('click', handleClickOutside)
   if (msgBoxRef.value) {
     msgBoxRef.value.addEventListener('scroll', onChatScroll, { passive: true })
   }
 })
 
 onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
   if (msgBoxRef.value) {
     msgBoxRef.value.removeEventListener('scroll', onChatScroll)
   }
@@ -870,5 +897,103 @@ async function sendMessage() {
 .fade-slide-leave-to {
   opacity: 0;
   transform: scale(0.8) translateY(12px);
+}
+
+/* Menu de Ações Suspenso */
+.actions-dropdown-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.btn-actions-trigger {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-actions-trigger:hover,
+.btn-actions-trigger.active {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.actions-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 195px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.08);
+  padding: 4px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: dropdownFadeIn 0.15s ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.actions-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s ease;
+}
+
+.actions-menu-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.actions-menu-item i {
+  font-size: 13px;
+  width: 16px;
+  color: #64748b;
+  text-align: center;
+}
+
+.actions-menu-item.danger {
+  color: #dc2626;
+}
+
+.actions-menu-item.danger i {
+  color: #dc2626;
+}
+
+.actions-menu-item.danger:hover {
+  background: #fef2f2;
+  color: #b91c1c;
 }
 </style>

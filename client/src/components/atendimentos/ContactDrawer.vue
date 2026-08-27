@@ -80,6 +80,10 @@
 
         <div class="contact-info-list">
           <div class="contact-info-item">
+            <i class="fa-brands fa-whatsapp" style="color:#22c55e;"></i>
+            <span>Conexão: <strong>{{ whatsappAccountLabel }}</strong></span>
+          </div>
+          <div class="contact-info-item">
             <i class="fa-regular fa-envelope"></i>
             <span>{{ contact.email || 'Não informado' }}</span>
           </div>
@@ -170,6 +174,12 @@
           <div style="background:#ffffff;padding:8px;border-radius:6px;border:1px solid #e2e8f0;">
             <span style="color:#64748b;display:block;font-size:10.5px;">Atendente:</span>
             <strong style="color:#334155;">{{ ticket?.agent_name || (ticket?.assumed ? 'Atendente' : 'Na Fila') }}</strong>
+          </div>
+          <div style="background:#ffffff;padding:8px;border-radius:6px;border:1px solid #e2e8f0;grid-column:span 2;">
+            <span style="color:#64748b;display:block;font-size:10.5px;">Conexão WhatsApp:</span>
+            <strong style="color:#16a34a;display:inline-flex;align-items:center;gap:6px;">
+              <i class="fa-brands fa-whatsapp"></i> {{ whatsappAccountLabel }}
+            </strong>
           </div>
         </div>
 
@@ -319,6 +329,13 @@ const contact = computed(() => props.ticket?.contact || {})
 const displayPhone = computed(() => {
   const p = contact.value?.phone || props.ticket?.phone
   return formatPhone(p)
+})
+
+const whatsappAccountLabel = computed(() => {
+  const channel = props.ticket?.channel || ''
+  const accountId = channel.startsWith('whatsapp:') ? channel.slice('whatsapp:'.length) : null
+  const account = accountId ? ui.whatsappAccounts.find(item => item.id === accountId) : null
+  return account?.name || 'WhatsApp Principal'
 })
 
 const latestNoteText = computed(() => {
