@@ -91,3 +91,6 @@ create index if not exists contacts_phone_idx on public.contacts(phone);
 -- Adiciona coluna contact_id na tabela tickets se não existir
 alter table if exists public.tickets
   add column if not exists contact_id uuid references public.contacts(id) on delete set null;
+
+-- Solicita ao PostgREST/Supabase que atualize imediatamente o cache do schema.
+notify pgrst, 'reload schema';

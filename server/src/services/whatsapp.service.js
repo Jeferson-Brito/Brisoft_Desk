@@ -26,6 +26,28 @@ function resolveJid(jid, state) {
   return state.lidMap.get(jid) || jid;
 }
 
+function unwrapMessageContent(message) {
+  let content = message || {};
+  const wrapperKeys = [
+    'ephemeralMessage',
+    'viewOnceMessage',
+    'viewOnceMessageV2',
+    'viewOnceMessageV2Extension',
+    'documentWithCaptionMessage',
+    'editedMessage'
+  ];
+  for (let depth = 0; depth < 8; depth += 1) {
+    const wrapper = wrapperKeys.find(key => content[key]?.message);
+    if (!wrapper) break;
+    content = content[wrapper].message;
+  }
+  return content;
+}
+
+function safeFileToken(value) {
+  return String(value || crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80) || crypto.randomUUID();
+}
+
 class WhatsAppService {
   constructor() {
     this.accounts = new Map();
@@ -162,7 +184,7 @@ class WhatsAppService {
       sock.ev.on('creds.update', saveCreds);
       this.bindContacts(account);
       this.bindConnection(account, baileys.DisconnectReason);
-      this.bindMessages(account, baileys.downloadMediaMessage);
+      this.bindMessages(account, baileys.downloadMediaMessage, baileys.downloadContentFromMessage);
       return this.publicAccount(account, true);
     } catch (error) {
       account.initializing = false;
@@ -226,7 +248,7 @@ class WhatsAppService {
     });
   }
 
-  bindMessages(account, downloadMediaMessage) {
+  bindMessages(account, downloadMediaMessage, downloadContentFromMessage) {
     account.sock.ev.on('messages.upsert', async event => {
       if (event.type !== 'notify') return;
       for (const msg of event.messages || []) {
@@ -243,11 +265,11 @@ class WhatsAppService {
           }
         }
         const phone = getPhoneFromJid(resolvedJid, account.lidMap);
-        const media = await this.downloadMedia(account, msg, downloadMediaMessage);
-        let text = msg.message.conversation || msg.message.extendedTextMessage?.text ||
-          msg.message.imageMessage?.caption || msg.message.videoMessage?.caption ||
-          msg.message.documentMessage?.caption || media.fallbackText || '';
-        if (media.url) text = `${text}||${media.url}`;
+        const content = unwrapMessageContent(msg.message);
+        const media = await this.downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage);
+        const text = content.conversation || content.extendedTextMessage?.text ||
+          content.imageMessage?.caption || content.videoMessage?.caption ||
+          content.documentMessage?.caption || media.fallbackText || '';
         const senderName = msg.pushName || null;
         console.log(`[WhatsApp:${account.name}] mensagem recebida de ${senderName || `Cliente ${phone.slice(-4)}`}.`);
 
@@ -272,23 +294,59 @@ class WhatsAppService {
     });
   }
 
-  async downloadMedia(account, msg, downloadMediaMessage) {
+  async downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage) {
+    const content = unwrapMessageContent(msg.message);
     let type = null;
     let fileName = null;
     let fallbackText = '';
-    if (msg.message.imageMessage) { type = 'image'; fileName = `img_${Date.now()}_${msg.key.id}.jpg`; fallbackText = '📷 [Imagem]'; }
-    else if (msg.message.audioMessage) { type = 'audio'; fileName = `audio_${Date.now()}_${msg.key.id}.ogg`; fallbackText = '🎙️ [Mensagem de Voz]'; }
-    else if (msg.message.videoMessage) { type = 'video'; fileName = `video_${Date.now()}_${msg.key.id}.mp4`; fallbackText = '🎥 [Vídeo]'; }
-    else if (msg.message.documentMessage) {
+    let mediaMessage = null;
+    const messageToken = safeFileToken(msg.key.id);
+    if (content.imageMessage) {
+      type = 'image';
+      mediaMessage = content.imageMessage;
+      const extension = mediaMessage.mimetype === 'image/png' ? 'png' : mediaMessage.mimetype === 'image/webp' ? 'webp' : 'jpg';
+      fileName = `img_${Date.now()}_${messageToken}.${extension}`;
+      fallbackText = '📷 [Imagem]';
+    } else if (content.audioMessage) {
+      type = 'audio';
+      mediaMessage = content.audioMessage;
+      const extension = mediaMessage.mimetype?.includes('mpeg') ? 'mp3' : mediaMessage.mimetype?.includes('mp4') ? 'm4a' : 'ogg';
+      fileName = `audio_${Date.now()}_${messageToken}.${extension}`;
+      fallbackText = mediaMessage.ptt ? '🎙️ [Mensagem de Voz]' : '🎵 [Áudio]';
+    } else if (content.videoMessage) {
+      type = 'video';
+      mediaMessage = content.videoMessage;
+      fileName = `video_${Date.now()}_${messageToken}.mp4`;
+      fallbackText = '🎥 [Vídeo]';
+    } else if (content.documentMessage) {
       type = 'document';
-      const original = (msg.message.documentMessage.fileName || 'documento').replace(/[^a-zA-Z0-9._-]/g, '_');
+      mediaMessage = content.documentMessage;
+      const original = (mediaMessage.fileName || 'documento').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
       fileName = `doc_${Date.now()}_${original}`;
       fallbackText = `📄 [Documento: ${original}]`;
-    } else if (msg.message.stickerMessage) { type = 'sticker'; fileName = `sticker_${Date.now()}_${msg.key.id}.webp`; fallbackText = '🖼️ [Figurinha]'; }
+    } else if (content.stickerMessage) {
+      type = 'sticker';
+      mediaMessage = content.stickerMessage;
+      fileName = `sticker_${Date.now()}_${messageToken}.webp`;
+      fallbackText = '🖼️ [Figurinha]';
+    }
     if (!type) return { type: null, fileName: null, url: null, fallbackText: '' };
 
     try {
-      const buffer = await downloadMediaMessage(msg, 'buffer', {}, { logger: pino({ level: 'silent' }), reuploadRequest: account.sock.updateMediaMessage });
+      let buffer = null;
+      try {
+        buffer = await downloadMediaMessage(msg, 'buffer', {}, {
+          logger: pino({ level: 'silent' }),
+          reuploadRequest: account.sock.updateMediaMessage
+        });
+      } catch (primaryError) {
+        if (typeof downloadContentFromMessage !== 'function') throw primaryError;
+        const stream = await downloadContentFromMessage(mediaMessage, type);
+        const chunks = [];
+        for await (const chunk of stream) chunks.push(chunk);
+        buffer = Buffer.concat(chunks);
+      }
+      if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new Error('O WhatsApp retornou um arquivo vazio.');
       const mediaDir = path.join(__dirname, '../../public/media');
       fs.mkdirSync(mediaDir, { recursive: true });
       fs.writeFileSync(path.join(mediaDir, fileName), buffer);
@@ -395,4 +453,7 @@ class WhatsAppService {
   }
 }
 
-module.exports = new WhatsAppService();
+const whatsappService = new WhatsAppService();
+whatsappService._test = { unwrapMessageContent, safeFileToken };
+
+module.exports = whatsappService;

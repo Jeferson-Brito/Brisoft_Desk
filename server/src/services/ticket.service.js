@@ -333,11 +333,14 @@ class TicketService {
         if (insertError) throw insertError;
         ticket = insertedTicket;
 
-        // Auto-salva o contato no banco mesmo quando collect_customer_name está desativado
-        // (só se o nome não parecer gerado automaticamente)
-        if (!needsCustomerName && knownContact === null && !isGeneratedCustomerName(cleanName)) {
+        // Auto-salva o contato no banco se ainda não existe cadastro e o nome não for genérico
+        if (!knownContact && !isGeneratedCustomerName(cleanName)) {
           try {
-            await saveConfirmedContact(phone, cleanName);
+            const saved = await saveConfirmedContact(phone, cleanName);
+            if (saved?.id) {
+              await supabase.from('tickets').update({ contact_id: saved.id }).eq('id', ticket.id);
+              ticket.contact_id = saved.id;
+            }
           } catch (_) {}
         }
 
@@ -1250,7 +1253,7 @@ class TicketService {
     const { data: message, error } = await supabase
       .from('messages')
       .select('ticket_id')
-      .eq('media_url', `/api/media/${filename}`)
+      .or(`media_url.eq./api/media/${filename},text.like.%||/api/media/${filename}`)
       .limit(1)
       .maybeSingle();
     if (error || !message) return false;

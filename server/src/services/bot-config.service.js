@@ -20,7 +20,7 @@ const DEFAULT_BOT_CONFIG = Object.freeze({
   customer_name_attempt_limit: 3,
   menu_keywords: 'oi,olá,ola,bom dia,boa tarde,boa noite,menu,início,inicio,ajuda',
   human_handoff_keywords: 'atendente,humano,pessoa,falar com alguém,falar com alguem',
-  greeting_message: 'Olá, *{nome}*! 👋\n\nBem-vindo à nossa central de atendimento.\n\n🏢 *Com qual departamento deseja falar?*\n\n{opcoes}\n\n_Responda com o número ou o nome do departamento._',
+  greeting_message: 'Olá, *{nome}*! 👋\n\nBem-vindo ao atendimento do *Grupo Combate*.\n\n🏢 *Com qual departamento deseja falar?*\n\n{opcoes}\n\n_Responda com o número ou o nome do departamento._',
   disabled_routing_message: 'Olá, *{nome}*! 👋\n\n📩 Recebemos sua mensagem e encaminhamos seu atendimento para *{departamento}*.\n\n_Aguarde um momento. Um de nossos atendentes responderá em breve._',
   fallback_routing_message: '🔄 *Atendimento encaminhado*\n\n{nome}, para agilizar seu atendimento, direcionamos sua conversa para *{departamento}*.\n\n_Um atendente responderá em breve._',
   human_handoff_message: '👤 *Atendimento humano solicitado*\n\nEntendido, {nome}! Encaminhamos sua conversa para *{departamento}*.\n\n_Um atendente continuará o atendimento._',
@@ -57,6 +57,25 @@ const LEGACY_DEFAULT_MESSAGES = Object.freeze({
   rating_thank_you_message: 'Obrigado pela sua avaliação! {estrelas}\n\nSua opinião é muito importante para melhorarmos nosso atendimento.'
 });
 
+const LEGACY_FORMATTED_MESSAGE_VARIANTS = Object.freeze({
+  greeting_message: 'Olá, *{nome}*! Bem-vindo ao atendimento do Grupo Combate.\n\nCom qual departamento deseja falar?\n\n{opcoes}\n\nResponda com o número ou nome do departamento.',
+  disabled_routing_message: 'Olá, *{nome}*! Recebemos sua mensagem e encaminhamos seu atendimento para *{departamento}*. Aguarde um de nossos atendentes.',
+  fallback_routing_message: 'Para agilizar seu atendimento, encaminhei sua conversa para *{departamento}*. Um atendente responderá em breve.',
+  human_handoff_message: 'Entendido! Encaminhei sua conversa para *{departamento}*. Um atendente continuará o atendimento.',
+  ask_customer_name_message: 'Antes de continuarmos, qual é o seu nome?\n\nDigite apenas seu nome, por favor.',
+  invalid_customer_name_message: 'Não consegui identificar um nome válido. Digite apenas seu nome, sem números ou outras informações.\n\nTentativa {tentativa} de {limite}.',
+  confirm_customer_name_message: 'Entendi que seu nome é *{nome}*. Está correto?\n\n1️⃣ - Sim\n2️⃣ - Corrigir',
+  customer_name_saved_message: 'Obrigado, *{nome}*! Seu nome foi confirmado.',
+  customer_name_skipped_message: 'Tudo bem, vamos continuar sem salvar seu nome.',
+  resume_message: 'Olá, *{nome}*! Você foi atendido recentemente pelo setor *{departamento}*.\n\n1️⃣ - Continuar com *{departamento}*\n2️⃣ - Escolher outro departamento\n\nResponda com 1 ou 2.',
+  invalid_option_message: '⚠️ Não consegui identificar o departamento. Escolha uma das opções abaixo:\n\n{opcoes}\n\nTentativa {tentativa} de {limite}.',
+  media_during_routing_message: 'Recebi seu arquivo, mas primeiro preciso saber o departamento desejado. Escolha uma opção:\n\n{opcoes}',
+  queue_confirmation_message: '✅ Atendimento encaminhado para *{departamento}*. Aguarde um momento; um de nossos especialistas responderá em breve.',
+  transfer_message: '🔄 Seu atendimento foi transferido para *{departamento}*. Um atendente continuará a conversa em breve.',
+  rating_request_message: '✅ *Seu atendimento foi encerrado*!\n\nGostaríamos da sua opinião. Como você avalia o atendimento que recebeu?\n\nResponda com apenas um número:\n\n1️⃣ - Muito insatisfeito\n2️⃣ - Insatisfeito\n3️⃣ - Regular\n4️⃣ - Satisfeito\n5️⃣ - Muito satisfeito',
+  rating_thank_you_message: 'Obrigado pela sua avaliação! {estrelas}\n\nSua opinião é muito importante para melhorarmos nosso atendimento.'
+});
+
 const BOOLEAN_FIELDS = [
   'enabled', 'show_department_menu', 'accept_department_name', 'resume_recent_enabled',
   'auto_route_after_invalid', 'send_queue_confirmation', 'send_transfer_notice',
@@ -82,7 +101,8 @@ function normalizeBotConfig(value = {}) {
   for (const field of MESSAGE_FIELDS) {
     if (typeof source[field] === 'string') {
       const savedMessage = source[field].slice(0, 4000);
-      config[field] = savedMessage === LEGACY_DEFAULT_MESSAGES[field] ? DEFAULT_BOT_CONFIG[field] : savedMessage;
+      const isKnownLegacyMessage = savedMessage === LEGACY_DEFAULT_MESSAGES[field] || savedMessage === LEGACY_FORMATTED_MESSAGE_VARIANTS[field];
+      config[field] = isKnownLegacyMessage ? DEFAULT_BOT_CONFIG[field] : savedMessage;
     }
   }
   for (const field of ['menu_keywords', 'human_handoff_keywords']) {

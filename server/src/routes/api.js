@@ -29,7 +29,9 @@ router.post('/auth/logout', (req, res) => authController.logout(req, res));
 router.get('/auth/me', requireAuth, (req, res) => authController.me(req, res));
 router.get('/media/:filename', requireAuth, async (req, res) => {
   const filename = path.basename(req.params.filename || '');
-  if (!filename || filename !== req.params.filename) return res.status(400).json({ success: false, error: 'Arquivo inválido.' });
+  if (!filename || filename !== req.params.filename || !/^[a-zA-Z0-9._-]+$/.test(filename)) {
+    return res.status(400).json({ success: false, error: 'Arquivo inválido.' });
+  }
   if (!(await ticketService.canAccessMedia(filename, req.user))) {
     return res.status(404).json({ success: false, error: 'Mídia não encontrada.' });
   }

@@ -35,3 +35,14 @@ test('renderBotMessage substitui apenas variáveis conhecidas', () => {
 test('departmentOptions cria menu numerado', () => {
   assert.equal(departmentOptions([{ name: 'Comercial' }, { name: 'Suporte' }]), '1️⃣ - Comercial\n2️⃣ - Suporte');
 });
+
+test('atualiza somente modelos legados para a versão formatada do WhatsApp', () => {
+  const migrated = normalizeBotConfig({
+    queue_confirmation_message: '✅ Atendimento encaminhado para {departamento}. Aguarde um momento; um de nossos especialistas responderá em breve.'
+  });
+  assert.match(migrated.queue_confirmation_message, /\*Atendimento encaminhado\*/);
+  assert.match(migrated.queue_confirmation_message, /\{nome\}/);
+
+  const custom = normalizeBotConfig({ queue_confirmation_message: 'Minha mensagem personalizada' });
+  assert.equal(custom.queue_confirmation_message, 'Minha mensagem personalizada');
+});

@@ -17,13 +17,24 @@
       {{ initials || 'CL' }}
     </div>
     <div class="chat-bubble incoming">
+      <div v-if="hasMedia && mediaLoading" class="media-status-card">
+        <i class="fa-solid fa-spinner fa-spin"></i>
+        <span>Carregando mídia...</span>
+      </div>
+
+      <div v-else-if="hasMedia && mediaUnavailable" class="media-status-card media-status-error">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span>Não foi possível carregar esta mídia.</span>
+      </div>
+
       <!-- Imagem -->
-      <div v-if="isImage" style="margin-bottom:6px;">
+      <div v-else-if="isImage" style="margin-bottom:6px;">
         <img
           :src="resolvedMediaSrc"
           alt="Imagem recebida"
           style="max-width:260px;max-height:260px;border-radius:8px;cursor:pointer;object-fit:cover;display:block;"
           @click="showImageZoom = true"
+          @error="mediaLoadError = true"
         />
       </div>
 
@@ -33,12 +44,12 @@
           <i class="fa-solid fa-microphone" style="color:#2563eb;"></i>
           <span>Mensagem de Voz</span>
         </div>
-        <audio controls :src="resolvedMediaSrc" style="width:100%;height:36px;border-radius:20px;"></audio>
+        <audio controls preload="metadata" :src="resolvedMediaSrc" style="width:100%;height:36px;border-radius:20px;" @error="mediaLoadError = true"></audio>
       </div>
 
       <!-- Vídeo -->
       <div v-else-if="isVideo" style="margin-bottom:6px;">
-        <video controls :src="resolvedMediaSrc" style="max-width:280px;max-height:260px;border-radius:8px;display:block;"></video>
+        <video controls preload="metadata" :src="resolvedMediaSrc" style="max-width:280px;max-height:260px;border-radius:8px;display:block;" @error="mediaLoadError = true"></video>
       </div>
 
       <!-- Documento -->
@@ -50,7 +61,7 @@
           style="display:inline-flex;align-items:center;gap:8px;padding:8px 12px;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;color:#2563eb;text-decoration:none;font-weight:600;font-size:12px;"
         >
           <i class="fa-solid fa-file-arrow-down" style="font-size:16px;"></i>
-          <span>Baixar Arquivo / Documento</span>
+          <span>{{ documentName }}</span>
         </a>
       </div>
 
@@ -67,24 +78,35 @@
         {{ agentName }}
       </div>
 
+      <div v-if="hasMedia && mediaLoading" class="media-status-card">
+        <i class="fa-solid fa-spinner fa-spin"></i>
+        <span>Carregando mídia...</span>
+      </div>
+
+      <div v-else-if="hasMedia && mediaUnavailable" class="media-status-card media-status-error">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span>Não foi possível carregar esta mídia.</span>
+      </div>
+
       <!-- Imagem enviada pelo atendente -->
-      <div v-if="isImage" style="margin-bottom:6px;">
+      <div v-else-if="isImage" style="margin-bottom:6px;">
         <img
           :src="resolvedMediaSrc"
           alt="Imagem enviada"
           style="max-width:260px;max-height:260px;border-radius:8px;cursor:pointer;object-fit:cover;display:block;"
           @click="showImageZoom = true"
+          @error="mediaLoadError = true"
         />
       </div>
 
       <!-- Áudio enviado -->
       <div v-else-if="isAudio" style="margin-bottom:6px;min-width:220px;">
-        <audio controls :src="resolvedMediaSrc" style="width:100%;height:36px;border-radius:20px;"></audio>
+        <audio controls preload="metadata" :src="resolvedMediaSrc" style="width:100%;height:36px;border-radius:20px;" @error="mediaLoadError = true"></audio>
       </div>
 
       <!-- Vídeo enviado -->
       <div v-else-if="isVideo" style="margin-bottom:6px;">
-        <video controls :src="resolvedMediaSrc" style="max-width:280px;max-height:260px;border-radius:8px;display:block;"></video>
+        <video controls preload="metadata" :src="resolvedMediaSrc" style="max-width:280px;max-height:260px;border-radius:8px;display:block;" @error="mediaLoadError = true"></video>
       </div>
 
       <!-- Documento enviado -->
@@ -96,7 +118,7 @@
           style="display:inline-flex;align-items:center;gap:8px;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1d4ed8;text-decoration:none;font-weight:600;font-size:12px;"
         >
           <i class="fa-solid fa-file-arrow-down" style="font-size:16px;"></i>
-          <span>Baixar Arquivo / Documento</span>
+          <span>{{ documentName }}</span>
         </a>
       </div>
 
@@ -139,6 +161,7 @@
 <script setup>
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import http from '@/api/http'
+import { cleanMediaDisplayText, getDocumentDisplayName, getMediaSource } from '@/utils/media-message'
 
 const props = defineProps({
   msg: {
@@ -156,6 +179,8 @@ const props = defineProps({
 })
 
 const showImageZoom = ref(false)
+const mediaLoading = ref(false)
+const mediaLoadError = ref(false)
 
 const isSystemMessage = computed(() => {
   const t = props.msg?.text || ''
@@ -176,13 +201,7 @@ const formattedSystemText = computed(() => {
 
 // Identifica URL e tipo de mídia
 const mediaSrc = computed(() => {
-  if (props.msg?.media_url) return props.msg.media_url
-  if (props.msg?.mediaUrl) return props.msg.mediaUrl
-  const t = props.msg?.text || ''
-  if (t.includes('||/media/')) {
-    return t.split('||')[1]
-  }
-  return null
+  return getMediaSource(props.msg)
 })
 
 const resolvedMediaSrc = ref(null)
@@ -192,6 +211,8 @@ watch(mediaSrc, async (source) => {
   if (mediaObjectUrl) URL.revokeObjectURL(mediaObjectUrl)
   mediaObjectUrl = null
   resolvedMediaSrc.value = null
+  mediaLoading.value = Boolean(source)
+  mediaLoadError.value = false
   if (!source) return
 
   if (source.startsWith('/api/media/') || source.startsWith('/media/')) {
@@ -201,7 +222,10 @@ watch(mediaSrc, async (source) => {
       mediaObjectUrl = URL.createObjectURL(response.data)
       resolvedMediaSrc.value = mediaObjectUrl
     } catch (error) {
+      mediaLoadError.value = true
       console.error('Não foi possível carregar o anexo protegido.', error)
+    } finally {
+      mediaLoading.value = false
     }
     return
   }
@@ -210,8 +234,11 @@ watch(mediaSrc, async (source) => {
     const url = new URL(source, window.location.origin)
     if (url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'blob:') {
       resolvedMediaSrc.value = url.href
+      mediaLoading.value = false
     }
   } catch {
+    mediaLoadError.value = true
+    mediaLoading.value = false
     resolvedMediaSrc.value = null
   }
 }, { immediate: true })
@@ -244,6 +271,13 @@ const isDocument = computed(() => {
   return false
 })
 
+const hasMedia = computed(() => isImage.value || isAudio.value || isVideo.value || isDocument.value)
+const mediaUnavailable = computed(() => mediaLoadError.value || !mediaSrc.value || !resolvedMediaSrc.value)
+
+const documentName = computed(() => {
+  return getDocumentDisplayName(props.msg, mediaSrc.value)
+})
+
 // Extrai *Nome*:\n\nTexto ou *Nome:* Texto para mensagens do atendente
 const agentMatch = computed(() => {
   const text = props.msg?.text || ''
@@ -254,15 +288,28 @@ const agentName = computed(() => agentMatch.value ? agentMatch.value[1] : null)
 
 const displayText = computed(() => {
   let raw = agentMatch.value ? agentMatch.value[2] : props.msg?.text || ''
-  if (raw.includes('||/media/')) {
-    raw = raw.split('||')[0]
-  }
-  // Se for mensagem de mídia sem legenda personalizada, não precisa exibir o marcador textual repetido
-  if (mediaSrc.value) {
-    if (raw === '📷 [Imagem]' || raw === '🎙️ [Mensagem de Voz]' || raw === '🎥 [Vídeo]' || raw === '🖼️ [Figurinha]' || raw === '[Mídia/Arquivo]') {
-      return ''
-    }
-  }
-  return raw
+  return cleanMediaDisplayText(raw, Boolean(mediaSrc.value))
 })
 </script>
+
+<style scoped>
+.media-status-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #475569;
+  font-size: 11.5px;
+}
+
+.media-status-error {
+  border-color: #fecaca;
+  background: #fff7f7;
+  color: #b91c1c;
+}
+</style>
