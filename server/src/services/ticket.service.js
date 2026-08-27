@@ -432,6 +432,49 @@ ${rendered}`,
 
          const nameState = await getLatestBotState(ticket.id);
          const normalizeKeyword = value => value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+         // Verifica se o cliente solicitou cancelamento/encerramento do atendimento
+         const cancelKeywords = (botConfig.cancel_keywords || 'cancelar,encerrar,sair,parar,desistir,finalizar,0')
+           .split(',')
+           .map(normalizeKeyword)
+           .filter(Boolean);
+
+         if (botConfig.allow_customer_cancel && cancelKeywords.some(keyword => cleanLower === keyword || (keyword.length >= 4 && cleanLower.includes(keyword)))) {
+           console.log(`🚫 Atendimento cancelado pelo cliente no bot: Ticket ${ticket.id} (${cleanName})`);
+           const encerradoEm = makeTimeStr(now);
+           const closePayload = {
+             status: 'finalizado',
+             assumed: false,
+             encerrado_em: encerradoEm,
+             encerrado_por: 'Cliente',
+             closed_at: now.toISOString(),
+             unread_count: 0,
+             updated_at: now.toISOString()
+           };
+           await supabase.from('tickets').update(closePayload).eq('id', ticket.id);
+           Object.assign(ticket, closePayload);
+
+           await supabase.from('messages').insert({
+             ticket_id: ticket.id,
+             sender: 'system',
+             type: 'divider',
+             text: '🚫 [Chatbot] Atendimento cancelado pelo cliente',
+             time: encerradoEm
+           });
+
+           try {
+             await sendBotText(ticket.id, botConfig.customer_cancel_message, { nome: cleanName });
+           } catch (_) {}
+
+           if (io) {
+             emitTicketEvent(io, 'ticket_closed', { ticketId: ticket.id, status: 'finalizado', closed_at: now.toISOString(), encerrado_por: 'Cliente' }, ticket);
+             emitTicketEvent(io, 'queue_updated', { ticket }, ticket);
+             io.emit('kpis_updated');
+           }
+
+           return { type: 'customer_cancelled', ticket };
+         }
+
          const humanKeywords = botConfig.human_handoff_keywords.split(',').map(normalizeKeyword).filter(Boolean);
          if (botConfig.human_handoff_enabled && humanKeywords.some(keyword => cleanLower === keyword || cleanLower.includes(keyword))) {
            return routeWithoutBot(ticket, text, false, botConfig.human_handoff_message);
@@ -641,6 +684,51 @@ ${rendered}`,
       }
 
       // Ticket em andamento (aguardando ou em_atendimento)
+       if (ticket.status === 'aguardando') {
+         const cleanLowerAguardando = text.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+         const normalizeKw = value => value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+         const cancelKeywords = (botConfig.cancel_keywords || 'cancelar,encerrar,sair,parar,desistir,finalizar,0')
+           .split(',')
+           .map(normalizeKw)
+           .filter(Boolean);
+
+         if (botConfig.allow_customer_cancel && cancelKeywords.some(keyword => cleanLowerAguardando === keyword || (keyword.length >= 4 && cleanLowerAguardando.includes(keyword)))) {
+           console.log(`🚫 Atendimento na fila cancelado pelo cliente: Ticket ${ticket.id} (${cleanName})`);
+           const encerradoEm = makeTimeStr(now);
+           const closePayload = {
+             status: 'finalizado',
+             assumed: false,
+             encerrado_em: encerradoEm,
+             encerrado_por: 'Cliente',
+             closed_at: now.toISOString(),
+             unread_count: 0,
+             updated_at: now.toISOString()
+           };
+           await supabase.from('tickets').update(closePayload).eq('id', ticket.id);
+           Object.assign(ticket, closePayload);
+
+           await supabase.from('messages').insert({
+             ticket_id: ticket.id,
+             sender: 'system',
+             type: 'divider',
+             text: '🚫 Atendimento cancelado pelo cliente na fila de espera',
+             time: encerradoEm
+           });
+
+           try {
+             await sendBotText(ticket.id, botConfig.customer_cancel_message, { nome: cleanName });
+           } catch (_) {}
+
+           if (io) {
+             emitTicketEvent(io, 'ticket_closed', { ticketId: ticket.id, status: 'finalizado', closed_at: now.toISOString(), encerrado_por: 'Cliente' }, ticket);
+             emitTicketEvent(io, 'queue_updated', { ticket }, ticket);
+             io.emit('kpis_updated');
+           }
+
+           return { type: 'customer_cancelled', ticket };
+         }
+       }
+
       const newUnread = (ticket.unread_count || 0) + 1;
       await supabase.from('tickets').update({ preview: text.slice(0, 50), time: t, updated_at: now.toISOString(), unread_count: newUnread }).eq('id', ticket.id);
       ticket.preview = text.slice(0, 50); ticket.time = t; ticket.unread_count = newUnread;

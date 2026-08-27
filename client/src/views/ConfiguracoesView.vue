@@ -201,7 +201,7 @@
             <span class="bot-field-help">Após esse limite, o atendimento continua sem salvar um nome.</span>
           </div>
 
-          <div class="settings-form-grid-2">
+          <div class="settings-form-grid-3" style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">
             <div>
               <label class="bot-field-label">Palavras para reabrir o menu</label>
               <input v-model="botConfig.menu_keywords" class="bot-field-control" type="text" />
@@ -211,6 +211,11 @@
               <label class="bot-field-label">Palavras para falar com um humano</label>
               <input v-model="botConfig.human_handoff_keywords" class="bot-field-control" type="text" :disabled="!botConfig.human_handoff_enabled" />
               <span class="bot-field-help">Encaminha imediatamente ao departamento padrão.</span>
+            </div>
+            <div>
+              <label class="bot-field-label">Palavras para cancelar atendimento</label>
+              <input v-model="botConfig.cancel_keywords" class="bot-field-control" type="text" :disabled="!botConfig.allow_customer_cancel" />
+              <span class="bot-field-help">Encerra o chamado no bot. Ex: cancelar, sair, 0.</span>
             </div>
           </div>
 
@@ -359,6 +364,7 @@ const defaultBotMessages = {
   disabled_routing_message: 'Olá, *{nome}*! 👋\n\n📩 Recebemos sua mensagem e encaminhamos seu atendimento para *{departamento}*.\n\n_Aguarde um momento. Um de nossos atendentes responderá em breve._',
   fallback_routing_message: '🔄 *Atendimento encaminhado*\n\n{nome}, para agilizar seu atendimento, direcionamos sua conversa para *{departamento}*.\n\n_Um atendente responderá em breve._',
   human_handoff_message: '👤 *Atendimento humano solicitado*\n\nEntendido, {nome}! Encaminhamos sua conversa para *{departamento}*.\n\n_Um atendente continuará o atendimento._',
+  customer_cancel_message: '🚫 *Atendimento encerrado*\n\n{nome}, seu atendimento foi cancelado conforme solicitado.\n\nSe precisar de ajuda novamente no futuro, basta nos enviar uma nova mensagem! Tenha um ótimo dia! 👋',
   ask_customer_name_message: 'Olá! 👋\n\nAntes de continuarmos, *qual é o seu nome?*\n\n_Digite apenas seu nome, por favor._',
   invalid_customer_name_message: '⚠️ *Não consegui identificar um nome válido.*\n\nDigite apenas seu nome, sem números ou outras informações.\n\n_Tentativa {tentativa} de {limite}._',
   confirm_customer_name_message: 'Só para confirmar: seu nome é *{nome}*?\n\n1️⃣  Sim\n2️⃣  Corrigir\n\n_Responda com 1 ou 2._',
@@ -388,11 +394,13 @@ const botConfig = ref({
   send_rating_request: true,
   accept_media_during_routing: true,
   human_handoff_enabled: true,
+  allow_customer_cancel: true,
   collect_customer_name: true,
   require_customer_last_name: false,
   customer_name_attempt_limit: 3,
   menu_keywords: 'oi,olá,ola,bom dia,boa tarde,boa noite,menu,início,inicio,ajuda',
   human_handoff_keywords: 'atendente,humano,pessoa,falar com alguém,falar com alguem',
+  cancel_keywords: 'cancelar,encerrar,sair,parar,desistir,finalizar,0,cancelar atendimento,encerrar atendimento',
   ...defaultBotMessages
 })
 
@@ -403,6 +411,7 @@ const botBehaviorOptions = [
   { key: 'auto_route_after_invalid', label: 'Encaminhar após erros', help: 'Evita que o cliente fique preso no menu.' },
   { key: 'accept_media_during_routing', label: 'Aceitar mídia durante o menu', help: 'Permite imagens, áudios e arquivos antes da escolha.' },
   { key: 'human_handoff_enabled', label: 'Permitir pedir atendimento humano', help: 'Reconhece palavras configuradas e encaminha para a fila padrão.' },
+  { key: 'allow_customer_cancel', label: 'Permitir que o cliente cancele o atendimento', help: 'Encerra o chamado e tira da fila quando o cliente digita palavras como cancelar, sair ou 0.' },
   { key: 'collect_customer_name', label: 'Perguntar o nome de clientes desconhecidos', help: 'Solicita e confirma o nome antes do menu; desligue para pular esta etapa.' },
   { key: 'require_customer_last_name', label: 'Exigir nome e sobrenome', help: 'Reduz cadastros imprecisos exigindo pelo menos duas palavras.' },
   { key: 'send_queue_confirmation', label: 'Confirmar entrada na fila', help: 'Envia uma mensagem após escolher o departamento.' },
@@ -415,6 +424,7 @@ const botMessageFields = [
   { key: 'disabled_routing_message', label: 'Bot desativado — encaminhamento automático', help: 'Enviada quando o contato é direcionado ao departamento padrão.' },
   { key: 'fallback_routing_message', label: 'Encaminhamento após tentativas inválidas', help: 'Enviada quando o limite de respostas não reconhecidas é atingido.' },
   { key: 'human_handoff_message', label: 'Encaminhamento solicitado para humano', help: 'Enviada quando o cliente pede atendimento humano.' },
+  { key: 'customer_cancel_message', label: 'Mensagem de cancelamento pelo cliente', rows: 4, help: 'Enviada quando o cliente solicita cancelar ou encerrar o atendimento.' },
   { key: 'ask_customer_name_message', label: 'Pergunta do nome do cliente', help: 'Enviada apenas para números que ainda não possuem um contato cadastrado.' },
   { key: 'invalid_customer_name_message', label: 'Nome não reconhecido', help: 'Pode usar {tentativa} e {limite}.' },
   { key: 'confirm_customer_name_message', label: 'Confirmação do nome', rows: 4, help: 'Use {nome}. O nome só é salvo após o cliente confirmar.' },

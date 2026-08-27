@@ -15,15 +15,18 @@ const DEFAULT_BOT_CONFIG = Object.freeze({
   send_rating_request: true,
   accept_media_during_routing: true,
   human_handoff_enabled: true,
+  allow_customer_cancel: true,
   collect_customer_name: true,
   require_customer_last_name: false,
   customer_name_attempt_limit: 3,
   menu_keywords: 'oi,olá,ola,bom dia,boa tarde,boa noite,menu,início,inicio,ajuda',
   human_handoff_keywords: 'atendente,humano,pessoa,falar com alguém,falar com alguem',
+  cancel_keywords: 'cancelar,encerrar,sair,parar,desistir,finalizar,0,0️⃣,cancelar atendimento,encerrar atendimento,nao quero mais,não quero mais',
   greeting_message: 'Olá, *{nome}*! 👋\n\nBem-vindo ao atendimento do *Grupo Combate*.\n\n🏢 *Com qual departamento deseja falar?*\n\n{opcoes}\n\n_Responda com o número ou o nome do departamento._',
   disabled_routing_message: 'Olá, *{nome}*! 👋\n\n📩 Recebemos sua mensagem e encaminhamos seu atendimento para *{departamento}*.\n\n_Aguarde um momento. Um de nossos atendentes responderá em breve._',
   fallback_routing_message: '🔄 *Atendimento encaminhado*\n\n{nome}, para agilizar seu atendimento, direcionamos sua conversa para *{departamento}*.\n\n_Um atendente responderá em breve._',
   human_handoff_message: '👤 *Atendimento humano solicitado*\n\nEntendido, {nome}! Encaminhamos sua conversa para *{departamento}*.\n\n_Um atendente continuará o atendimento._',
+  customer_cancel_message: '🚫 *Atendimento encerrado*\n\n{nome}, seu atendimento foi cancelado conforme solicitado.\n\nSe precisar de ajuda novamente no futuro, basta nos enviar uma nova mensagem! Tenha um ótimo dia! 👋',
   ask_customer_name_message: 'Olá! 👋\n\nAntes de continuarmos, *qual é o seu nome?*\n\n_Digite apenas seu nome, por favor._',
   invalid_customer_name_message: '⚠️ *Não consegui identificar um nome válido.*\n\nDigite apenas seu nome, sem números ou outras informações.\n\n_Tentativa {tentativa} de {limite}._',
   confirm_customer_name_message: 'Só para confirmar: seu nome é *{nome}*?\n\n1️⃣  Sim\n2️⃣  Corrigir\n\n_Responda com 1 ou 2._',
@@ -43,6 +46,7 @@ const LEGACY_DEFAULT_MESSAGES = Object.freeze({
   disabled_routing_message: 'Olá, {nome}! Recebemos sua mensagem e encaminhamos seu atendimento para {departamento}. Aguarde um de nossos atendentes.',
   fallback_routing_message: 'Para agilizar seu atendimento, encaminhei sua conversa para {departamento}. Um atendente responderá em breve.',
   human_handoff_message: 'Entendido! Encaminhei sua conversa para {departamento}. Um atendente continuará o atendimento.',
+  customer_cancel_message: 'Seu atendimento foi cancelado conforme solicitado. Caso precise, envie uma nova mensagem.',
   ask_customer_name_message: 'Antes de continuarmos, qual é o seu nome?\n\nDigite apenas seu nome, por favor.',
   invalid_customer_name_message: 'Não consegui identificar um nome válido. Digite apenas seu nome, sem números ou outras informações.\n\nTentativa {tentativa} de {limite}.',
   confirm_customer_name_message: 'Entendi que seu nome é *{nome}*. Está correto?\n\n1️⃣ - Sim\n2️⃣ - Corrigir',
@@ -62,6 +66,7 @@ const LEGACY_FORMATTED_MESSAGE_VARIANTS = Object.freeze({
   disabled_routing_message: 'Olá, *{nome}*! Recebemos sua mensagem e encaminhamos seu atendimento para *{departamento}*. Aguarde um de nossos atendentes.',
   fallback_routing_message: 'Para agilizar seu atendimento, encaminhei sua conversa para *{departamento}*. Um atendente responderá em breve.',
   human_handoff_message: 'Entendido! Encaminhei sua conversa para *{departamento}*. Um atendente continuará o atendimento.',
+  customer_cancel_message: '🚫 *Atendimento encerrado*\n\n{nome}, seu atendimento foi cancelado conforme solicitado.\n\nSe precisar de ajuda novamente no futuro, basta nos enviar uma nova mensagem! Tenha um ótimo dia! 👋',
   ask_customer_name_message: 'Antes de continuarmos, qual é o seu nome?\n\nDigite apenas seu nome, por favor.',
   invalid_customer_name_message: 'Não consegui identificar um nome válido. Digite apenas seu nome, sem números ou outras informações.\n\nTentativa {tentativa} de {limite}.',
   confirm_customer_name_message: 'Entendi que seu nome é *{nome}*. Está correto?\n\n1️⃣ - Sim\n2️⃣ - Corrigir',
@@ -80,12 +85,12 @@ const BOOLEAN_FIELDS = [
   'enabled', 'show_department_menu', 'accept_department_name', 'resume_recent_enabled',
   'auto_route_after_invalid', 'send_queue_confirmation', 'send_transfer_notice',
   'send_rating_request', 'accept_media_during_routing', 'human_handoff_enabled',
-  'collect_customer_name', 'require_customer_last_name'
+  'allow_customer_cancel', 'collect_customer_name', 'require_customer_last_name'
 ];
 
 const MESSAGE_FIELDS = [
   'greeting_message', 'disabled_routing_message', 'fallback_routing_message', 'human_handoff_message',
-  'ask_customer_name_message', 'invalid_customer_name_message', 'confirm_customer_name_message',
+  'customer_cancel_message', 'ask_customer_name_message', 'invalid_customer_name_message', 'confirm_customer_name_message',
   'customer_name_saved_message', 'customer_name_skipped_message', 'resume_message', 'invalid_option_message',
   'media_during_routing_message', 'queue_confirmation_message', 'transfer_message',
   'rating_request_message', 'rating_thank_you_message'
@@ -105,7 +110,7 @@ function normalizeBotConfig(value = {}) {
       config[field] = isKnownLegacyMessage ? DEFAULT_BOT_CONFIG[field] : savedMessage;
     }
   }
-  for (const field of ['menu_keywords', 'human_handoff_keywords']) {
+  for (const field of ['menu_keywords', 'human_handoff_keywords', 'cancel_keywords']) {
     if (typeof source[field] === 'string') config[field] = source[field].slice(0, 1000);
   }
 
