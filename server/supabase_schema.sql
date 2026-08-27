@@ -123,6 +123,8 @@ CREATE TABLE IF NOT EXISTS messages (
     media_type VARCHAR(50),
     read BOOLEAN DEFAULT false,
     remote_message_id VARCHAR(100), -- ID do WhatsApp
+    whatsapp_account_id TEXT,
+    file_name TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -199,9 +201,20 @@ ALTER TABLE tickets ADD COLUMN IF NOT EXISTS encerrado_por VARCHAR(255);
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender VARCHAR(20);
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS type VARCHAR(30);
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS time VARCHAR(20);
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS remote_message_id TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS whatsapp_account_id TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_name TEXT;
 ALTER TABLE ratings ADD COLUMN IF NOT EXISTS agent_name VARCHAR(255);
 ALTER TABLE ratings ADD COLUMN IF NOT EXISTS phone VARCHAR(30);
 ALTER TABLE ratings ADD COLUMN IF NOT EXISTS jid TEXT;
+
+CREATE INDEX IF NOT EXISTS tickets_department_status_idx ON tickets(department_id, status);
+CREATE INDEX IF NOT EXISTS tickets_channel_phone_status_idx ON tickets(channel, phone, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS tickets_channel_jid_status_idx ON tickets(channel, jid, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS messages_ticket_created_idx ON messages(ticket_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS messages_whatsapp_remote_unique_idx
+  ON messages(whatsapp_account_id, remote_message_id)
+  WHERE whatsapp_account_id IS NOT NULL AND remote_message_id IS NOT NULL;
 
 -- A aplicação acessa estas tabelas somente pelo backend com service role.
 -- Bloqueia acesso direto pelas chaves públicas/anon do Supabase.

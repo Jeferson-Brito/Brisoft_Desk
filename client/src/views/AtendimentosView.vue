@@ -2,7 +2,7 @@
   <div class="atendimentos-view-layout">
     <div
       class="atendimentos-main-grid"
-      :class="{ 'details-open': isDetailsOpen }"
+      :class="{ 'details-open': isDetailsOpen && !!ticketStore.activeTicket }"
     >
       <!-- Coluna 1: Fila de Atendimentos -->
       <QueueList />
@@ -10,13 +10,13 @@
       <!-- Coluna 2: Chat em Tempo Real -->
       <ChatPanel
         :ticket="ticketStore.activeTicket"
-        :is-details-open="isDetailsOpen"
+        :is-details-open="isDetailsOpen && !!ticketStore.activeTicket"
         @toggle-details="isDetailsOpen = !isDetailsOpen"
       />
 
       <!-- Coluna 3: Detalhes do Contato -->
       <ContactDrawer
-        v-if="isDetailsOpen"
+        v-if="isDetailsOpen && ticketStore.activeTicket"
         :ticket="ticketStore.activeTicket"
       />
     </div>

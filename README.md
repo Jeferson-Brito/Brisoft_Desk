@@ -64,3 +64,14 @@ npm run build
 - Anexos exigem autenticação e permissão sobre o chamado.
 - Alterar senha, função, setor ou status de um usuário encerra a sessão em tempo real desse usuário.
 - Não versione `server/.env`, sessões do WhatsApp nem arquivos recebidos.
+
+## Capacidade e concorrência
+
+- Clientes diferentes são processados em paralelo; as mensagens de um mesmo número permanecem na ordem em que chegaram.
+- `WHATSAPP_MESSAGE_CONCURRENCY` controla quantos clientes são processados simultaneamente (padrão: 10).
+- `WHATSAPP_MAX_PENDING_MESSAGES` limita a fila em memória para proteger o servidor durante picos (padrão: 10.000).
+- Mensagens do WhatsApp são deduplicadas em memória e, após executar `server/migrate_current.sql`, também no Supabase.
+- `WHATSAPP_MAX_MEDIA_MB` limita o tamanho de cada anexo (padrão: 25 MB).
+- Mídias locais expiram após `WHATSAPP_MEDIA_RETENTION_DAYS` dias (padrão: 30); use `0` para desativar a limpeza.
+
+A fila atual é adequada a uma única instância do servidor. Ela não é persistente: uma reinicialização descarta apenas tarefas que ainda não começaram. Para executar várias instâncias ou buscar escala horizontal, será necessário substituir a fila em memória por uma fila externa durável e armazenar as mídias em storage de objetos.

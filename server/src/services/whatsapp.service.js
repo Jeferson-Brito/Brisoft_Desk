@@ -5,11 +5,26 @@ const fs = require('fs');
 const crypto = require('crypto');
 const pino = require('pino');
 const ticketService = require('./ticket.service');
+const KeyedTaskQueue = require('./keyed-task-queue.service');
 const { supabase, isSupabaseConfigured } = require('../config/supabase');
 
 const SESSION_ROOT = path.join(__dirname, '../../session_auth');
 const ACCOUNTS_ROOT = path.join(SESSION_ROOT, 'accounts');
 const SETTINGS_KEY = 'whatsapp_accounts';
+const MEDIA_DIR = path.join(__dirname, '../../public/media');
+
+function envInteger(name, fallback, minimum = 0) {
+  const parsed = Number.parseInt(process.env[name], 10);
+  return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback;
+}
+
+function mediaSizeBytes(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'bigint') return Number(value);
+  if (value && typeof value.toNumber === 'function') return value.toNumber();
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 function safeAccountId(value) {
   return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '');
@@ -53,6 +68,15 @@ class WhatsAppService {
     this.accounts = new Map();
     this.io = null;
     this.loaded = false;
+    this.messageQueue = new KeyedTaskQueue({
+      concurrency: envInteger('WHATSAPP_MESSAGE_CONCURRENCY', 10, 1),
+      maxPending: envInteger('WHATSAPP_MAX_PENDING_MESSAGES', 10000, 1)
+    });
+    this.recentMessageIds = new Map();
+    this.maxMediaBytes = envInteger('WHATSAPP_MAX_MEDIA_MB', 25, 1) * 1024 * 1024;
+    this.mediaRetentionDays = envInteger('WHATSAPP_MEDIA_RETENTION_DAYS', 30, 0);
+    this.mediaCleanupHours = envInteger('WHATSAPP_MEDIA_CLEANUP_HOURS', 6, 1);
+    this.mediaCleanupTimer = null;
   }
 
   setIO(ioInstance) {
@@ -63,6 +87,7 @@ class WhatsAppService {
     if (this.loaded) return;
     this.loaded = true;
     fs.mkdirSync(ACCOUNTS_ROOT, { recursive: true });
+    this.startMediaCleanup();
     this.migrateLegacySession();
 
     let configs = await this.loadConfigs();
@@ -249,49 +274,76 @@ class WhatsAppService {
   }
 
   bindMessages(account, downloadMediaMessage, downloadContentFromMessage) {
-    account.sock.ev.on('messages.upsert', async event => {
+    account.sock.ev.on('messages.upsert', event => {
       if (event.type !== 'notify') return;
       for (const msg of event.messages || []) {
         if (msg.key.fromMe || !msg.message) continue;
         const rawJid = msg.key.remoteJid;
         if (!rawJid || rawJid.includes('@g.us') || rawJid.includes('@newsletter') || rawJid.includes('status@broadcast')) continue;
+        const messageKey = `${account.id}:${msg.key.id || `${rawJid}:${msg.messageTimestamp}`}`;
+        if (this.recentMessageIds.has(messageKey)) continue;
+        this.rememberMessageId(messageKey);
+        let orderingJid = resolveJid(rawJid, account);
+        const participant = msg.key.participant || msg.participant;
+        if (orderingJid.includes('@lid') && participant && !participant.includes('@lid')) orderingJid = participant;
 
-        let resolvedJid = resolveJid(rawJid, account);
-        if (resolvedJid.includes('@lid')) {
-          const participant = msg.key.participant || msg.participant;
-          if (participant && !participant.includes('@lid')) {
-            resolvedJid = participant;
-            account.lidMap.set(rawJid, participant);
-          }
-        }
-        const phone = getPhoneFromJid(resolvedJid, account.lidMap);
-        const content = unwrapMessageContent(msg.message);
-        const media = await this.downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage);
-        const text = content.conversation || content.extendedTextMessage?.text ||
-          content.imageMessage?.caption || content.videoMessage?.caption ||
-          content.documentMessage?.caption || media.fallbackText || '';
-        const senderName = msg.pushName || null;
-        console.log(`[WhatsApp:${account.name}] mensagem recebida de ${senderName || `Cliente ${phone.slice(-4)}`}.`);
-
-        const scopedSender = {
-          sendMessage: (target, body) => this.sendMessage(target, body, account.id),
-          sendMediaMessage: (target, buffer, type, caption, fileName) => this.sendMediaMessage(target, buffer, type, caption, fileName, account.id)
-        };
-        await ticketService.processIncomingMessage({
-          from: resolvedJid,
-          rawJid,
-          phone,
-          senderName,
-          text,
-          mediaType: media.type,
-          mediaUrl: media.url,
-          fileName: media.fileName,
-          timestamp: msg.messageTimestamp,
-          messageId: msg.key.id,
-          whatsappAccountId: account.id
-        }, this.io, scopedSender);
+        this.messageQueue.enqueue(`${account.id}:${orderingJid}`, () => (
+          this.processIncomingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage)
+        )).catch(error => {
+          this.recentMessageIds.delete(messageKey);
+          console.error(`[WhatsApp:${account.name}] falha ao processar mensagem: ${error.message}`);
+        });
       }
     });
+  }
+
+  rememberMessageId(messageKey) {
+    const now = Date.now();
+    this.recentMessageIds.set(messageKey, now);
+    if (this.recentMessageIds.size <= 50000) return;
+    const expiration = now - (24 * 60 * 60 * 1000);
+    for (const [key, timestamp] of this.recentMessageIds) {
+      if (timestamp < expiration || this.recentMessageIds.size > 50000) this.recentMessageIds.delete(key);
+      if (this.recentMessageIds.size <= 45000) break;
+    }
+  }
+
+  async processIncomingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage) {
+    const rawJid = msg.key.remoteJid;
+    let resolvedJid = resolveJid(rawJid, account);
+    if (resolvedJid.includes('@lid')) {
+      const participant = msg.key.participant || msg.participant;
+      if (participant && !participant.includes('@lid')) {
+        resolvedJid = participant;
+        account.lidMap.set(rawJid, participant);
+      }
+    }
+    const phone = getPhoneFromJid(resolvedJid, account.lidMap);
+    const content = unwrapMessageContent(msg.message);
+    const media = await this.downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage);
+    const text = content.conversation || content.extendedTextMessage?.text ||
+      content.imageMessage?.caption || content.videoMessage?.caption ||
+      content.documentMessage?.caption || media.fallbackText || '';
+    const senderName = msg.pushName || null;
+    console.log(`[WhatsApp:${account.name}] mensagem recebida de ${senderName || `Cliente ${phone.slice(-4)}`}.`);
+
+    const scopedSender = {
+      sendMessage: (target, body) => this.sendMessage(target, body, account.id),
+      sendMediaMessage: (target, buffer, type, caption, fileName) => this.sendMediaMessage(target, buffer, type, caption, fileName, account.id)
+    };
+    return ticketService.processIncomingMessage({
+      from: resolvedJid,
+      rawJid,
+      phone,
+      senderName,
+      text,
+      mediaType: media.type,
+      mediaUrl: media.url,
+      fileName: media.fileName,
+      timestamp: msg.messageTimestamp,
+      messageId: msg.key.id,
+      whatsappAccountId: account.id
+    }, this.io, scopedSender);
   }
 
   async downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage) {
@@ -332,6 +384,12 @@ class WhatsAppService {
     }
     if (!type) return { type: null, fileName: null, url: null, fallbackText: '' };
 
+    const declaredSize = mediaSizeBytes(mediaMessage?.fileLength);
+    if (declaredSize > this.maxMediaBytes) {
+      const limitMb = Math.round(this.maxMediaBytes / (1024 * 1024));
+      return { type, fileName, url: null, fallbackText: `⚠️ [Mídia acima do limite de ${limitMb} MB]` };
+    }
+
     try {
       let buffer = null;
       try {
@@ -347,14 +405,48 @@ class WhatsAppService {
         buffer = Buffer.concat(chunks);
       }
       if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new Error('O WhatsApp retornou um arquivo vazio.');
-      const mediaDir = path.join(__dirname, '../../public/media');
-      fs.mkdirSync(mediaDir, { recursive: true });
-      fs.writeFileSync(path.join(mediaDir, fileName), buffer);
+      if (buffer.length > this.maxMediaBytes) {
+        const limitMb = Math.round(this.maxMediaBytes / (1024 * 1024));
+        return { type, fileName, url: null, fallbackText: `⚠️ [Mídia acima do limite de ${limitMb} MB]` };
+      }
+      await fs.promises.mkdir(MEDIA_DIR, { recursive: true });
+      await fs.promises.writeFile(path.join(MEDIA_DIR, fileName), buffer);
       return { type, fileName, url: `/api/media/${fileName}`, fallbackText };
     } catch (error) {
       console.warn(`[WhatsApp:${account.name}] falha ao baixar mídia: ${error.message}`);
       return { type, fileName, url: null, fallbackText };
     }
+  }
+
+  startMediaCleanup() {
+    if (this.mediaCleanupTimer || this.mediaRetentionDays <= 0) return;
+    this.cleanupExpiredMedia().catch(error => console.warn(`Falha na limpeza de mídias: ${error.message}`));
+    this.mediaCleanupTimer = setInterval(() => {
+      this.cleanupExpiredMedia().catch(error => console.warn(`Falha na limpeza de mídias: ${error.message}`));
+    }, this.mediaCleanupHours * 60 * 60 * 1000);
+    this.mediaCleanupTimer.unref?.();
+  }
+
+  async cleanupExpiredMedia() {
+    let entries;
+    try {
+      entries = await fs.promises.readdir(MEDIA_DIR, { withFileTypes: true });
+    } catch (error) {
+      if (error.code === 'ENOENT') return 0;
+      throw error;
+    }
+    const cutoff = Date.now() - (this.mediaRetentionDays * 24 * 60 * 60 * 1000);
+    let removed = 0;
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const absolutePath = path.join(MEDIA_DIR, entry.name);
+      const stats = await fs.promises.stat(absolutePath);
+      if (stats.mtimeMs >= cutoff) continue;
+      await fs.promises.unlink(absolutePath);
+      removed += 1;
+    }
+    if (removed > 0) console.log(`🧹 ${removed} mídia(s) expirada(s) removida(s).`);
+    return removed;
   }
 
   selectAccount(accountId = null) {

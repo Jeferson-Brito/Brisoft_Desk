@@ -1,7 +1,7 @@
 <template>
   <div class="chat-column">
     <!-- Header do Chat -->
-    <div class="chat-header">
+    <div v-if="ticket" class="chat-header">
       <div
         class="chat-header-left"
         style="cursor:pointer;"

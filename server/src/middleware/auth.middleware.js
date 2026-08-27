@@ -10,6 +10,8 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const loginAttempts = new Map();
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 8;
+const AUTH_USER_CACHE_MS = 30 * 1000;
+const authenticatedUsers = new Map();
 
 async function resolveAuthenticatedUser(token) {
   const payload = jwt.verify(token, JWT_SECRET);
@@ -22,6 +24,10 @@ async function resolveAuthenticatedUser(token) {
 
   if (!isSupabaseConfigured()) return payload;
 
+  const cacheKey = `${payload.id}:${payload.iat || 0}`;
+  const cached = authenticatedUsers.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return { ...payload, ...cached.user };
+
   const { data: user, error } = await supabase
     .from('users')
     .select('id, name, email, role, department_id, is_active, is_temporary, departments(name)')
@@ -29,7 +35,7 @@ async function resolveAuthenticatedUser(token) {
     .single();
 
   if (error || !user || user.is_active === false) throw new Error('Usuário inativo ou inexistente');
-  return {
+  const resolvedUser = {
     ...payload,
     id: user.id,
     name: user.name,
@@ -39,6 +45,13 @@ async function resolveAuthenticatedUser(token) {
     department_name: user.departments?.name || null,
     is_temporary: !!user.is_temporary
   };
+  authenticatedUsers.set(cacheKey, { user: resolvedUser, expiresAt: Date.now() + AUTH_USER_CACHE_MS });
+  if (authenticatedUsers.size > 1000) {
+    for (const [key, entry] of authenticatedUsers) {
+      if (entry.expiresAt <= Date.now()) authenticatedUsers.delete(key);
+    }
+  }
+  return resolvedUser;
 }
 
 /**

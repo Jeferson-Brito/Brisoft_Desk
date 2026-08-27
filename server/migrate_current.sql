@@ -3,7 +3,10 @@
 
 alter table if exists public.messages
   add column if not exists media_url text,
-  add column if not exists media_type text;
+  add column if not exists media_type text,
+  add column if not exists remote_message_id text,
+  add column if not exists whatsapp_account_id text,
+  add column if not exists file_name text;
 
 alter table if exists public.tickets
   add column if not exists user_id uuid references public.users(id) on delete set null,
@@ -56,8 +59,15 @@ create index if not exists tickets_department_status_idx
   on public.tickets(department_id, status);
 create index if not exists tickets_user_status_idx
   on public.tickets(user_id, status);
+create index if not exists tickets_channel_phone_status_idx
+  on public.tickets(channel, phone, status, created_at desc);
+create index if not exists tickets_channel_jid_status_idx
+  on public.tickets(channel, jid, status, created_at desc);
 create index if not exists messages_ticket_created_idx
   on public.messages(ticket_id, created_at);
+create unique index if not exists messages_whatsapp_remote_unique_idx
+  on public.messages(whatsapp_account_id, remote_message_id)
+  where whatsapp_account_id is not null and remote_message_id is not null;
 
 do $$
 begin

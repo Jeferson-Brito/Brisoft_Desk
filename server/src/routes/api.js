@@ -35,6 +35,7 @@ router.get('/media/:filename', requireAuth, async (req, res) => {
   if (!(await ticketService.canAccessMedia(filename, req.user))) {
     return res.status(404).json({ success: false, error: 'Mídia não encontrada.' });
   }
+  res.setHeader('Cache-Control', 'private, max-age=86400, immutable');
   return res.sendFile(path.join(__dirname, '../../public/media', filename), (error) => {
     if (error && !res.headersSent) res.status(error.statusCode || 404).json({ success: false, error: 'Mídia não encontrada.' });
   });

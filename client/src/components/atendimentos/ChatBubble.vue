@@ -159,9 +159,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
-import http from '@/api/http'
+import { ref, computed, watch } from 'vue'
 import { cleanMediaDisplayText, getDocumentDisplayName, getMediaSource } from '@/utils/media-message'
+import { loadProtectedMedia } from '@/utils/protected-media-cache'
 
 const props = defineProps({
   msg: {
@@ -205,22 +205,16 @@ const mediaSrc = computed(() => {
 })
 
 const resolvedMediaSrc = ref(null)
-let mediaObjectUrl = null
 
 watch(mediaSrc, async (source) => {
-  if (mediaObjectUrl) URL.revokeObjectURL(mediaObjectUrl)
-  mediaObjectUrl = null
   resolvedMediaSrc.value = null
   mediaLoading.value = Boolean(source)
   mediaLoadError.value = false
   if (!source) return
 
   if (source.startsWith('/api/media/') || source.startsWith('/media/')) {
-    const apiPath = source.startsWith('/api/') ? source.slice(4) : source
     try {
-      const response = await http.get(apiPath, { responseType: 'blob' })
-      mediaObjectUrl = URL.createObjectURL(response.data)
-      resolvedMediaSrc.value = mediaObjectUrl
+      resolvedMediaSrc.value = await loadProtectedMedia(source)
     } catch (error) {
       mediaLoadError.value = true
       console.error('Não foi possível carregar o anexo protegido.', error)
@@ -242,10 +236,6 @@ watch(mediaSrc, async (source) => {
     resolvedMediaSrc.value = null
   }
 }, { immediate: true })
-
-onBeforeUnmount(() => {
-  if (mediaObjectUrl) URL.revokeObjectURL(mediaObjectUrl)
-})
 
 const isImage = computed(() => {
   if (props.msg?.type === 'image' || props.msg?.type === 'sticker') return true

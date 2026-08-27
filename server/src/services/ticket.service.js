@@ -18,6 +18,44 @@ const {
 const RATING_WINDOW_MS = 30 * 60 * 1000;
 
 const TICKETS_FILE = path.join(__dirname, '../../data/tickets.json');
+const MEDIA_TICKET_CACHE_MAX = 5000;
+const mediaTicketCache = new Map();
+let remoteMessageColumnsAvailable = null;
+
+function isMissingRemoteMessageColumns(error) {
+  return error?.code === '42703' || error?.code === 'PGRST204' || /remote_message_id|whatsapp_account_id/i.test(error?.message || '');
+}
+
+async function wasRemoteMessageProcessed(whatsappAccountId, messageId) {
+  if (!whatsappAccountId || !messageId || remoteMessageColumnsAvailable === false) return false;
+  const { data, error } = await supabase
+    .from('messages')
+    .select('id')
+    .eq('whatsapp_account_id', whatsappAccountId)
+    .eq('remote_message_id', messageId)
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    if (isMissingRemoteMessageColumns(error)) {
+      remoteMessageColumnsAvailable = false;
+      return false;
+    }
+    console.warn(`Falha ao verificar mensagem duplicada: ${error.message}`);
+    return false;
+  }
+  remoteMessageColumnsAvailable = true;
+  return Boolean(data);
+}
+
+function rememberMediaTicket(mediaUrl, ticketId) {
+  const filename = String(mediaUrl || '').split('/').pop();
+  if (!filename || !ticketId) return;
+  mediaTicketCache.delete(filename);
+  mediaTicketCache.set(filename, ticketId);
+  if (mediaTicketCache.size > MEDIA_TICKET_CACHE_MAX) {
+    mediaTicketCache.delete(mediaTicketCache.keys().next().value);
+  }
+}
 
 function saveTicketsToDisk(tickets) {
   try {
@@ -76,6 +114,10 @@ class TicketService {
     console.log(`Processando mensagem de ${cleanName} | Tel: ${phone} | JID: ${from}`);
     if (!isSupabaseConfigured()) return null;
     try {
+      if (await wasRemoteMessageProcessed(whatsappAccountId, msgData.messageId)) {
+        console.log(`[WhatsApp:${whatsappAccountId}] mensagem duplicada ignorada (${msgData.messageId}).`);
+        return { type: 'duplicate', messageId: msgData.messageId };
+      }
       const now = new Date();
       const t = makeTimeStr(now);
 
@@ -123,7 +165,15 @@ class TicketService {
       const incomingMessagePayload = ticketId => {
         const payload = { ticket_id: ticketId, sender: 'client', text, time: t };
         if (msgData.mediaType) payload.type = msgData.mediaType;
-        if (msgData.mediaUrl) payload.media_url = msgData.mediaUrl;
+        if (remoteMessageColumnsAvailable === true) {
+          payload.remote_message_id = msgData.messageId || null;
+          payload.whatsapp_account_id = whatsappAccountId || null;
+          payload.file_name = msgData.fileName || null;
+        }
+        if (msgData.mediaUrl) {
+          payload.media_url = msgData.mediaUrl;
+          rememberMediaTicket(msgData.mediaUrl, ticketId);
+        }
         return payload;
       };
       const routeWithoutBot = async (targetTicket, incomingText, storeIncomingMessage = true, noticeTemplate = botConfig.disabled_routing_message) => {
@@ -582,16 +632,16 @@ class TicketService {
       await supabase.from('tickets').update({ preview: text.slice(0, 50), time: t, updated_at: now.toISOString(), unread_count: newUnread }).eq('id', ticket.id);
       ticket.preview = text.slice(0, 50); ticket.time = t; ticket.unread_count = newUnread;
       
-      const { mediaType, mediaUrl, fileName } = msgData;
+      const { mediaType, mediaUrl } = msgData;
       let savedMsg = null;
 
       try {
-        const msgPayload = { ticket_id: ticket.id, sender: 'client', text, time: t };
-        if (mediaType) msgPayload.type = mediaType;
-        if (mediaUrl) msgPayload.media_url = mediaUrl;
+        const msgPayload = incomingMessagePayload(ticket.id);
 
         const { data: insertedMsg, error: msgError } = await supabase.from('messages').insert(msgPayload).select().single();
         if (msgError) {
+          if (msgError.code === '23505') return { type: 'duplicate', messageId: msgData.messageId };
+          if (isMissingRemoteMessageColumns(msgError)) remoteMessageColumnsAvailable = false;
           // Fallback caso a tabela messages não tenha a coluna media_url
           const { data: fallbackMsg } = await supabase.from('messages').insert({ ticket_id: ticket.id, sender: 'client', text, time: t }).select().single();
           savedMsg = fallbackMsg;
@@ -1012,13 +1062,27 @@ class TicketService {
   async assumeTicket(ticketId, currentUser, io) {
     if (!isSupabaseConfigured()) return { success: false, error: 'Supabase nao configurado' };
     try {
-      const existingTicket = await this.getFullTicket(ticketId, currentUser);
-      if (!existingTicket) return { success: false, error: 'Ticket nao encontrado' };
+      const { data: existingTicket, error: ticketError } = await supabase
+        .from('tickets')
+        .select('id, agent_name, department_id, department, status, assumed')
+        .eq('id', ticketId)
+        .maybeSingle();
+      if (ticketError) throw ticketError;
+      if (!existingTicket || !canUserAccessTicket(currentUser, existingTicket)) return { success: false, error: 'Ticket nao encontrado' };
       const agentName = currentUser.name || 'Atendente';
       const nowISO = new Date().toISOString();
-      assertSupabase(await supabase.from('tickets').update({ status: 'em_atendimento', assumed: true, agent_name: agentName, updated_at: nowISO }).eq('id', ticketId), 'Falha ao assumir ticket');
-      
-      try { await supabase.from('tickets').update({ assumed_at: nowISO }).eq('id', ticketId); } catch(e) {}
+      const claimResult = await supabase
+        .from('tickets')
+        .update({ status: 'em_atendimento', assumed: true, agent_name: agentName, assumed_at: nowISO, updated_at: nowISO })
+        .eq('id', ticketId)
+        .eq('status', 'aguardando')
+        .or('assumed.eq.false,assumed.is.null')
+        .select('id')
+        .maybeSingle();
+      if (claimResult.error) throw claimResult.error;
+      if (!claimResult.data) {
+        return { success: false, error: 'Este atendimento já foi assumido por outro atendente.' };
+      }
 
       assertSupabase(await supabase.from('messages').insert({ ticket_id: ticketId, sender: 'system', type: 'divider', text: `Atendimento assumido por ${agentName}`, time: makeTimeStr(new Date()) }), 'Falha ao registrar atendimento');
       const fullTicket = await this.getFullTicket(ticketId);
@@ -1250,14 +1314,27 @@ class TicketService {
 
   async canAccessMedia(filename, user) {
     if (!isSupabaseConfigured()) return false;
-    const { data: message, error } = await supabase
-      .from('messages')
-      .select('ticket_id')
-      .or(`media_url.eq./api/media/${filename},text.like.%||/api/media/${filename}`)
-      .limit(1)
+    let ticketId = mediaTicketCache.get(filename) || null;
+    if (!ticketId) {
+      const { data: message, error } = await supabase
+        .from('messages')
+        .select('ticket_id')
+        .or(`media_url.eq./api/media/${filename},text.like.%||/api/media/${filename}`)
+        .limit(1)
+        .maybeSingle();
+      if (error || !message) return false;
+      ticketId = message.ticket_id;
+      rememberMediaTicket(`/api/media/${filename}`, ticketId);
+    }
+    if (user?.role === 'Administrador') return true;
+
+    const { data: ticket, error: ticketError } = await supabase
+      .from('tickets')
+      .select('id, agent_name, department_id, department')
+      .eq('id', ticketId)
       .maybeSingle();
-    if (error || !message) return false;
-    return Boolean(await this.getFullTicket(message.ticket_id, user));
+    if (ticketError || !ticket) return false;
+    return canUserAccessTicket(user, ticket);
   }
 }
 
