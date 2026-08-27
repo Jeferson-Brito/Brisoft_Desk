@@ -85,4 +85,34 @@ async function saveConfirmedContact(phone, name) {
   return data;
 }
 
-module.exports = { normalizeText, isGeneratedCustomerName, extractAndValidateName, findContactByPhone, saveConfirmedContact };
+async function repairBlankContacts() {
+  if (!isSupabaseConfigured()) return;
+  try {
+    const { data: contacts } = await supabase.from('contacts').select('id, name, phone');
+    if (!contacts) return;
+    for (const c of contacts) {
+      const cleanPhone = String(c.phone || '').replace(/\D/g, '');
+      if (!cleanPhone || cleanPhone === 'undefined' || cleanPhone === 'null') {
+        const { data: tickets } = await supabase
+          .from('tickets')
+          .select('phone, raw_jid, jid')
+          .eq('client_name', c.name)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        const t = tickets?.[0];
+        const restoredPhone = String(t?.phone || t?.raw_jid || t?.jid || '').replace('@lid', '').replace('@s.whatsapp.net', '').replace(/:\d+$/, '').replace(/\D/g, '');
+        if (restoredPhone) {
+          console.log(`[Contatos] Restaurando telefone para ${c.name}: ${restoredPhone}`);
+          await supabase.from('contacts').update({ phone: restoredPhone }).eq('id', c.id);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Erro ao reparar contatos:', e.message);
+  }
+}
+
+setTimeout(() => repairBlankContacts().catch(() => {}), 1500);
+
+module.exports = { normalizeText, isGeneratedCustomerName, extractAndValidateName, findContactByPhone, saveConfirmedContact, repairBlankContacts };

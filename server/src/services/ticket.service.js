@@ -184,10 +184,17 @@ class TicketService {
       whatsappDepartmentId,
       whatsappDepartmentName
     } = msgData;
-    const phone = rawPhone || from.replace(/\D/g, '');
+    const targetJid = rawJid || from;
+    if (!targetJid || targetJid === 'undefined') {
+      console.warn('Mensagem recebida sem JID válido:', msgData);
+      return null;
+    }
+    const phone = (rawPhone && rawPhone !== 'undefined' && rawPhone !== 'null')
+      ? String(rawPhone).replace(/\D/g, '')
+      : String(targetJid).replace('@lid', '').replace('@s.whatsapp.net', '').replace(/:\d+$/, '').replace(/\D/g, '');
     const whatsappChannel = whatsappAccountId ? `whatsapp:${whatsappAccountId}` : 'whatsapp';
-    let cleanName = senderName || `Cliente ${phone.slice(-4)}`;
-    console.log(`Processando mensagem de ${cleanName} | Tel: ${phone} | JID: ${from}`);
+    let cleanName = senderName || (phone ? `Cliente ${phone.slice(-4)}` : 'Cliente');
+    console.log(`Processando mensagem de ${cleanName} | Tel: ${phone} | JID: ${targetJid}`);
     if (!isSupabaseConfigured()) return null;
     try {
       if (await wasRemoteMessageProcessed(whatsappAccountId, msgData.messageId)) {
@@ -218,7 +225,7 @@ class TicketService {
       const sendBotText = async (ticketId, template, extra = {}) => {
         const rendered = renderBotMessage(template, botVariables(extra)).trim();
         if (!rendered || !whatsappService) return false;
-        const sent = await whatsappService.sendMessage(from, rendered);
+        const sent = await whatsappService.sendMessage(targetJid, rendered);
         if (sent && ticketId) {
           const result = await supabase.from('messages').insert({
             ticket_id: ticketId,
