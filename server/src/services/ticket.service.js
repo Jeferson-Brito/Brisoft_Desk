@@ -18,6 +18,7 @@ const {
 const RATING_WINDOW_MS = 30 * 60 * 1000;
 
 const TICKETS_FILE = path.join(__dirname, '../../data/tickets.json');
+const MEDIA_DIR = path.join(__dirname, '../../public/media');
 const MEDIA_TICKET_CACHE_MAX = 5000;
 const mediaTicketCache = new Map();
 let remoteMessageColumnsAvailable = null;
@@ -70,6 +71,13 @@ function saveTicketsToDisk(tickets) {
 function makeTimeStr(date) {
   const d = date || new Date();
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function safeUploadedFileName(value) {
+  const decoded = String(value || 'arquivo').trim();
+  const extension = path.extname(decoded).replace(/[^a-zA-Z0-9.]/g, '').slice(0, 12);
+  const base = path.basename(decoded, path.extname(decoded)).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) || 'arquivo';
+  return { displayName: `${base}${extension}`, extension };
 }
 
 function canUserAccessTicket(user, ticket) {
@@ -158,9 +166,22 @@ class TicketService {
         limite: botConfig.invalid_attempt_limit,
         ...extra
       });
-      const sendBotText = async (template, extra = {}) => {
+      const sendBotText = async (ticketId, template, extra = {}) => {
         const rendered = renderBotMessage(template, botVariables(extra)).trim();
-        if (rendered && whatsappService) await whatsappService.sendMessage(from, rendered);
+        if (!rendered || !whatsappService) return false;
+        const sent = await whatsappService.sendMessage(from, rendered);
+        if (sent && ticketId) {
+          const result = await supabase.from('messages').insert({
+            ticket_id: ticketId,
+            sender: 'bot',
+            text: `*Bot:*
+
+${rendered}`,
+            time: makeTimeStr(new Date())
+          });
+          if (result.error) console.warn(`Falha ao registrar mensagem enviada pelo bot: ${result.error.message}`);
+        }
+        return sent;
       };
       const incomingMessagePayload = ticketId => {
         const payload = { ticket_id: ticketId, sender: 'client', text, time: t };
@@ -192,7 +213,7 @@ class TicketService {
           assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(targetTicket.id)), 'Falha ao registrar mensagem recebida');
         }
         Object.assign(targetTicket, updatePayload);
-        await sendBotText(noticeTemplate, { departamento: defaultDepartment.name });
+        await sendBotText(targetTicket.id, noticeTemplate, { departamento: defaultDepartment.name });
         const fullTicket = await this.getFullTicket(targetTicket.id);
         if (io && fullTicket) {
           emitTicketEvent(io, 'ticket_created', { ticket: fullTicket }, fullTicket);
@@ -226,7 +247,7 @@ class TicketService {
       };
       const askForCustomerName = async (targetTicket, attempt = 1, template = botConfig.ask_customer_name_message) => {
         await saveBotState(targetTicket.id, { step: 'awaiting_name', attempt });
-        await sendBotText(template, { tentativa: attempt, limite: botConfig.customer_name_attempt_limit });
+        await sendBotText(targetTicket.id, template, { tentativa: attempt, limite: botConfig.customer_name_attempt_limit });
         return { type: 'chatbot_asking_name', ticket: targetTicket };
       };
       const startDepartmentRouting = async targetTicket => {
@@ -253,12 +274,12 @@ class TicketService {
             text: `[Chatbot] Menu 24h enviado: Retomar ${previousDepartment}`,
             time: t
           }), 'Falha ao registrar menu de retomada');
-          await sendBotText(botConfig.resume_message, { departamento: previousDepartment });
+          await sendBotText(targetTicket.id, botConfig.resume_message, { departamento: previousDepartment });
           return { type: 'chatbot_resume_prompt', ticket: targetTicket };
         }
 
         if (deptList.length > 0) {
-          await sendBotText(botConfig.greeting_message, { opcoes: botConfig.show_department_menu ? optionsText : '' });
+          await sendBotText(targetTicket.id, botConfig.greeting_message, { opcoes: botConfig.show_department_menu ? optionsText : '' });
         }
         return { type: 'chatbot_greeting', ticket: targetTicket };
       };
@@ -353,9 +374,8 @@ class TicketService {
               // Envia mensagem de agradecimento ao cliente
               if (whatsappService) {
                 const stars = '⭐'.repeat(rawRating);
-              const thankMsg = renderBotMessage(botConfig.rating_thank_you_message, { estrelas: stars, nome: cleanName });
                 try {
-                  if (thankMsg.trim()) await whatsappService.sendMessage(from, thankMsg);
+                  await sendBotText(targetTicket.id, botConfig.rating_thank_you_message, { estrelas: stars, nome: cleanName });
                 } catch(e) {}
               }
 
@@ -418,17 +438,17 @@ class TicketService {
          }
 
          if (msgData.mediaType && !botConfig.accept_media_during_routing) {
-           try { await sendBotText(botConfig.media_during_routing_message); } catch(e) {}
+           try { await sendBotText(ticket.id, botConfig.media_during_routing_message); } catch(e) {}
            return { type: 'chatbot_media_blocked', ticket };
          }
          if (msgData.mediaType) {
            try {
              if (botConfig.collect_customer_name && nameState?.step === 'confirming_name') {
-               await sendBotText(botConfig.confirm_customer_name_message, { nome: nameState.candidate });
+               await sendBotText(ticket.id, botConfig.confirm_customer_name_message, { nome: nameState.candidate });
              } else if (botConfig.collect_customer_name && nameState?.step === 'awaiting_name') {
-               await sendBotText(botConfig.ask_customer_name_message);
+               await sendBotText(ticket.id, botConfig.ask_customer_name_message);
              } else {
-               await sendBotText(botConfig.greeting_message, { opcoes: botConfig.show_department_menu ? optionsText : '' });
+               await sendBotText(ticket.id, botConfig.greeting_message, { opcoes: botConfig.show_department_menu ? optionsText : '' });
              }
            } catch(e) {}
            return { type: 'chatbot_media_received', ticket };
@@ -441,14 +461,14 @@ class TicketService {
              const nextAttempt = (nameState.attempt || 1) + 1;
              if (nextAttempt > botConfig.customer_name_attempt_limit) {
                await saveBotState(ticket.id, { step: 'name_skipped' });
-               await sendBotText(botConfig.customer_name_skipped_message);
+               await sendBotText(ticket.id, botConfig.customer_name_skipped_message);
                return startDepartmentRouting(ticket);
              }
              return askForCustomerName(ticket, nextAttempt, botConfig.invalid_customer_name_message);
            }
 
            await saveBotState(ticket.id, { step: 'confirming_name', candidate: validation.name, attempt: nameState.attempt || 1 });
-           await sendBotText(botConfig.confirm_customer_name_message, {
+           await sendBotText(ticket.id, botConfig.confirm_customer_name_message, {
              nome: validation.name,
              tentativa: nameState.attempt || 1,
              limite: botConfig.customer_name_attempt_limit
@@ -478,11 +498,11 @@ class TicketService {
              } catch (_) {}
              Object.assign(ticket, identity);
              await saveBotState(ticket.id, { step: 'name_complete' });
-             await sendBotText(botConfig.customer_name_saved_message, { nome: cleanName });
+             await sendBotText(ticket.id, botConfig.customer_name_saved_message, { nome: cleanName });
              return startDepartmentRouting(ticket);
            }
            if (correction) return askForCustomerName(ticket, nameState.attempt || 1);
-           await sendBotText(botConfig.confirm_customer_name_message, { nome: nameState.candidate });
+           await sendBotText(ticket.id, botConfig.confirm_customer_name_message, { nome: nameState.candidate });
            return { type: 'chatbot_confirming_name', ticket, candidate: nameState.candidate };
          }
 
@@ -518,8 +538,6 @@ class TicketService {
              selectedDept = deptList.find(d => d.name.toLowerCase() === resumeTargetDept.toLowerCase()) || { name: resumeTargetDept };
            } else if (isOptionOther) {
              // Cliente optou por outro departamento -> envia menu padrão com todos os setores
-             const menuStr = renderBotMessage(botConfig.greeting_message, botVariables({ opcoes: botConfig.show_department_menu ? optionsText : '' }));
-             
              // Registra que o cliente escolheu ver outro departamento
              await supabase.from('messages').insert({
                ticket_id: ticket.id,
@@ -529,9 +547,7 @@ class TicketService {
                time: t
              });
 
-             if (whatsappService) {
-               try { await whatsappService.sendMessage(from, menuStr); } catch(e) {}
-             }
+             try { await sendBotText(ticket.id, botConfig.greeting_message, { opcoes: botConfig.show_department_menu ? optionsText : '' }); } catch(e) {}
              return { type: 'chatbot_menu_sent', ticket };
            }
          }
@@ -582,8 +598,7 @@ class TicketService {
 
             // Envia confirmação
             if (whatsappService && botConfig.send_queue_confirmation) {
-              const confirmMsg = renderBotMessage(botConfig.queue_confirmation_message, botVariables({ departamento: selectedDept.name }));
-              try { if (confirmMsg.trim()) await whatsappService.sendMessage(from, confirmMsg); } catch(e) {}
+              try { await sendBotText(ticket.id, botConfig.queue_confirmation_message, { departamento: selectedDept.name }); } catch(e) {}
             }
 
             const fullTicket = await this.getFullTicket(ticket.id);
@@ -603,8 +618,7 @@ class TicketService {
 
              if (whatsappService) {
                 if (isGreeting || deptList.length === 0) {
-                  const menuStr = renderBotMessage(botConfig.greeting_message, botVariables({ opcoes: botConfig.show_department_menu ? optionsText : '' }));
-                  try { await whatsappService.sendMessage(from, menuStr); } catch(e) {}
+                  try { await sendBotText(ticket.id, botConfig.greeting_message, { opcoes: botConfig.show_department_menu ? optionsText : '' }); } catch(e) {}
                 } else {
                   const { count: previousInvalidAttempts } = await supabase
                     .from('messages')
@@ -619,8 +633,7 @@ class TicketService {
                     return routeWithoutBot(ticket, text, false, botConfig.fallback_routing_message);
                   }
 
-                  const invalidMsg = renderBotMessage(botConfig.invalid_option_message, botVariables({ tentativa: attempt }));
-                  try { if (invalidMsg.trim()) await whatsappService.sendMessage(from, invalidMsg); } catch(e) {}
+                  try { await sendBotText(ticket.id, botConfig.invalid_option_message, { tentativa: attempt }); } catch(e) {}
                 }
              }
              return { type: 'chatbot_invalid', ticket };
@@ -1059,6 +1072,70 @@ class TicketService {
     return { success: false, error: 'Falha ao enviar' };
   }
 
+  async sendAgentMedia(ticketId, fileBuffer, metadata, currentUser, io, whatsappService) {
+    if (!isSupabaseConfigured()) return { success: false, error: 'Supabase nao configurado' };
+    if (!Buffer.isBuffer(fileBuffer) || fileBuffer.length === 0) return { success: false, error: 'Arquivo vazio ou inválido.' };
+    try {
+      const { data: ticket, error: ticketError } = await supabase
+        .from('tickets')
+        .select('id, jid, raw_jid, phone, client_name, department, department_id, agent_name, status, channel')
+        .eq('id', ticketId)
+        .maybeSingle();
+      if (ticketError) throw ticketError;
+      if (!ticket || !canUserAccessTicket(currentUser, ticket)) return { success: false, error: 'Ticket nao encontrado' };
+
+      const mimeType = String(metadata.mimeType || 'application/octet-stream').slice(0, 120).toLowerCase();
+      const requestedType = String(metadata.mediaType || '').toLowerCase();
+      const mediaType = requestedType === 'audio' || mimeType.startsWith('audio/') ? 'audio'
+        : requestedType === 'image' || mimeType.startsWith('image/') ? 'image'
+          : requestedType === 'video' || mimeType.startsWith('video/') ? 'video'
+            : 'document';
+      const { displayName, extension } = safeUploadedFileName(metadata.fileName);
+      const inferredExtension = extension || ({ audio: '.ogg', image: '.jpg', video: '.mp4', document: '.bin' }[mediaType]);
+      const storedName = `sent_${Date.now()}_${crypto.randomUUID().replace(/-/g, '')}${inferredExtension}`;
+      const mediaUrl = `/api/media/${storedName}`;
+      const caption = String(metadata.caption || '').trim().slice(0, 4000);
+      const agentName = currentUser.name || 'Atendente';
+      const targetJid = ticket.jid || ticket.raw_jid;
+      const accountId = ticket.channel?.startsWith('whatsapp:') ? ticket.channel.slice('whatsapp:'.length) : null;
+
+      await fs.promises.mkdir(MEDIA_DIR, { recursive: true });
+      await fs.promises.writeFile(path.join(MEDIA_DIR, storedName), fileBuffer);
+      const sent = await whatsappService.sendMediaMessage(targetJid, fileBuffer, mediaType, caption, displayName, accountId, mimeType);
+      if (!sent) {
+        await fs.promises.unlink(path.join(MEDIA_DIR, storedName)).catch(() => {});
+        return { success: false, error: 'Falha ao enviar arquivo para o WhatsApp.' };
+      }
+
+      const now = new Date();
+      const formattedText = `*${agentName}:*${caption ? `\n\n${caption}` : ''}`;
+      const messageResult = await supabase.from('messages').insert({
+        ticket_id: ticket.id,
+        sender: 'agent',
+        type: mediaType,
+        text: formattedText,
+        time: makeTimeStr(now),
+        media_url: mediaUrl,
+        media_type: mimeType,
+        file_name: displayName
+      }).select().single();
+      const savedMessage = assertSupabase(messageResult, 'Falha ao salvar mídia enviada');
+      rememberMediaTicket(mediaUrl, ticket.id);
+
+      const preview = caption || ({ audio: '🎙️ Áudio', image: '📷 Imagem', video: '🎥 Vídeo', document: `📄 ${displayName}` }[mediaType]);
+      const updatePayload = { preview, time: makeTimeStr(now), updated_at: now.toISOString() };
+      assertSupabase(await supabase.from('tickets').update(updatePayload).eq('id', ticket.id), 'Falha ao atualizar ticket');
+      Object.assign(ticket, updatePayload);
+      if (io) {
+        emitTicketEvent(io, 'new_message', { ticketId: ticket.id, message: savedMessage, ticket }, ticket);
+        emitTicketEvent(io, 'queue_updated', { ticket }, ticket);
+      }
+      return { success: true, ticket, message: savedMessage };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
   async assumeTicket(ticketId, currentUser, io) {
     if (!isSupabaseConfigured()) return { success: false, error: 'Supabase nao configurado' };
     try {
@@ -1309,6 +1386,55 @@ class TicketService {
     } catch (e) {
       console.error('Erro ao atualizar contato:', e);
       return { success: false, error: e.message };
+    }
+  }
+
+  async attachIncomingMedia(media, io) {
+    if (!isSupabaseConfigured() || !media?.ticketId || !media?.mediaUrl) return false;
+    try {
+      const updatePayload = {
+        type: media.mediaType,
+        media_url: media.mediaUrl,
+        media_type: media.mediaType,
+        file_name: media.fileName || null
+      };
+      let message = null;
+      if (remoteMessageColumnsAvailable !== false && media.messageId && media.whatsappAccountId) {
+        const result = await supabase.from('messages').update(updatePayload)
+          .eq('ticket_id', media.ticketId)
+          .eq('remote_message_id', media.messageId)
+          .eq('whatsapp_account_id', media.whatsappAccountId)
+          .select().maybeSingle();
+        if (!result.error) message = result.data;
+        else if (isMissingRemoteMessageColumns(result.error)) remoteMessageColumnsAvailable = false;
+      }
+      if (!message) {
+        const { data: candidate } = await supabase.from('messages')
+          .select('id')
+          .eq('ticket_id', media.ticketId)
+          .eq('sender', 'client')
+          .eq('type', media.mediaType)
+          .is('media_url', null)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (candidate) {
+          const result = await supabase.from('messages').update(updatePayload).eq('id', candidate.id).select().single();
+          if (result.error) throw result.error;
+          message = result.data;
+        }
+      }
+      if (!message) return false;
+      rememberMediaTicket(media.mediaUrl, media.ticketId);
+      const fullTicket = await this.getFullTicket(media.ticketId);
+      if (io && fullTicket) {
+        emitTicketEvent(io, 'ticket_updated', { ticket: fullTicket }, fullTicket);
+        emitTicketEvent(io, 'queue_updated', { ticket: fullTicket }, fullTicket);
+      }
+      return true;
+    } catch (error) {
+      console.warn(`Falha ao vincular mídia recuperada ao atendimento: ${error.message}`);
+      return false;
     }
   }
 

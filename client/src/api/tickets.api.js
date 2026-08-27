@@ -9,6 +9,16 @@ export const ticketsApi = {
   close:         (ticketId)                        => http.post('/tickets/close',            { ticketId }),
   updateContact: (ticketId, contactData)           => http.put(`/tickets/${ticketId}/contact`, contactData),
   sendMessage:   (ticketId, text)                  => http.post('/tickets/send-message',     { ticketId, text }),
+  sendMedia:     (ticketId, file, metadata = {})   => http.post(`/tickets/${ticketId}/media`, file, {
+    timeout: 120000,
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      'X-File-Name': encodeURIComponent(metadata.fileName || file?.name || 'arquivo'),
+      'X-File-Type': metadata.mimeType || file?.type || 'application/octet-stream',
+      'X-Media-Type': metadata.mediaType || '',
+      'X-Media-Caption': encodeURIComponent(metadata.caption || '')
+    }
+  }),
   markAsRead:    (ticketId)                        => http.post('/tickets/read',             { ticketId }),
   kpis:          ()                                => http.get('/dashboard/kpis')
 }

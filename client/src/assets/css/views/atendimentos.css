@@ -327,13 +327,22 @@
   padding: 6px 10px;
 }
 
-.chat-input-row input {
+.chat-input-row input,
+.chat-input-row textarea {
   flex: 1;
   background: transparent;
   border: none;
   outline: none;
   font-size: 12.5px;
   color: var(--text-main);
+}
+
+.chat-input-row textarea {
+  min-height: 20px;
+  max-height: 88px;
+  resize: none;
+  font-family: inherit;
+  line-height: 1.5;
 }
 
 .chat-input-actions { display: flex; align-items: center; gap: 8px; color: #64748b; }

@@ -331,7 +331,7 @@ class WhatsAppService {
       sendMessage: (target, body) => this.sendMessage(target, body, account.id),
       sendMediaMessage: (target, buffer, type, caption, fileName) => this.sendMediaMessage(target, buffer, type, caption, fileName, account.id)
     };
-    return ticketService.processIncomingMessage({
+    const result = await ticketService.processIncomingMessage({
       from: resolvedJid,
       rawJid,
       phone,
@@ -344,6 +344,32 @@ class WhatsAppService {
       messageId: msg.key.id,
       whatsappAccountId: account.id
     }, this.io, scopedSender);
+    if (media.type && !media.url && result?.ticket?.id) {
+      this.retryMissingMedia(account, msg, downloadMediaMessage, downloadContentFromMessage, result.ticket.id).catch(error => {
+        console.warn(`[WhatsApp:${account.name}] mídia permaneceu indisponível após novas tentativas: ${error.message}`);
+      });
+    }
+    return result;
+  }
+
+  async retryMissingMedia(account, msg, downloadMediaMessage, downloadContentFromMessage, ticketId) {
+    for (const delay of [2000, 7000, 20000]) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+      if (!account.sock || account.status !== 'connected') throw new Error('Conta desconectada durante a recuperação da mídia.');
+      const recovered = await this.downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage);
+      if (!recovered.url) continue;
+      await ticketService.attachIncomingMedia({
+        ticketId,
+        messageId: msg.key.id,
+        whatsappAccountId: account.id,
+        mediaType: recovered.type,
+        mediaUrl: recovered.url,
+        fileName: recovered.fileName
+      }, this.io);
+      console.log(`[WhatsApp:${account.name}] mídia recuperada em segundo plano (${msg.key.id}).`);
+      return true;
+    }
+    throw new Error('O WhatsApp não disponibilizou uma nova cópia do arquivo.');
   }
 
   async downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage) {
@@ -393,16 +419,26 @@ class WhatsAppService {
     try {
       let buffer = null;
       try {
-        buffer = await downloadMediaMessage(msg, 'buffer', {}, {
+        buffer = await downloadMediaMessage(msg, 'buffer', { proxy: false }, {
           logger: pino({ level: 'silent' }),
           reuploadRequest: account.sock.updateMediaMessage
         });
       } catch (primaryError) {
-        if (typeof downloadContentFromMessage !== 'function') throw primaryError;
-        const stream = await downloadContentFromMessage(mediaMessage, type);
-        const chunks = [];
-        for await (const chunk of stream) chunks.push(chunk);
-        buffer = Buffer.concat(chunks);
+        try {
+          const refreshedMessage = await account.sock.updateMediaMessage(msg);
+          buffer = await downloadMediaMessage(refreshedMessage, 'buffer', { proxy: false }, {
+            logger: pino({ level: 'silent' }),
+            reuploadRequest: account.sock.updateMediaMessage
+          });
+        } catch (refreshError) {
+          if (typeof downloadContentFromMessage !== 'function') throw primaryError;
+          const refreshedContent = unwrapMessageContent(msg.message);
+          const refreshedMedia = refreshedContent[`${type}Message`] || mediaMessage;
+          const stream = await downloadContentFromMessage(refreshedMedia, type, { proxy: false });
+          const chunks = [];
+          for await (const chunk of stream) chunks.push(chunk);
+          buffer = Buffer.concat(chunks);
+        }
       }
       if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new Error('O WhatsApp retornou um arquivo vazio.');
       if (buffer.length > this.maxMediaBytes) {
@@ -473,15 +509,15 @@ class WhatsAppService {
     }
   }
 
-  async sendMediaMessage(target, fileBuffer, mediaType, caption, fileName, accountId = null) {
+  async sendMediaMessage(target, fileBuffer, mediaType, caption, fileName, accountId = null, mimeType = null) {
     const account = this.selectAccount(accountId);
     if (!account?.sock || account.status !== 'connected') return false;
     let jid = target.includes('@') ? target : `${target.replace(/\D/g, '')}@s.whatsapp.net`;
     const payloads = {
       image: { image: fileBuffer, caption: caption || '' },
-      audio: { audio: fileBuffer, mimetype: 'audio/mp4', ptt: true },
-      video: { video: fileBuffer, caption: caption || '' },
-      document: { document: fileBuffer, mimetype: 'application/octet-stream', fileName: fileName || 'documento', caption: caption || '' }
+      audio: { audio: fileBuffer, mimetype: mimeType || 'audio/ogg; codecs=opus', ptt: true },
+      video: { video: fileBuffer, mimetype: mimeType || 'video/mp4', caption: caption || '' },
+      document: { document: fileBuffer, mimetype: mimeType || 'application/octet-stream', fileName: fileName || 'documento', caption: caption || '' }
     };
     try { await account.sock.sendMessage(jid, payloads[mediaType]); return true; }
     catch (error) { console.error(`[WhatsApp:${account.name}] falha ao enviar mídia: ${error.message}`); return false; }

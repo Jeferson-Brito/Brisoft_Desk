@@ -53,6 +53,32 @@ class TicketController {
     }
   }
 
+  async sendMedia(req, res) {
+    try {
+      const ticketId = req.params.id;
+      if (!ticketId || !Buffer.isBuffer(req.body) || req.body.length === 0) {
+        return res.status(400).json({ success: false, error: 'Arquivo e ticket são obrigatórios.' });
+      }
+      let fileName = 'arquivo';
+      let caption = '';
+      try { fileName = decodeURIComponent(String(req.get('x-file-name') || 'arquivo')); } catch (_) {}
+      try { caption = decodeURIComponent(String(req.get('x-media-caption') || '')); } catch (_) {}
+      const result = await ticketService.sendAgentMedia(ticketId, req.body, {
+        fileName,
+        caption,
+        mimeType: req.get('x-file-type') || 'application/octet-stream',
+        mediaType: req.get('x-media-type') || ''
+      }, req.user, req.app.get('io'), whatsappService);
+      if (!result || result.success === false) {
+        return res.status(502).json({ success: false, error: result?.error || 'Falha ao enviar arquivo.' });
+      }
+      return res.json({ success: true, result });
+    } catch (err) {
+      console.error('❌ Erro no controller sendMedia:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
   async assumeTicket(req, res) {
     try {
       const { ticketId } = req.body;

@@ -15,6 +15,7 @@ const authController = require('../controllers/auth.controller');
 const usersController = require('../controllers/users.controller');
 const systemController = require('../controllers/system.controller');
 const contactsController = require('../controllers/contacts.controller');
+const quickMessageController = require('../controllers/quick-message.controller');
 const { requireAuth, requireAdmin, loginRateLimit } = require('../middleware/auth.middleware');
 
 // ==========================================================================
@@ -31,6 +32,11 @@ router.get('/media/:filename', requireAuth, async (req, res) => {
   const filename = path.basename(req.params.filename || '');
   if (!filename || filename !== req.params.filename || !/^[a-zA-Z0-9._-]+$/.test(filename)) {
     return res.status(400).json({ success: false, error: 'Arquivo inválido.' });
+  }
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  if (!/\.(?:jpe?g|png|webp|gif|ogg|mp3|m4a|wav|webm|mp4|mov)$/i.test(filename)) {
+    res.setHeader('Content-Disposition', `attachment; filename="${filename.replace(/"/g, '')}"`);
+    res.setHeader('Content-Security-Policy', "sandbox");
   }
   if (!(await ticketService.canAccessMedia(filename, req.user))) {
     return res.status(404).json({ success: false, error: 'Mídia não encontrada.' });
@@ -53,11 +59,23 @@ router.get('/tickets/history', requireAuth, (req, res) => ticketController.listH
 router.get('/tickets/:id', requireAuth, (req, res) => ticketController.getTicket(req, res));
 router.put('/tickets/:id/contact', requireAuth, (req, res) => ticketController.updateContact(req, res));
 router.post('/tickets/send-message', requireAuth, (req, res) => ticketController.sendMessage(req, res));
+router.post(
+  '/tickets/:id/media',
+  requireAuth,
+  express.raw({ type: 'application/octet-stream', limit: `${Math.max(1, Number.parseInt(process.env.WHATSAPP_MAX_MEDIA_MB, 10) || 25)}mb` }),
+  (req, res) => ticketController.sendMedia(req, res)
+);
 router.post('/tickets/assume', requireAuth, (req, res) => ticketController.assumeTicket(req, res));
 router.post('/tickets/transfer', requireAuth, (req, res) => ticketController.transferTicket(req, res));
 router.post('/tickets/close', requireAuth, (req, res) => ticketController.closeTicket(req, res));
 router.post('/tickets/read', requireAuth, (req, res) => ticketController.markAsRead(req, res));
 router.get('/dashboard/kpis', requireAuth, (req, res) => ticketController.getKpis(req, res));
+
+// Mensagens rápidas: atendentes consultam; administradores gerenciam.
+router.get('/quick-messages', requireAuth, (req, res) => quickMessageController.list(req, res));
+router.post('/quick-messages', requireAuth, requireAdmin, (req, res) => quickMessageController.create(req, res));
+router.put('/quick-messages/:id', requireAuth, requireAdmin, (req, res) => quickMessageController.update(req, res));
+router.delete('/quick-messages/:id', requireAuth, requireAdmin, (req, res) => quickMessageController.remove(req, res));
 
 // Rotas de Departamentos
 router.get('/departments', requireAuth, (req, res) => departmentController.listDepartments(req, res));

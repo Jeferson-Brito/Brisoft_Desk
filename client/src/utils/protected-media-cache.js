@@ -21,8 +21,10 @@ export async function loadProtectedMedia(source) {
   }
 
   const entry = { lastUsed: Date.now(), objectUrl: null, promise: null, settled: false }
+  const apiPath = source.startsWith('/api/') ? source.slice(4) : source
+  const refreshedPath = `${apiPath}${apiPath.includes('?') ? '&' : '?'}media_cache=2`
   entry.promise = http
-    .get(source.startsWith('/api/') ? source.slice(4) : source, { responseType: 'blob' })
+    .get(refreshedPath, { responseType: 'blob', headers: { 'Cache-Control': 'no-cache' } })
     .then(response => {
       entry.objectUrl = URL.createObjectURL(response.data)
       entry.settled = true
