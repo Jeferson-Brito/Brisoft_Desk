@@ -222,9 +222,9 @@
             </div>
           </div>
         </div>
-        <RouterLink to="/relatorios" class="details-link" style="margin-top:auto;padding-top:8px;text-align:center;">
-          Ver relatório completo
-        </RouterLink>
+        <span class="details-link" style="margin-top:auto;padding-top:8px;text-align:center;color:#94a3b8;cursor:not-allowed;">
+          Relatórios em desenvolvimento
+        </span>
       </div>
 
       <!-- Widget 2: Tempo médio de atendimento -->

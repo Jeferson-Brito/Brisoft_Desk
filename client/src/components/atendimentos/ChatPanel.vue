@@ -102,6 +102,21 @@
             :avatar-color="ticket.avatarColor"
           />
         </div>
+
+        <div
+          v-for="upload in pendingUploads"
+          :key="upload.id"
+          class="pending-upload-bubble"
+        >
+          <span class="pending-upload-icon">
+            <i :class="pendingUploadIcon(upload.mediaType)"></i>
+          </span>
+          <span class="pending-upload-copy">
+            <strong>{{ upload.voiceNote ? 'Mensagem de voz' : upload.fileName }}</strong>
+            <small>Enviando para o WhatsApp...</small>
+          </span>
+          <i class="fa-solid fa-spinner fa-spin pending-upload-spinner"></i>
+        </div>
       </template>
     </div>
 
@@ -270,6 +285,7 @@ const quickMessages = ref([])
 const quickMessagesLoading = ref(false)
 const quickSearch = ref('')
 const sendingMedia = ref(false)
+const pendingUploads = ref([])
 const isRecording = ref(false)
 const recordingSeconds = ref(0)
 let mediaRecorder = null
@@ -498,18 +514,22 @@ function detectMediaType(file) {
   return 'document'
 }
 
-async function sendMediaFile(file, mediaType = detectMediaType(file), caption = '') {
+async function sendMediaFile(file, mediaType = detectMediaType(file), caption = '', voiceNote = false) {
   if (!props.ticket || !file) return
   if (file.size > 25 * 1024 * 1024) {
     ui.showToast('O arquivo ultrapassa o limite de 25 MB.', 'error')
     return
   }
+  const pendingId = `upload_${Date.now()}_${Math.random().toString(36).slice(2)}`
+  pendingUploads.value.push({ id: pendingId, fileName: file.name, mediaType, voiceNote })
   sendingMedia.value = true
+  scrollToBottom()
   try {
     const { data } = await ticketsApi.sendMedia(props.ticket.id, file, {
       fileName: file.name,
       mimeType: file.type,
       mediaType,
+      voiceNote,
       caption
     })
     const savedMessage = data?.result?.message
@@ -520,9 +540,19 @@ async function sendMediaFile(file, mediaType = detectMediaType(file), caption = 
   } catch (error) {
     ui.showToast(error.response?.data?.error || 'Não foi possível enviar o arquivo.', 'error')
   } finally {
+    pendingUploads.value = pendingUploads.value.filter(upload => upload.id !== pendingId)
     sendingMedia.value = false
     focusInput()
   }
+}
+
+function pendingUploadIcon(mediaType) {
+  return {
+    audio: 'fa-solid fa-microphone',
+    image: 'fa-regular fa-image',
+    video: 'fa-solid fa-video',
+    document: 'fa-regular fa-file-lines'
+  }[mediaType] || 'fa-solid fa-paperclip'
 }
 
 async function handleFileSelection(event) {
@@ -553,7 +583,7 @@ async function startRecording() {
       if (discardRecording || recordedChunks.length === 0) return
       const extension = finalType.includes('ogg') ? 'ogg' : finalType.includes('mp4') ? 'm4a' : 'webm'
       const audioFile = new File(recordedChunks, `audio_${Date.now()}.${extension}`, { type: finalType })
-      await sendMediaFile(audioFile, 'audio')
+      await sendMediaFile(audioFile, 'audio', '', true)
     }
     mediaRecorder.start(250)
     isRecording.value = true
@@ -730,6 +760,51 @@ async function sendMessage() {
 @keyframes recording-pulse {
   50% { opacity: 0.35; transform: scale(0.8); }
 }
+
+.pending-upload-bubble {
+  align-self: flex-end;
+  width: min(330px, 78%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 14px 2px auto;
+  padding: 10px 12px;
+  border-radius: 12px 4px 12px 12px;
+  color: #14532d;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.pending-upload-icon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #ffffff;
+  background: #22c55e;
+}
+
+.pending-upload-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pending-upload-copy strong {
+  overflow: hidden;
+  color: #166534;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pending-upload-copy small { color: #4d7c5d; font-size: 10.5px; }
+.pending-upload-spinner { color: #16a34a; font-size: 13px; }
 
 .chat-date-sticky-wrapper {
   position: sticky;

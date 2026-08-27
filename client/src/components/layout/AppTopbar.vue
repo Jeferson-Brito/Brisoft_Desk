@@ -55,12 +55,9 @@ const isOnline = ref(true)
 const VIEW_META = {
   dashboard:         { title: 'Dashboard',               subtitle: 'Visão geral dos atendimentos' },
   atendimentos:      { title: 'Atendimentos',            subtitle: '' },
-  historico:         { title: 'Histórico de atendimentos', subtitle: 'Consulte e acompanhe conversas antigas.' },
+  historico:         { title: 'Conversas',                subtitle: 'Consulte e acompanhe conversas anteriores.' },
   clientes:          { title: 'Clientes',                subtitle: 'Gerencie e visualize informações dos seus clientes.' },
-  contatos:          { title: 'Contatos',                subtitle: 'Gerencie e visualize os contatos.' },
-  kanban:            { title: 'Kanban',                  subtitle: 'Visualize e gerencie os atendimentos em andamento.' },
   mensagens_rapidas: { title: 'Mensagens rápidas',       subtitle: 'Crie e gerencie mensagens prontas.' },
-  relatorios:        { title: 'Relatórios',              subtitle: 'Indicadores, desempenho e produtividade.' },
   avaliacoes:        { title: 'Avaliações',              subtitle: 'Satisfação dos clientes e desempenho da equipe.' },
   configuracoes:     { title: 'Configurações',           subtitle: 'Gerencie as configurações gerais da plataforma.' }
 }

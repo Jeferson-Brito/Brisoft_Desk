@@ -3,7 +3,7 @@
 // ==========================================================================
 
 const { supabase } = require('../config/supabase');
-const { DEFAULT_BOT_CONFIG, normalizeBotConfig } = require('../services/bot-config.service');
+const { DEFAULT_BOT_CONFIG, normalizeBotConfig, invalidateBotConfigCache } = require('../services/bot-config.service');
 
 class SettingsController {
   
@@ -59,6 +59,8 @@ class SettingsController {
       if (error) {
         throw error;
       }
+
+      if (key === 'bot_config') invalidateBotConfigCache();
 
       return res.json({ success: true, value: normalizedValue, message: 'Configuração salva com sucesso.' });
     } catch (error) {

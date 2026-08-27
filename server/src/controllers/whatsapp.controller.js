@@ -28,6 +28,15 @@ class WhatsAppController {
     }
   }
 
+  async updateAccount(req, res) {
+    try {
+      const account = await whatsappService.updateAccountRouting(req.params.id, req.body);
+      return res.json({ success: true, account });
+    } catch (error) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
   async disconnectAccount(req, res) {
     try {
       await whatsappService.disconnect(req.params.id);

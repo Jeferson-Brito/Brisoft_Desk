@@ -22,30 +22,28 @@
           {{ waitingCount > 99 ? '99+' : waitingCount }}
         </span>
       </RouterLink>
-      <RouterLink class="nav-item" to="/historico" active-class="active" title="Histórico">
+      <RouterLink class="nav-item" to="/historico" active-class="active" title="Conversas">
         <i class="fa-solid fa-clock-rotate-left"></i>
-        <span class="nav-label">Histórico</span>
+        <span class="nav-label">Conversas</span>
       </RouterLink>
       <RouterLink class="nav-item" to="/clientes" active-class="active" title="Clientes">
         <i class="fa-solid fa-user-group"></i>
         <span class="nav-label">Clientes</span>
       </RouterLink>
-      <RouterLink class="nav-item" to="/contatos" active-class="active" title="Contatos">
-        <i class="fa-solid fa-address-book"></i>
-        <span class="nav-label">Contatos</span>
-      </RouterLink>
-      <RouterLink class="nav-item" to="/kanban" active-class="active" title="Kanban">
+      <div class="nav-item nav-item-disabled" title="Kanban — em desenvolvimento" aria-disabled="true">
         <i class="fa-solid fa-border-all"></i>
         <span class="nav-label">Kanban</span>
-      </RouterLink>
+        <span class="development-badge">Em breve</span>
+      </div>
       <RouterLink class="nav-item" to="/mensagens-rapidas" active-class="active" title="Mensagens rápidas">
         <i class="fa-regular fa-comments"></i>
         <span class="nav-label">Mensagens rápidas</span>
       </RouterLink>
-      <RouterLink class="nav-item" to="/relatorios" active-class="active" title="Relatórios">
+      <div class="nav-item nav-item-disabled" title="Relatórios — em desenvolvimento" aria-disabled="true">
         <i class="fa-solid fa-chart-simple"></i>
         <span class="nav-label">Relatórios</span>
-      </RouterLink>
+        <span class="development-badge">Em breve</span>
+      </div>
       <RouterLink class="nav-item" to="/avaliacoes" active-class="active" title="Avaliações">
         <i class="fa-regular fa-star"></i>
         <span class="nav-label">Avaliações</span>
@@ -93,6 +91,33 @@ const waitingCount = computed(() => tickets.waitingTickets.length)
 <style scoped>
 .nav-item {
   position: relative;
+}
+
+.nav-item-disabled {
+  color: #64748b;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.nav-item-disabled:hover {
+  background: transparent;
+  color: #64748b;
+}
+
+.development-badge {
+  margin-left: auto;
+  padding: 2px 6px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  color: #94a3b8;
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.sidebar.collapsed .development-badge {
+  display: none;
 }
 
 .nav-badge {

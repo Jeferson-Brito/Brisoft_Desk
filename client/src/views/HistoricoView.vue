@@ -4,7 +4,7 @@
     <div class="table-toolbar" style="margin-bottom:4px;">
       <div>
         <h2 style="font-size:16px;font-weight:700;margin:0;color:#1e293b;display:flex;align-items:center;gap:8px;">
-          Histórico de Atendimentos
+          Conversas
           <span class="badge badge-info" style="font-size:11px;">{{ filteredHistory.length }} chamados</span>
         </h2>
         <p style="font-size:12px;color:#64748b;margin:2px 0 0 0;">
@@ -301,7 +301,7 @@
             <div style="display:flex;flex-direction:column;border-right:1px solid #e2e8f0;height:100%;min-height:0;background:#f8fafc;">
               <div style="padding:10px 16px;background:#ffffff;border-bottom:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#475569;">
                 <i class="fa-regular fa-comments" style="color:#2563eb;margin-right:4px;"></i>
-                Histórico Completo da Conversa
+                Conversa completa
               </div>
 
               <div class="chat-messages-container" style="flex:1;overflow-y:auto;padding:16px;">

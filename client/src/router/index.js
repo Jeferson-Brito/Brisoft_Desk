@@ -7,11 +7,8 @@ const LoginView             = () => import('@/views/LoginView.vue')
 const DashboardView         = () => import('@/views/DashboardView.vue')
 const AtendimentosView      = () => import('@/views/AtendimentosView.vue')
 const HistoricoView         = () => import('@/views/HistoricoView.vue')
-const KanbanView            = () => import('@/views/KanbanView.vue')
-const RelatoriosView        = () => import('@/views/RelatoriosView.vue')
 const AvaliacoesView        = () => import('@/views/AvaliacoesView.vue')
 const ClientesView          = () => import('@/views/ClientesView.vue')
-const ContatosView          = () => import('@/views/ContatosView.vue')
 const MensagensRapidasView  = () => import('@/views/MensagensRapidasView.vue')
 const ConfiguracoesView     = () => import('@/views/ConfiguracoesView.vue')
 
@@ -28,11 +25,8 @@ const routes = [
       { path: '',                  name: 'dashboard',         component: DashboardView        },
       { path: 'atendimentos',      name: 'atendimentos',      component: AtendimentosView      },
       { path: 'historico',         name: 'historico',         component: HistoricoView         },
-      { path: 'kanban',            name: 'kanban',            component: KanbanView            },
-      { path: 'relatorios',        name: 'relatorios',        component: RelatoriosView        },
       { path: 'avaliacoes',        name: 'avaliacoes',        component: AvaliacoesView        },
       { path: 'clientes',          name: 'clientes',          component: ClientesView          },
-      { path: 'contatos',          name: 'contatos',          component: ContatosView          },
       { path: 'mensagens-rapidas', name: 'mensagens_rapidas', component: MensagensRapidasView  },
       {
         path: 'configuracoes',
@@ -74,4 +68,3 @@ router.beforeEach(async (to) => {
 })
 
 export default router
-

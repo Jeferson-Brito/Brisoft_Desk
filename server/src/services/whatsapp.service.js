@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const pino = require('pino');
+const { buildAudioPayload } = require('./media-payload.service');
 const ticketService = require('./ticket.service');
 const KeyedTaskQueue = require('./keyed-task-queue.service');
 const { supabase, isSupabaseConfigured } = require('../config/supabase');
@@ -12,6 +13,8 @@ const SESSION_ROOT = path.join(__dirname, '../../session_auth');
 const ACCOUNTS_ROOT = path.join(SESSION_ROOT, 'accounts');
 const SETTINGS_KEY = 'whatsapp_accounts';
 const MEDIA_DIR = path.join(__dirname, '../../public/media');
+const ROUTING_MODE_GENERAL = 'general';
+const ROUTING_MODE_DEPARTMENT = 'department';
 
 function envInteger(name, fallback, minimum = 0) {
   const parsed = Number.parseInt(process.env[name], 10);
@@ -28,6 +31,19 @@ function mediaSizeBytes(value) {
 
 function safeAccountId(value) {
   return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '');
+}
+
+function normalizeAccountRouting(config = {}) {
+  const routingMode = config.routing_mode === ROUTING_MODE_DEPARTMENT || config.routingMode === ROUTING_MODE_DEPARTMENT
+    ? ROUTING_MODE_DEPARTMENT
+    : ROUTING_MODE_GENERAL;
+  const departmentId = routingMode === ROUTING_MODE_DEPARTMENT
+    ? String(config.department_id || config.departmentId || '').trim() || null
+    : null;
+  const departmentName = routingMode === ROUTING_MODE_DEPARTMENT
+    ? String(config.department_name || config.departmentName || '').trim().slice(0, 120) || null
+    : null;
+  return { routingMode, departmentId, departmentName };
 }
 
 function getPhoneFromJid(jid, lidMap) {
@@ -133,6 +149,9 @@ class WhatsAppService {
       active: account.active !== false,
       phone: account.phone || null,
       display_name: account.displayName || null,
+      routing_mode: account.routingMode,
+      department_id: account.departmentId || null,
+      department_name: account.departmentName || null,
       created_at: account.createdAt,
       last_connected_at: account.lastConnectedAt || null
     }));
@@ -144,12 +163,16 @@ class WhatsAppService {
     const id = safeAccountId(config.id);
     if (!id) throw new Error('Identificador de conta inválido.');
     if (!this.accounts.has(id)) {
+      const routing = normalizeAccountRouting(config);
       this.accounts.set(id, {
         id,
         name: String(config.name || 'WhatsApp').slice(0, 80),
         active: config.active !== false,
         phone: config.phone || null,
         displayName: config.display_name || null,
+        routingMode: routing.routingMode,
+        departmentId: routing.departmentId,
+        departmentName: routing.departmentName,
         createdAt: config.created_at || new Date().toISOString(),
         lastConnectedAt: config.last_connected_at || null,
         status: 'disconnected',
@@ -171,6 +194,51 @@ class WhatsAppService {
     const account = this.ensureAccount({ id: crypto.randomUUID(), name: cleanName, active: true });
     await this.saveConfigs();
     await this.initialize(account.id);
+    return this.publicAccount(account, true);
+  }
+
+  async updateAccountRouting(accountId, value = {}) {
+    const account = this.accounts.get(safeAccountId(accountId));
+    if (!account) throw new Error('Conta do WhatsApp não encontrada.');
+
+    const routing = normalizeAccountRouting(value);
+    if (routing.routingMode === ROUTING_MODE_DEPARTMENT) {
+      if (!routing.departmentId) throw new Error('Selecione o departamento vinculado a este WhatsApp.');
+      let department = null;
+      if (isSupabaseConfigured()) {
+        try {
+          const { data, error } = await supabase
+            .from('departments')
+            .select('id, name')
+            .eq('id', routing.departmentId)
+            .maybeSingle();
+          if (!error && data) department = data;
+        } catch (_) {}
+      }
+      if (!department) {
+        const defaultDepts = [
+          { id: '1', name: 'B3 Eletrônica' },
+          { id: '2', name: 'Comercial' },
+          { id: '3', name: 'Comercial eletrônica' },
+          { id: '4', name: 'Financeiro' },
+          { id: '5', name: 'Operacional' },
+          { id: '6', name: 'Recursos Humanos' },
+          { id: '7', name: 'Suporte Técnico' },
+          { id: '8', name: 'Suprimentos' }
+        ];
+        const match = defaultDepts.find(d => String(d.id) === String(routing.departmentId) || d.name.toLowerCase() === (routing.departmentName || '').toLowerCase());
+        if (match) department = match;
+      }
+      if (!department) throw new Error('O departamento selecionado não foi encontrado.');
+      routing.departmentId = department.id;
+      routing.departmentName = department.name;
+    }
+
+    account.routingMode = routing.routingMode;
+    account.departmentId = routing.departmentId;
+    account.departmentName = routing.departmentName;
+    await this.saveConfigs();
+    this.emitAccounts();
     return this.publicAccount(account, true);
   }
 
@@ -342,7 +410,10 @@ class WhatsAppService {
       fileName: media.fileName,
       timestamp: msg.messageTimestamp,
       messageId: msg.key.id,
-      whatsappAccountId: account.id
+      whatsappAccountId: account.id,
+      whatsappRoutingMode: account.routingMode,
+      whatsappDepartmentId: account.departmentId,
+      whatsappDepartmentName: account.departmentName
     }, this.io, scopedSender);
     if (media.type && !media.url && result?.ticket?.id) {
       this.retryMissingMedia(account, msg, downloadMediaMessage, downloadContentFromMessage, result.ticket.id).catch(error => {
@@ -509,17 +580,23 @@ class WhatsAppService {
     }
   }
 
-  async sendMediaMessage(target, fileBuffer, mediaType, caption, fileName, accountId = null, mimeType = null) {
+  async sendMediaMessage(target, fileBuffer, mediaType, caption, fileName, accountId = null, mimeType = null, voiceNote = false) {
     const account = this.selectAccount(accountId);
     if (!account?.sock || account.status !== 'connected') return false;
     let jid = target.includes('@') ? target : `${target.replace(/\D/g, '')}@s.whatsapp.net`;
     const payloads = {
       image: { image: fileBuffer, caption: caption || '' },
-      audio: { audio: fileBuffer, mimetype: mimeType || 'audio/ogg; codecs=opus', ptt: true },
+      audio: buildAudioPayload(fileBuffer, mimeType, voiceNote),
       video: { video: fileBuffer, mimetype: mimeType || 'video/mp4', caption: caption || '' },
       document: { document: fileBuffer, mimetype: mimeType || 'application/octet-stream', fileName: fileName || 'documento', caption: caption || '' }
     };
-    try { await account.sock.sendMessage(jid, payloads[mediaType]); return true; }
+    try {
+      const result = await account.sock.sendMessage(jid, payloads[mediaType]);
+      if (mediaType === 'audio') {
+        console.log(`[WhatsApp:${account.name}] áudio enviado (${payloads.audio.mimetype}, ptt=${payloads.audio.ptt}, id=${result?.key?.id || 'n/d'}).`);
+      }
+      return true;
+    }
     catch (error) { console.error(`[WhatsApp:${account.name}] falha ao enviar mídia: ${error.message}`); return false; }
   }
 
@@ -554,6 +631,9 @@ class WhatsAppService {
       status: account.status,
       phone: account.phone,
       displayName: account.displayName,
+      routingMode: account.routingMode,
+      departmentId: account.departmentId,
+      departmentName: account.departmentName,
       lastConnectedAt: account.lastConnectedAt,
       createdAt: account.createdAt,
       ...(includeQr ? { qrCode: account.qrCode } : {})
@@ -582,6 +662,6 @@ class WhatsAppService {
 }
 
 const whatsappService = new WhatsAppService();
-whatsappService._test = { unwrapMessageContent, safeFileToken };
+whatsappService._test = { unwrapMessageContent, safeFileToken, normalizeAccountRouting };
 
 module.exports = whatsappService;

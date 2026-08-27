@@ -3,6 +3,7 @@
 // ==========================================================================
 
 const { supabase } = require('../config/supabase');
+const ticketService = require('../services/ticket.service');
 
 class DepartmentController {
   
@@ -56,6 +57,8 @@ class DepartmentController {
 
       if (result.error) throw result.error;
 
+      ticketService.invalidateDepartmentCache();
+
       res.json({ success: true, department: result.data });
     } catch (error) {
       console.error('Erro ao salvar departamento:', error);
@@ -71,6 +74,8 @@ class DepartmentController {
 
       const { error } = await supabase.from('departments').delete().eq('id', id);
       if (error) throw error;
+
+      ticketService.invalidateDepartmentCache();
 
       res.json({ success: true, message: 'Departamento excluído com sucesso' });
     } catch (error) {

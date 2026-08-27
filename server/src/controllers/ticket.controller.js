@@ -67,7 +67,8 @@ class TicketController {
         fileName,
         caption,
         mimeType: req.get('x-file-type') || 'application/octet-stream',
-        mediaType: req.get('x-media-type') || ''
+        mediaType: req.get('x-media-type') || '',
+        voiceNote: req.get('x-voice-note') === 'true'
       }, req.user, req.app.get('io'), whatsappService);
       if (!result || result.success === false) {
         return res.status(502).json({ success: false, error: result?.error || 'Falha ao enviar arquivo.' });

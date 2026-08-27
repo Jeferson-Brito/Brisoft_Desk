@@ -16,6 +16,7 @@ export const ticketsApi = {
       'X-File-Name': encodeURIComponent(metadata.fileName || file?.name || 'arquivo'),
       'X-File-Type': metadata.mimeType || file?.type || 'application/octet-stream',
       'X-Media-Type': metadata.mediaType || '',
+      'X-Voice-Note': metadata.voiceNote === true ? 'true' : 'false',
       'X-Media-Caption': encodeURIComponent(metadata.caption || '')
     }
   }),

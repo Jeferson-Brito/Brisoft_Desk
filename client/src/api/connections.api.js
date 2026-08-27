@@ -6,6 +6,7 @@ export const connectionsApi = {
   clearServerLogs: () => http.delete('/system/logs'),
   listWhatsApp: () => http.get('/whatsapp/accounts'),
   createWhatsApp: (name) => http.post('/whatsapp/accounts', { name }),
+  updateWhatsApp: (id, data) => http.patch(`/whatsapp/accounts/${id}`, data),
   connectWhatsApp: (id) => http.post(`/whatsapp/accounts/${id}/connect`),
   disconnectWhatsApp: (id) => http.post(`/whatsapp/accounts/${id}/disconnect`),
   removeWhatsApp: (id) => http.delete(`/whatsapp/accounts/${id}`)

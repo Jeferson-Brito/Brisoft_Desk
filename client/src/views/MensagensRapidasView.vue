@@ -1,107 +1,168 @@
 <template>
-  <div class="table-view-layout" style="width:100%;">
-    <!-- Toolbar -->
-    <div class="table-toolbar">
-      <div class="table-toolbar-left">
-        <div class="search-input-wrap" style="width:320px;">
-          <i class="fa-solid fa-magnifying-glass"></i>
-          <input v-model="searchTerm" type="text" placeholder="Buscar mensagens rápidas..." />
-        </div>
+  <div class="qm-page">
+    <section class="qm-summary">
+      <div class="qm-summary-copy">
+        <span class="qm-eyebrow"><i class="fa-solid fa-bolt"></i> Respostas padronizadas</span>
+        <h2>Responda com mais agilidade</h2>
+        <p>Organize textos frequentes por categoria e use-os diretamente durante os atendimentos.</p>
       </div>
-      <button v-if="auth.isAdmin" class="btn-primary" @click="openCreate">
-        <i class="fa-solid fa-plus"></i> Nova Mensagem
+      <div class="qm-stats">
+        <div class="qm-stat"><strong>{{ messages.length }}</strong><span>Total</span></div>
+        <div class="qm-stat"><strong>{{ activeCount }}</strong><span>Ativas</span></div>
+        <div class="qm-stat"><strong>{{ categories.length }}</strong><span>Categorias</span></div>
+      </div>
+      <button v-if="auth.isAdmin" class="btn-primary qm-create-btn" @click="openCreate">
+        <i class="fa-solid fa-plus"></i> Nova mensagem
+      </button>
+    </section>
+
+    <section class="qm-toolbar">
+      <div class="search-input-wrap qm-search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input v-model="searchTerm" type="text" placeholder="Buscar por título, conteúdo ou atalho..." />
+        <button v-if="searchTerm" type="button" class="qm-clear-search" title="Limpar busca" @click="searchTerm = ''">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <select v-if="auth.isAdmin" v-model="statusFilter" class="form-control qm-select" aria-label="Filtrar por status">
+        <option value="all">Todas</option>
+        <option value="active">Ativas</option>
+        <option value="inactive">Inativas</option>
+      </select>
+      <select v-model="sortBy" class="form-control qm-select" aria-label="Ordenar mensagens">
+        <option value="title">Título A–Z</option>
+        <option value="category">Categoria</option>
+        <option value="recent">Mais recentes</option>
+      </select>
+    </section>
+
+    <div class="qm-category-row" aria-label="Categorias">
+      <button type="button" class="qm-category-chip" :class="{ active: selectedCategory === 'all' }" @click="selectedCategory = 'all'">
+        Todas <span>{{ messages.length }}</span>
+      </button>
+      <button
+        v-for="category in categories"
+        :key="category"
+        type="button"
+        class="qm-category-chip"
+        :class="{ active: selectedCategory === category }"
+        @click="selectedCategory = category"
+      >
+        {{ category }} <span>{{ categoryCount(category) }}</span>
       </button>
     </div>
 
-    <!-- Grid de Cards -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:16px;">
-      <div v-if="filteredMessages.length === 0" class="card-box" style="padding:48px;text-align:center;color:#64748b;grid-column:1/-1;">
-        <i class="fa-regular fa-comment-dots" style="font-size:32px;color:#cbd5e1;margin-bottom:12px;display:block;"></i>
-        Nenhuma mensagem rápida cadastrada.
-      </div>
-      
-      <div
-        v-for="(msg, idx) in filteredMessages"
-        :key="msg.id"
-        class="card-box qm-card"
-      >
-        <div>
-          <div class="qm-card-header">
-            <strong class="qm-card-title">{{ msg.title }}</strong>
-            <span class="tag-pill" :class="idx % 2 === 0 ? 'tag-blue' : 'tag-purple'">{{ msg.category || 'Atendimento' }}</span>
+    <div v-if="loading" class="qm-grid">
+      <div v-for="n in 3" :key="n" class="qm-skeleton"></div>
+    </div>
+
+    <div v-else-if="filteredMessages.length === 0" class="qm-empty">
+      <div class="qm-empty-icon"><i class="fa-regular fa-comment-dots"></i></div>
+      <strong>{{ hasFilters ? 'Nenhuma mensagem encontrada' : 'Nenhuma mensagem pronta cadastrada' }}</strong>
+      <p>{{ hasFilters ? 'Tente alterar os filtros ou o termo pesquisado.' : 'Crie respostas reutilizáveis para agilizar os atendimentos.' }}</p>
+      <button v-if="hasFilters" type="button" class="btn-secondary" @click="clearFilters">Limpar filtros</button>
+    </div>
+
+    <div v-else class="qm-grid">
+      <article v-for="msg in filteredMessages" :key="msg.id" class="qm-card" :class="{ inactive: !msg.is_active }">
+        <div class="qm-card-top">
+          <div class="qm-card-icon" :style="categoryStyle(msg.category)">
+            <i class="fa-regular fa-message"></i>
           </div>
-          <p class="qm-card-content">{{ msg.content }}</p>
+          <div class="qm-card-heading">
+            <strong>{{ msg.title }}</strong>
+            <span>{{ msg.category || 'Geral' }}</span>
+          </div>
+          <span class="qm-status" :class="msg.is_active ? 'active' : 'inactive'">
+            <i class="fa-solid fa-circle"></i> {{ msg.is_active ? 'Ativa' : 'Inativa' }}
+          </span>
         </div>
 
-        <div class="qm-card-footer">
-          <span class="qm-shortcut">
-            Atalho: <code v-if="msg.shortcut">/{{ msg.shortcut }}</code><span v-else style="color:#94a3b8;">não definido</span>
-          </span>
-          <div v-if="auth.isAdmin" style="display:flex;gap:6px;">
-            <button class="btn-icon" title="Editar" @click="openEdit(msg)">
+        <p class="qm-card-content">{{ msg.content }}</p>
+
+        <div class="qm-card-bottom">
+          <button v-if="msg.shortcut" type="button" class="qm-shortcut" title="Copiar atalho" @click="copyText(`/${msg.shortcut}`, 'Atalho copiado!')">
+            <span>/{{ msg.shortcut }}</span><i class="fa-regular fa-copy"></i>
+          </button>
+          <span v-else class="qm-no-shortcut">Sem atalho</span>
+          <div class="qm-actions">
+            <button type="button" class="btn-icon" title="Copiar mensagem" @click="copyText(msg.content, 'Mensagem copiada!')">
+              <i class="fa-regular fa-copy"></i>
+            </button>
+            <button v-if="auth.isAdmin" type="button" class="btn-icon" title="Editar" @click="openEdit(msg)">
               <i class="fa-solid fa-pen"></i>
             </button>
-            <button class="btn-icon btn-icon-danger" title="Excluir" @click="removeMessage(msg)">
+            <button v-if="auth.isAdmin" type="button" class="btn-icon btn-icon-danger" title="Excluir" @click="removeMessage(msg)">
               <i class="fa-solid fa-trash"></i>
             </button>
           </div>
         </div>
-      </div>
+      </article>
     </div>
 
-    <!-- Modal de criação/edição -->
     <Teleport to="body">
-      <div v-if="showForm" class="modal-overlay active" @click.self="showForm = false">
-        <div class="modal-container" style="max-width:540px;">
+      <div v-if="showForm" class="modal-overlay active" @click.self="closeForm">
+        <div class="modal-container qm-modal">
           <div class="modal-header">
-            <span class="modal-title">{{ editingId ? 'Editar mensagem rápida' : 'Nova mensagem rápida' }}</span>
-            <button type="button" class="btn-icon" @click="showForm = false">
-              <i class="fa-solid fa-xmark"></i>
-            </button>
+            <div>
+              <span class="modal-title">{{ editingId ? 'Editar mensagem pronta' : 'Nova mensagem pronta' }}</span>
+              <p class="qm-modal-subtitle">O texto ficará disponível no campo de resposta dos atendentes.</p>
+            </div>
+            <button type="button" class="btn-icon" title="Fechar" @click="closeForm"><i class="fa-solid fa-xmark"></i></button>
           </div>
 
           <form @submit.prevent="saveMessage">
-            <div class="modal-body">
-              <div class="form-group">
-                <label>Título *</label>
-                <input v-model="form.title" type="text" required maxlength="120" placeholder="Ex.: Saudação" class="form-control" />
-              </div>
-
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="modal-body qm-modal-body">
+              <div class="qm-form-fields">
                 <div class="form-group">
-                  <label>Categoria</label>
-                  <input v-model="form.category" type="text" maxlength="80" placeholder="Ex.: Atendimento" class="form-control" />
+                  <label>Título <span>*</span></label>
+                  <input v-model="form.title" type="text" required maxlength="120" placeholder="Ex.: Confirmação de atendimento" class="form-control" />
                 </div>
+
+                <div class="qm-two-columns">
+                  <div class="form-group">
+                    <label>Categoria</label>
+                    <input v-model="form.category" list="quick-message-categories" type="text" maxlength="80" placeholder="Ex.: Atendimento" class="form-control" />
+                    <datalist id="quick-message-categories">
+                      <option v-for="category in categories" :key="category" :value="category" />
+                    </datalist>
+                  </div>
+                  <div class="form-group">
+                    <label>Atalho</label>
+                    <div class="qm-shortcut-input">
+                      <span>/</span>
+                      <input v-model="form.shortcut" type="text" maxlength="50" placeholder="confirmacao" class="form-control" @input="sanitizeShortcut" />
+                    </div>
+                  </div>
+                </div>
+
                 <div class="form-group">
-                  <label>Atalho (ex: /saudacao)</label>
-                  <input v-model="form.shortcut" type="text" maxlength="50" placeholder="Ex.: saudacao" class="form-control" />
+                  <div class="qm-label-row"><label>Mensagem <span>*</span></label><small>{{ form.content.length }}/4000</small></div>
+                  <textarea v-model="form.content" required rows="8" maxlength="4000" placeholder="Digite a mensagem exatamente como deverá ser enviada..." class="form-control qm-textarea"></textarea>
                 </div>
+
+                <label class="qm-active-toggle">
+                  <input v-model="form.is_active" type="checkbox" />
+                  <span class="qm-toggle-track"><span></span></span>
+                  <span><strong>Mensagem ativa</strong><small>Disponível para uso dos atendentes</small></span>
+                </label>
               </div>
 
-              <div class="form-group">
-                <label>Mensagem *</label>
-                <textarea
-                  v-model="form.content"
-                  required
-                  rows="5"
-                  maxlength="4000"
-                  placeholder="Digite o texto da mensagem rápida que será enviado..."
-                  class="form-control"
-                  style="resize:vertical;"
-                ></textarea>
-              </div>
-
-              <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;">
-                <input v-model="form.is_active" type="checkbox" style="width:16px;height:16px;accent-color:#2563eb;" />
-                <span>Disponível para todos os atendentes</span>
-              </label>
+              <aside class="qm-preview">
+                <span class="qm-preview-label"><i class="fa-regular fa-eye"></i> Prévia no atendimento</span>
+                <div class="qm-preview-bubble">
+                  <strong>{{ form.title || 'Título da mensagem' }}</strong>
+                  <p>{{ form.content || 'O conteúdo da mensagem aparecerá aqui enquanto você digita.' }}</p>
+                  <small>{{ form.shortcut ? `/${form.shortcut}` : 'Sem atalho' }}</small>
+                </div>
+              </aside>
             </div>
 
             <div class="modal-footer">
-              <button type="button" class="btn-secondary" @click="showForm = false">Cancelar</button>
+              <button type="button" class="btn-secondary" @click="closeForm">Cancelar</button>
               <button type="submit" class="btn-primary" :disabled="saving">
-                <i class="fa-solid fa-floppy-disk" :class="{ 'fa-spin': saving }"></i>
-                {{ saving ? 'Salvando...' : 'Salvar' }}
+                <i :class="saving ? 'fa-solid fa-circle-notch fa-spin' : 'fa-solid fa-floppy-disk'"></i>
+                {{ saving ? 'Salvando...' : 'Salvar mensagem' }}
               </button>
             </div>
           </form>
@@ -120,161 +181,124 @@ import { useUiStore } from '@/stores/ui.store'
 const auth = useAuthStore()
 const ui = useUiStore()
 const searchTerm = ref('')
+const selectedCategory = ref('all')
+const statusFilter = ref('all')
+const sortBy = ref('title')
 const messages = ref([])
+const loading = ref(true)
 const showForm = ref(false)
 const editingId = ref(null)
 const saving = ref(false)
 
 const emptyForm = () => ({ title: '', category: 'Atendimento', shortcut: '', content: '', is_active: true })
 const form = ref(emptyForm())
+const categories = computed(() => [...new Set(messages.value.map(item => item.category || 'Geral'))].sort((a, b) => a.localeCompare(b, 'pt-BR')))
+const activeCount = computed(() => messages.value.filter(item => item.is_active).length)
+const hasFilters = computed(() => Boolean(searchTerm.value.trim()) || selectedCategory.value !== 'all' || statusFilter.value !== 'all')
 
 const filteredMessages = computed(() => {
-  if (!searchTerm.value.trim()) return messages.value
-  const t = searchTerm.value.toLowerCase()
-  return messages.value.filter(m =>
-    (m.title || '').toLowerCase().includes(t) ||
-    (m.content || '').toLowerCase().includes(t) ||
-    (m.shortcut || '').toLowerCase().includes(t) ||
-    (m.category || '').toLowerCase().includes(t)
-  )
+  const term = searchTerm.value.trim().toLocaleLowerCase('pt-BR')
+  const list = messages.value.filter(item => {
+    const searchable = `${item.title} ${item.content} ${item.shortcut || ''} ${item.category || ''}`.toLocaleLowerCase('pt-BR')
+    if (term && !searchable.includes(term)) return false
+    if (selectedCategory.value !== 'all' && (item.category || 'Geral') !== selectedCategory.value) return false
+    if (statusFilter.value === 'active' && !item.is_active) return false
+    if (statusFilter.value === 'inactive' && item.is_active) return false
+    return true
+  })
+  return [...list].sort((a, b) => {
+    if (sortBy.value === 'category') return (a.category || '').localeCompare(b.category || '', 'pt-BR') || a.title.localeCompare(b.title, 'pt-BR')
+    if (sortBy.value === 'recent') return messages.value.indexOf(b) - messages.value.indexOf(a)
+    return a.title.localeCompare(b.title, 'pt-BR')
+  })
 })
 
 async function loadMessages() {
+  loading.value = true
   try {
     const { data } = await quickMessagesApi.list()
     messages.value = data.messages || []
   } catch (_) {
-    ui.showToast('Não foi possível carregar as mensagens rápidas.', 'error')
+    ui.showToast('Não foi possível carregar as mensagens prontas.', 'error')
+  } finally {
+    loading.value = false
   }
 }
 
-function openCreate() {
-  editingId.value = null
-  form.value = emptyForm()
-  showForm.value = true
+function categoryCount(category) { return messages.value.filter(item => (item.category || 'Geral') === category).length }
+function categoryStyle(category = 'Geral') {
+  const palettes = [
+    ['#eff6ff', '#2563eb'], ['#f5f3ff', '#7c3aed'], ['#ecfdf5', '#059669'],
+    ['#fff7ed', '#ea580c'], ['#fdf2f8', '#db2777'], ['#f0f9ff', '#0284c7']
+  ]
+  const index = [...category].reduce((total, char) => total + char.charCodeAt(0), 0) % palettes.length
+  return { backgroundColor: palettes[index][0], color: palettes[index][1] }
 }
-
+function clearFilters() { searchTerm.value = ''; selectedCategory.value = 'all'; statusFilter.value = 'all' }
+function closeForm() { if (!saving.value) showForm.value = false }
+function openCreate() { editingId.value = null; form.value = emptyForm(); showForm.value = true }
 function openEdit(message) {
   editingId.value = message.id
-  form.value = {
-    title: message.title || '',
-    category: message.category || 'Atendimento',
-    shortcut: message.shortcut || '',
-    content: message.content || '',
-    is_active: message.is_active ?? true
-  }
+  form.value = { title: message.title || '', category: message.category || 'Atendimento', shortcut: message.shortcut || '', content: message.content || '', is_active: message.is_active !== false }
   showForm.value = true
+}
+function sanitizeShortcut() { form.value.shortcut = form.value.shortcut.toLowerCase().replace(/^\/+/, '').replace(/[^a-z0-9_-]/g, '') }
+async function copyText(value, message) {
+  try { await navigator.clipboard.writeText(value); ui.showToast(message) }
+  catch (_) { ui.showToast('Não foi possível copiar.', 'error') }
 }
 
 async function saveMessage() {
-  if (!form.value.title.trim() || !form.value.content.trim()) {
-    ui.showToast('Informe o título e a mensagem.', 'error')
-    return
-  }
+  if (!form.value.title.trim() || !form.value.content.trim()) return ui.showToast('Informe o título e a mensagem.', 'error')
+  const duplicateShortcut = form.value.shortcut && messages.value.some(item => item.id !== editingId.value && item.shortcut === form.value.shortcut)
+  if (duplicateShortcut) return ui.showToast('Esse atalho já está sendo utilizado.', 'error')
   saving.value = true
   try {
-    if (editingId.value) {
-      await quickMessagesApi.update(editingId.value, form.value)
-      ui.showToast('Mensagem rápida atualizada com sucesso!')
-    } else {
-      await quickMessagesApi.create(form.value)
-      ui.showToast('Mensagem rápida criada com sucesso!')
-    }
+    if (editingId.value) await quickMessagesApi.update(editingId.value, form.value)
+    else await quickMessagesApi.create(form.value)
+    ui.showToast(editingId.value ? 'Mensagem atualizada com sucesso!' : 'Mensagem criada com sucesso!')
     showForm.value = false
     await loadMessages()
   } catch (error) {
     ui.showToast(error.response?.data?.error || 'Não foi possível salvar a mensagem.', 'error')
-  } finally {
-    saving.value = false
-  }
+  } finally { saving.value = false }
 }
 
 async function removeMessage(message) {
   if (!window.confirm(`Excluir a mensagem "${message.title}"?`)) return
-  try {
-    await quickMessagesApi.remove(message.id)
-    await loadMessages()
-    ui.showToast('Mensagem rápida excluída.')
-  } catch (error) {
-    ui.showToast(error.response?.data?.error || 'Não foi possível excluir a mensagem.', 'error')
-  }
+  try { await quickMessagesApi.remove(message.id); await loadMessages(); ui.showToast('Mensagem excluída.') }
+  catch (error) { ui.showToast(error.response?.data?.error || 'Não foi possível excluir a mensagem.', 'error') }
 }
 
 onMounted(loadMessages)
 </script>
 
 <style scoped>
-.qm-card {
-  padding: 18px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 14px;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.qm-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.qm-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  gap: 8px;
-}
-
-.qm-card-title {
-  font-size: 14px;
-  color: #1e293b;
-  font-weight: 700;
-}
-
-.qm-card-content {
-  font-size: 13px;
-  color: #475569;
-  margin: 0;
-  line-height: 1.5;
-  white-space: pre-wrap;
-}
-
-.qm-card-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 12px;
-  border-top: 1px solid #f1f5f9;
-}
-
-.qm-shortcut {
-  font-size: 12px;
-  color: #64748b;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.qm-shortcut code {
-  background: #0f172a;
-  color: #38bdf8;
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 11.5px;
-  font-weight: 600;
-  font-family: monospace;
-}
-
-.btn-icon-danger {
-  color: #ef4444;
-}
-
-.btn-icon-danger:hover {
-  background: rgba(239, 68, 68, 0.1);
-}
+.qm-page { width: 100%; display: flex; flex-direction: column; gap: 14px; padding: 0 18px 20px; box-sizing: border-box; }
+.qm-summary { display: grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:28px; padding:20px 22px; border:1px solid #dbeafe; border-radius:14px; background:linear-gradient(120deg,#fff 0%,#f8fbff 62%,#eff6ff 100%); box-shadow:0 2px 8px rgba(37,99,235,.05); }
+.qm-eyebrow { display:inline-flex; align-items:center; gap:6px; color:#2563eb; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; }
+.qm-summary h2 { margin:5px 0 3px; color:#0f172a; font-size:20px; }
+.qm-summary p { margin:0; color:#64748b; font-size:12px; }
+.qm-stats { display:flex; gap:8px; }
+.qm-stat { min-width:68px; padding:9px 12px; border:1px solid #e2e8f0; border-radius:10px; background:rgba(255,255,255,.8); text-align:center; }
+.qm-stat strong { display:block; color:#0f172a; font-size:17px; }.qm-stat span { color:#64748b; font-size:9.5px; text-transform:uppercase; font-weight:700; }
+.qm-create-btn { white-space:nowrap; }
+.qm-toolbar { display:flex; gap:9px; align-items:center; }.qm-search { flex:1; }.qm-search input { height:38px; background:#fff; }.qm-select { width:150px; height:38px; font-size:11.5px; }
+.qm-clear-search { position:absolute; right:8px; top:50%; transform:translateY(-50%); border:0; background:transparent; color:#94a3b8; cursor:pointer; }
+.qm-category-row { display:flex; gap:7px; overflow-x:auto; padding:1px 1px 3px; }
+.qm-category-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid #e2e8f0; border-radius:999px; background:#fff; color:#64748b; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap; }
+.qm-category-chip span { min-width:18px; padding:1px 5px; border-radius:999px; background:#f1f5f9; font-size:9.5px; text-align:center; }.qm-category-chip.active { border-color:#93c5fd; background:#eff6ff; color:#1d4ed8; }.qm-category-chip.active span { background:#dbeafe; }
+.qm-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:13px; }
+.qm-card { min-height:190px; display:flex; flex-direction:column; padding:16px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; box-shadow:0 1px 3px rgba(15,23,42,.04); transition:.18s ease; }.qm-card:hover { transform:translateY(-2px); border-color:#bfdbfe; box-shadow:0 8px 20px rgba(15,23,42,.07); }.qm-card.inactive { opacity:.68; }
+.qm-card-top { display:flex; align-items:center; gap:9px; }.qm-card-icon { width:34px; height:34px; border-radius:9px; display:grid; place-items:center; flex:none; }.qm-card-heading { min-width:0; display:flex; flex-direction:column; }.qm-card-heading strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#0f172a; font-size:13.5px; }.qm-card-heading span { color:#64748b; font-size:10.5px; }
+.qm-status { margin-left:auto; display:inline-flex; align-items:center; gap:4px; font-size:9.5px; font-weight:700; }.qm-status i { font-size:5px; }.qm-status.active { color:#16a34a; }.qm-status.inactive { color:#94a3b8; }
+.qm-card-content { flex:1; margin:15px 0; color:#475569; font-size:12.5px; line-height:1.55; white-space:pre-wrap; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:4; overflow:hidden; }
+.qm-card-bottom { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:11px; border-top:1px solid #f1f5f9; }.qm-shortcut { display:inline-flex; align-items:center; gap:7px; padding:5px 8px; border:1px solid #dbeafe; border-radius:6px; background:#eff6ff; color:#1d4ed8; font:600 10.5px monospace; cursor:pointer; }.qm-no-shortcut { color:#94a3b8; font-size:10.5px; }.qm-actions { display:flex; gap:4px; }.btn-icon-danger { color:#ef4444; }.btn-icon-danger:hover { background:#fef2f2; }
+.qm-empty { min-height:280px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px; border:1px dashed #cbd5e1; border-radius:14px; background:#fff; text-align:center; }.qm-empty-icon { width:54px; height:54px; display:grid; place-items:center; margin-bottom:12px; border-radius:50%; background:#eff6ff; color:#2563eb; font-size:22px; }.qm-empty strong { color:#1e293b; font-size:14px; }.qm-empty p { margin:5px 0 14px; color:#64748b; font-size:12px; }.qm-skeleton { height:190px; border-radius:12px; background:linear-gradient(90deg,#f1f5f9 25%,#f8fafc 50%,#f1f5f9 75%); background-size:200% 100%; animation:qm-shimmer 1.2s infinite; }
+.qm-modal { max-width:820px; }.qm-modal-subtitle { margin:3px 0 0; color:#64748b; font-size:11px; }.qm-modal-body { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(230px,.8fr); gap:22px; }.qm-form-fields { min-width:0; }.qm-two-columns { display:grid; grid-template-columns:1fr 1fr; gap:12px; }.form-group label span,.qm-label-row label span { color:#ef4444; }.qm-label-row { display:flex; justify-content:space-between; align-items:center; }.qm-label-row small { color:#94a3b8; font-size:10.5px; }.qm-textarea { resize:vertical; min-height:150px; line-height:1.5; }.qm-shortcut-input { position:relative; }.qm-shortcut-input>span { position:absolute; z-index:1; left:11px; top:50%; transform:translateY(-50%); color:#64748b; font-weight:700; }.qm-shortcut-input input { padding-left:23px; }
+.qm-active-toggle { display:flex; align-items:center; gap:10px; cursor:pointer; }.qm-active-toggle>input { position:absolute; opacity:0; }.qm-toggle-track { width:36px; height:20px; padding:2px; border-radius:999px; background:#cbd5e1; transition:.2s; }.qm-toggle-track span { display:block; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2); transition:.2s; }.qm-active-toggle>input:checked+.qm-toggle-track { background:#2563eb; }.qm-active-toggle>input:checked+.qm-toggle-track span { transform:translateX(16px); }.qm-active-toggle>span:last-child { display:flex; flex-direction:column; }.qm-active-toggle strong { color:#334155; font-size:12px; }.qm-active-toggle small { color:#94a3b8; font-size:10.5px; }
+.qm-preview { padding:13px; border:1px solid #e2e8f0; border-radius:11px; background:#f8fafc; }.qm-preview-label { display:flex; align-items:center; gap:6px; margin-bottom:13px; color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase; }.qm-preview-bubble { padding:12px; border-radius:10px 10px 2px 10px; background:#dcfce7; box-shadow:0 1px 2px rgba(15,23,42,.08); }.qm-preview-bubble strong { display:block; margin-bottom:6px; color:#166534; font-size:11px; }.qm-preview-bubble p { margin:0; color:#14532d; font-size:11.5px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }.qm-preview-bubble small { display:block; margin-top:9px; color:#4d7c5a; font:600 9.5px monospace; }
+@keyframes qm-shimmer { to { background-position:-200% 0; } }
+@media(max-width:900px){.qm-summary{grid-template-columns:1fr auto}.qm-stats{order:3;grid-column:1/-1}.qm-modal-body{grid-template-columns:1fr}.qm-preview{display:none}}
+@media(max-width:650px){.qm-summary{grid-template-columns:1fr}.qm-create-btn{width:100%}.qm-toolbar{flex-wrap:wrap}.qm-search{flex-basis:100%}.qm-select{flex:1}.qm-two-columns{grid-template-columns:1fr}.qm-grid{grid-template-columns:1fr}}
 </style>

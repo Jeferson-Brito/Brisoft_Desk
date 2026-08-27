@@ -182,13 +182,21 @@
           :key="t.id"
           :ticket="t"
         />
+        <button
+          v-if="hasMoreTickets"
+          type="button"
+          class="queue-load-more"
+          @click="visibleLimit += PAGE_SIZE"
+        >
+          Carregar mais {{ Math.min(PAGE_SIZE, allFilteredTickets.length - filteredTickets.length) }}
+        </button>
       </template>
     </div>
 
     <!-- Footer da Fila -->
     <div class="queue-footer">
       <span class="queue-footer-info">
-        Exibindo <strong>{{ filteredTickets.length }}</strong> de {{ totalActiveCount }}
+        Exibindo <strong>{{ filteredTickets.length }}</strong> de {{ allFilteredTickets.length }}
       </span>
       <button class="queue-footer-sync" title="Sincronizar" @click="refreshQueue">
         <i class="fa-solid fa-arrows-rotate" :class="{ 'spin-anim': isRefreshing }"></i>
@@ -198,7 +206,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useTicketStore } from '@/stores/tickets.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -214,6 +222,8 @@ const selectedDepartment = ref('')
 const sortBy = ref('recent') // 'recent', 'unread', 'oldest'
 const showFilterPopover = ref(false)
 const isRefreshing = ref(false)
+const PAGE_SIZE = 100
+const visibleLimit = ref(PAGE_SIZE)
 
 const totalActiveCount = computed(() => ticketStore.visibleTickets.length)
 
@@ -239,7 +249,7 @@ async function refreshQueue() {
   }
 }
 
-const filteredTickets = computed(() => {
+const allFilteredTickets = computed(() => {
   let list = activeTab.value === 'aguardando'
     ? ticketStore.waitingTickets
     : ticketStore.inProgressTickets
@@ -271,6 +281,13 @@ const filteredTickets = computed(() => {
   }
 
   return copy
+})
+
+const filteredTickets = computed(() => allFilteredTickets.value.slice(0, visibleLimit.value))
+const hasMoreTickets = computed(() => filteredTickets.value.length < allFilteredTickets.value.length)
+
+watch([activeTab, searchTerm, selectedDepartment, sortBy], () => {
+  visibleLimit.value = PAGE_SIZE
 })
 
 onMounted(() => {
@@ -759,5 +776,21 @@ onMounted(() => {
 
 .queue-footer-sync:hover {
   color: #2563eb;
+}
+
+.queue-load-more {
+  margin: 10px 12px 14px;
+  padding: 8px 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 7px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.queue-load-more:hover {
+  background: #dbeafe;
 }
 </style>

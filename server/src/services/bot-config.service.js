@@ -1,5 +1,10 @@
 const { supabase, isSupabaseConfigured } = require('../config/supabase');
 
+const BOT_CONFIG_CACHE_TTL_MS = 60 * 1000;
+let botConfigCache = null;
+let botConfigCacheExpiresAt = 0;
+let botConfigLoadPromise = null;
+
 const DEFAULT_BOT_CONFIG = Object.freeze({
   enabled: true,
   default_department_id: null,
@@ -125,24 +130,42 @@ function normalizeBotConfig(value = {}) {
 }
 
 async function getBotConfig() {
+  if (botConfigCache && Date.now() < botConfigCacheExpiresAt) return { ...botConfigCache };
   if (!isSupabaseConfigured()) return { ...DEFAULT_BOT_CONFIG };
-  const { data, error } = await supabase
-    .from('system_settings')
-    .select('value')
-    .eq('key', 'bot_config')
-    .maybeSingle();
+  if (!botConfigLoadPromise) {
+    botConfigLoadPromise = (async () => {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'bot_config')
+        .maybeSingle();
 
-  if (error) {
-    console.warn('Não foi possível carregar as configurações do bot:', error.message);
-    return { ...DEFAULT_BOT_CONFIG };
-  }
+      if (error) {
+        console.warn('Não foi possível carregar as configurações do bot:', error.message);
+        return { ...DEFAULT_BOT_CONFIG };
+      }
 
-  const config = normalizeBotConfig(data?.value);
-  if (!data?.value?.greeting_message) {
-    const legacy = await supabase.from('system_settings').select('value').eq('key', 'bot_greeting').maybeSingle();
-    if (!legacy.error && typeof legacy.data?.value === 'string') config.greeting_message = legacy.data.value;
+      const config = normalizeBotConfig(data?.value);
+      if (!data?.value?.greeting_message) {
+        const legacy = await supabase.from('system_settings').select('value').eq('key', 'bot_greeting').maybeSingle();
+        if (!legacy.error && typeof legacy.data?.value === 'string') config.greeting_message = legacy.data.value;
+      }
+      return config;
+    })();
   }
-  return config;
+  try {
+    botConfigCache = await botConfigLoadPromise;
+    botConfigCacheExpiresAt = Date.now() + BOT_CONFIG_CACHE_TTL_MS;
+    return { ...botConfigCache };
+  } finally {
+    botConfigLoadPromise = null;
+  }
+}
+
+function invalidateBotConfigCache() {
+  botConfigCache = null;
+  botConfigCacheExpiresAt = 0;
+  botConfigLoadPromise = null;
 }
 
 function renderBotMessage(template, variables = {}) {
@@ -156,4 +179,4 @@ function departmentOptions(departments) {
   return (departments || []).map((department, index) => `${index + 1}️⃣ - ${department.name}`).join('\n');
 }
 
-module.exports = { DEFAULT_BOT_CONFIG, normalizeBotConfig, getBotConfig, renderBotMessage, departmentOptions };
+module.exports = { DEFAULT_BOT_CONFIG, normalizeBotConfig, getBotConfig, invalidateBotConfigCache, renderBotMessage, departmentOptions };

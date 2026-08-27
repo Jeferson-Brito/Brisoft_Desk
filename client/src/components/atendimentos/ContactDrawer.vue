@@ -101,7 +101,7 @@
       <!-- Histórico de Atendimentos Anteriores -->
       <div>
         <div class="details-section-title" style="margin-bottom:8px;">
-          <span>Histórico de atendimentos</span>
+          <span>Conversas anteriores</span>
           <RouterLink to="/historico" class="details-link">Ver todos</RouterLink>
         </div>
 

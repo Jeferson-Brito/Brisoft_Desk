@@ -7,6 +7,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { getBotConfig, renderBotMessage, departmentOptions } = require('./bot-config.service');
+const { normalizeBotInput, matchesCustomerCancellation } = require('./bot-intent.service');
+const { normalizeOutgoingMedia } = require('./media-transcode.service');
 const {
   isGeneratedCustomerName,
   extractAndValidateName,
@@ -22,6 +24,22 @@ const MEDIA_DIR = path.join(__dirname, '../../public/media');
 const MEDIA_TICKET_CACHE_MAX = 5000;
 const mediaTicketCache = new Map();
 let remoteMessageColumnsAvailable = null;
+const DEPARTMENT_CACHE_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_DEPARTMENTS = Object.freeze([
+  { id: '1', name: 'B3 Eletrônica' },
+  { id: '2', name: 'Comercial' },
+  { id: '3', name: 'Comercial eletrônica' },
+  { id: '4', name: 'Financeiro' },
+  { id: '5', name: 'Operacional' },
+  { id: '6', name: 'Recursos Humanos' },
+  { id: '7', name: 'Suporte Técnico' },
+  { id: '8', name: 'Suprimentos' }
+]);
+let departmentCache = null;
+let departmentCacheExpiresAt = 0;
+let departmentLoadPromise = null;
+let ticketBackupTimer = null;
+let kpiUpdateTimer = null;
 
 function isMissingRemoteMessageColumns(error) {
   return error?.code === '42703' || error?.code === 'PGRST204' || /remote_message_id|whatsapp_account_id/i.test(error?.message || '');
@@ -59,13 +77,47 @@ function rememberMediaTicket(mediaUrl, ticketId) {
 }
 
 function saveTicketsToDisk(tickets) {
-  try {
-    const dir = path.dirname(TICKETS_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(TICKETS_FILE, JSON.stringify(tickets, null, 2), 'utf8');
-  } catch (e) {
-    console.warn('Erro ao salvar tickets no disco:', e.message);
+  clearTimeout(ticketBackupTimer);
+  ticketBackupTimer = setTimeout(async () => {
+    try {
+      await fs.promises.mkdir(path.dirname(TICKETS_FILE), { recursive: true });
+      await fs.promises.writeFile(TICKETS_FILE, JSON.stringify(tickets, null, 2), 'utf8');
+    } catch (e) {
+      console.warn('Erro ao salvar tickets no disco:', e.message);
+    }
+  }, 250);
+  ticketBackupTimer.unref?.();
+}
+
+async function getCachedDepartments() {
+  if (departmentCache && Date.now() < departmentCacheExpiresAt) return departmentCache;
+  if (!departmentLoadPromise) {
+    departmentLoadPromise = (async () => {
+      try {
+        const { data, error } = await supabase.from('departments').select('id, name').order('name');
+        if (error) throw error;
+        return data?.length ? data : [...DEFAULT_DEPARTMENTS];
+      } catch (_) {
+        return [...DEFAULT_DEPARTMENTS];
+      }
+    })();
   }
+  try {
+    departmentCache = await departmentLoadPromise;
+    departmentCacheExpiresAt = Date.now() + DEPARTMENT_CACHE_TTL_MS;
+    return departmentCache;
+  } finally {
+    departmentLoadPromise = null;
+  }
+}
+
+function scheduleKpiUpdate(io) {
+  if (!io || kpiUpdateTimer) return;
+  kpiUpdateTimer = setTimeout(() => {
+    io.emit('kpis_updated');
+    kpiUpdateTimer = null;
+  }, 500);
+  kpiUpdateTimer.unref?.();
 }
 
 function makeTimeStr(date) {
@@ -114,8 +166,24 @@ function assertSupabase(result, context) {
 }
 
 class TicketService {
+  invalidateDepartmentCache() {
+    departmentCache = null;
+    departmentCacheExpiresAt = 0;
+    departmentLoadPromise = null;
+  }
+
   async processIncomingMessage(msgData, io, whatsappService) {
-    const { from, rawJid, phone: rawPhone, senderName, text, whatsappAccountId } = msgData;
+    const {
+      from,
+      rawJid,
+      phone: rawPhone,
+      senderName,
+      text,
+      whatsappAccountId,
+      whatsappRoutingMode,
+      whatsappDepartmentId,
+      whatsappDepartmentName
+    } = msgData;
     const phone = rawPhone || from.replace(/\D/g, '');
     const whatsappChannel = whatsappAccountId ? `whatsapp:${whatsappAccountId}` : 'whatsapp';
     let cleanName = senderName || `Cliente ${phone.slice(-4)}`;
@@ -129,26 +197,7 @@ class TicketService {
       const now = new Date();
       const t = makeTimeStr(now);
 
-      // Busca os departamentos no banco para montar o menu dinâmico
-      const defaultDepts = [
-        { id: '1', name: 'B3 Eletrônica' },
-        { id: '2', name: 'Comercial' },
-        { id: '3', name: 'Comercial eletrônica' },
-        { id: '4', name: 'Financeiro' },
-        { id: '5', name: 'Operacional' },
-        { id: '6', name: 'Recursos Humanos' },
-        { id: '7', name: 'Suporte Técnico' },
-        { id: '8', name: 'Suprimentos' }
-      ];
-      let deptList = defaultDepts;
-      try {
-        const { data: depts, error: deptsError } = await supabase.from('departments').select('id, name').order('name');
-        if (!deptsError && depts && depts.length > 0) {
-          deptList = depts;
-        }
-      } catch (errDept) {
-        deptList = defaultDepts;
-      }
+      const deptList = await getCachedDepartments();
 
       const botConfig = await getBotConfig();
       const knownContact = await findContactByPhone(phone);
@@ -217,9 +266,7 @@ ${rendered}`,
         const fullTicket = await this.getFullTicket(targetTicket.id);
         if (io && fullTicket) {
           emitTicketEvent(io, 'ticket_created', { ticket: fullTicket }, fullTicket);
-          emitTicketEvent(io, 'ticket_updated', { ticket: fullTicket }, fullTicket);
-          emitTicketEvent(io, 'queue_updated', { ticket: fullTicket }, fullTicket);
-          io.emit('kpis_updated');
+          scheduleKpiUpdate(io);
         }
         return { type: 'bot_disabled_routed', ticket: fullTicket || targetTicket };
       };
@@ -368,7 +415,7 @@ ${rendered}`,
                   rating: rawRating,
                   agentName: targetTicket.encerrado_por || targetTicket.agent_name
                 }, targetTicket);
-                io.emit('kpis_updated');
+                scheduleKpiUpdate(io);
               }
 
               // Envia mensagem de agradecimento ao cliente
@@ -387,6 +434,69 @@ ${rendered}`,
 
       // 3. Se ainda não tem ticket ativo, cria o atendimento e inicia a identificação/roteamento.
       if (!ticket) {
+        const isDedicated = whatsappRoutingMode === 'department' && Boolean(whatsappDepartmentId);
+        const dedicatedDept = isDedicated
+          ? deptList.find(d => String(d.id) === String(whatsappDepartmentId) || (whatsappDepartmentName && d.name.toLowerCase() === whatsappDepartmentName.toLowerCase()))
+          : null;
+
+        if (isDedicated && dedicatedDept) {
+          const newTicketPayload = {
+            id: crypto.randomUUID(),
+            client_name: cleanName,
+            initials: cleanName.substring(0, 2).toUpperCase(),
+            phone,
+            jid: from,
+            raw_jid: rawJid,
+            time: t,
+            preview: text.slice(0, 50),
+            status: 'aguardando',
+            department: dedicatedDept.name,
+            channel: whatsappChannel,
+            unread_count: 1
+          };
+          if (dedicatedDept.id && dedicatedDept.id.length > 10) {
+            newTicketPayload.department_id = dedicatedDept.id;
+          }
+          const { data: insertedTicket, error: insertError } = await supabase.from('tickets').insert(newTicketPayload).select().single();
+          if (insertError) throw insertError;
+          ticket = insertedTicket;
+
+          // Auto-salva o contato no banco se ainda não existe cadastro e o nome não for genérico
+          if (!knownContact && !isGeneratedCustomerName(cleanName)) {
+            try {
+              const saved = await saveConfirmedContact(phone, cleanName);
+              if (saved?.id) {
+                await supabase.from('tickets').update({ contact_id: saved.id }).eq('id', ticket.id);
+                ticket.contact_id = saved.id;
+              }
+            } catch (_) {}
+          }
+
+          assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(ticket.id)), 'Falha ao registrar mensagem inicial');
+
+          await supabase.from('messages').insert({
+            ticket_id: ticket.id,
+            sender: 'system',
+            type: 'divider',
+            text: `[WhatsApp] Encaminhado diretamente para a fila: ${dedicatedDept.name}`,
+            time: t
+          });
+
+          if (whatsappService && botConfig.send_queue_confirmation) {
+            try {
+              await sendBotText(ticket.id, botConfig.queue_confirmation_message, { departamento: dedicatedDept.name });
+            } catch(e) {}
+          }
+
+          const fullTicket = await this.getFullTicket(ticket.id);
+          if (io && fullTicket) {
+            emitTicketEvent(io, 'ticket_created', { ticket: fullTicket }, fullTicket);
+            scheduleKpiUpdate(io);
+          }
+
+          return { type: 'dedicated_routed', ticket: fullTicket || ticket };
+        }
+
         const { data: insertedTicket, error: insertError } = await supabase.from('tickets').insert({
           id: crypto.randomUUID(),
           client_name: cleanName,
@@ -424,22 +534,61 @@ ${rendered}`,
       
       // Processa resposta ao Chatbot
       if (ticket.status === 'chatbot') {
+         const isDedicated = whatsappRoutingMode === 'department' && Boolean(whatsappDepartmentId);
+         const dedicatedDept = isDedicated
+           ? deptList.find(d => String(d.id) === String(whatsappDepartmentId) || (whatsappDepartmentName && d.name.toLowerCase() === whatsappDepartmentName.toLowerCase()))
+           : null;
+
+         if (isDedicated && dedicatedDept) {
+           let updatePayload = {
+             status: 'aguardando',
+             department: dedicatedDept.name,
+             time: t,
+             preview: text.slice(0, 50),
+             updated_at: now.toISOString(),
+             unread_count: Math.max(1, (ticket.unread_count || 0) + 1)
+           };
+           if (dedicatedDept.id && dedicatedDept.id.length > 10) {
+             updatePayload.department_id = dedicatedDept.id;
+           }
+           await supabase.from('tickets').update(updatePayload).eq('id', ticket.id);
+           Object.assign(ticket, updatePayload);
+
+           assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(ticket.id)), 'Falha ao registrar mensagem recebida');
+
+           await supabase.from('messages').insert({
+             ticket_id: ticket.id,
+             sender: 'system',
+             type: 'divider',
+             text: `[WhatsApp] Encaminhado diretamente para a fila: ${dedicatedDept.name}`,
+             time: t
+           });
+
+           if (whatsappService && botConfig.send_queue_confirmation) {
+             try {
+               await sendBotText(ticket.id, botConfig.queue_confirmation_message, { departamento: dedicatedDept.name });
+             } catch (e) {}
+           }
+
+           const fullTicket = await this.getFullTicket(ticket.id);
+           if (io && fullTicket) {
+             emitTicketEvent(io, 'ticket_created', { ticket: fullTicket }, fullTicket);
+             scheduleKpiUpdate(io);
+           }
+           return { type: 'dedicated_routed', ticket: fullTicket || ticket };
+         }
+
          if (!botConfig.enabled) return routeWithoutBot(ticket, text);
          const cleanText = text.trim();
-         const cleanLower = cleanText.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // remove acentos
+         const cleanLower = normalizeBotInput(cleanText);
 
          assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(ticket.id)), 'Falha ao registrar resposta ao bot');
 
          const nameState = await getLatestBotState(ticket.id);
-         const normalizeKeyword = value => value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+         const normalizeKeyword = normalizeBotInput;
 
          // Verifica se o cliente solicitou cancelamento/encerramento do atendimento
-         const cancelKeywords = (botConfig.cancel_keywords || 'cancelar,encerrar,sair,parar,desistir,finalizar,0')
-           .split(',')
-           .map(normalizeKeyword)
-           .filter(Boolean);
-
-         if (botConfig.allow_customer_cancel && cancelKeywords.some(keyword => cleanLower === keyword || (keyword.length >= 4 && cleanLower.includes(keyword)))) {
+         if (botConfig.allow_customer_cancel && matchesCustomerCancellation(cleanText, botConfig.cancel_keywords)) {
            console.log(`🚫 Atendimento cancelado pelo cliente no bot: Ticket ${ticket.id} (${cleanName})`);
            const encerradoEm = makeTimeStr(now);
            const closePayload = {
@@ -469,7 +618,7 @@ ${rendered}`,
            if (io) {
              emitTicketEvent(io, 'ticket_closed', { ticketId: ticket.id, status: 'finalizado', closed_at: now.toISOString(), encerrado_por: 'Cliente' }, ticket);
              emitTicketEvent(io, 'queue_updated', { ticket }, ticket);
-             io.emit('kpis_updated');
+             scheduleKpiUpdate(io);
            }
 
            return { type: 'customer_cancelled', ticket };
@@ -648,9 +797,7 @@ ${rendered}`,
             // Notifica o frontend com dados completos do ticket e departamento real
             if (io && fullTicket) {
               emitTicketEvent(io, 'ticket_created', { ticket: fullTicket }, fullTicket);
-              emitTicketEvent(io, 'ticket_updated', { ticket: fullTicket }, fullTicket);
-              emitTicketEvent(io, 'queue_updated', { ticket: fullTicket }, fullTicket);
-              io.emit('kpis_updated');
+              scheduleKpiUpdate(io);
             }
             
             return { type: 'chatbot_routed', ticket: fullTicket || ticket };
@@ -685,14 +832,7 @@ ${rendered}`,
 
       // Ticket em andamento (aguardando ou em_atendimento)
        if (ticket.status === 'aguardando') {
-         const cleanLowerAguardando = text.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-         const normalizeKw = value => value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-         const cancelKeywords = (botConfig.cancel_keywords || 'cancelar,encerrar,sair,parar,desistir,finalizar,0')
-           .split(',')
-           .map(normalizeKw)
-           .filter(Boolean);
-
-         if (botConfig.allow_customer_cancel && cancelKeywords.some(keyword => cleanLowerAguardando === keyword || (keyword.length >= 4 && cleanLowerAguardando.includes(keyword)))) {
+         if (botConfig.allow_customer_cancel && matchesCustomerCancellation(text, botConfig.cancel_keywords)) {
            console.log(`🚫 Atendimento na fila cancelado pelo cliente: Ticket ${ticket.id} (${cleanName})`);
            const encerradoEm = makeTimeStr(now);
            const closePayload = {
@@ -722,7 +862,7 @@ ${rendered}`,
            if (io) {
              emitTicketEvent(io, 'ticket_closed', { ticketId: ticket.id, status: 'finalizado', closed_at: now.toISOString(), encerrado_por: 'Cliente' }, ticket);
              emitTicketEvent(io, 'queue_updated', { ticket }, ticket);
-             io.emit('kpis_updated');
+             scheduleKpiUpdate(io);
            }
 
            return { type: 'customer_cancelled', ticket };
@@ -764,9 +904,6 @@ ${rendered}`,
       
       if (io) {
         emitTicketEvent(io, 'new_message', { ticketId: ticket.id, message: savedMsg, ticket }, ticket);
-        emitTicketEvent(io, 'queue_updated', { ticket }, ticket);
-        emitTicketEvent(io, 'ticket_updated', { ticket }, ticket);
-        io.emit('kpis_updated');
       }
       return { ticket, message: savedMsg };
     } catch (e) {
@@ -809,9 +946,22 @@ ${rendered}`,
       }
 
       let consolidated = [];
+      const relatedTicketIds = [...pastTickets.map(item => item.id), ticket.id];
+      const { data: relatedMessages, error: relatedMessagesError } = await supabase
+        .from('messages')
+        .select('*')
+        .in('ticket_id', relatedTicketIds)
+        .order('created_at', { ascending: true });
+      if (relatedMessagesError) throw relatedMessagesError;
+      const messagesByTicket = new Map();
+      for (const message of relatedMessages || []) {
+        const group = messagesByTicket.get(message.ticket_id) || [];
+        group.push(message);
+        messagesByTicket.set(message.ticket_id, group);
+      }
 
       for (const past of pastTickets) {
-        const { data: pMsgs } = await supabase.from('messages').select('*').eq('ticket_id', past.id).order('created_at', { ascending: true });
+        const pMsgs = messagesByTicket.get(past.id) || [];
         if (pMsgs && pMsgs.length > 0) {
           const deptName = past.department || 'Atendimento';
           const closedBy = past.encerrado_por || past.agent_name || 'Atendente';
@@ -849,8 +999,7 @@ ${rendered}`,
         text: `⚡ Atendimento Atual • *${ticket.department || 'Novo Chamado'}*`
       });
 
-      const { data: currentMsgs } = await supabase.from('messages').select('*').eq('ticket_id', ticket.id).order('created_at', { ascending: true });
-      consolidated.push(...(currentMsgs || []));
+      consolidated.push(...(messagesByTicket.get(ticket.id) || []));
 
       return consolidated;
     } catch (e) {
@@ -872,24 +1021,10 @@ ${rendered}`,
         .order('updated_at', { ascending: false });
       if (error) throw error;
 
-      const ticketIds = (tickets || []).map(t => t.id);
-      let msgsMap = {};
-      if (ticketIds.length > 0) {
-        const { data: allMsgs } = await supabase
-          .from('messages')
-          .select('*')
-          .in('ticket_id', ticketIds)
-          .order('created_at', { ascending: true });
-        if (allMsgs) {
-          for (const m of allMsgs) {
-            if (!msgsMap[m.ticket_id]) msgsMap[m.ticket_id] = [];
-            msgsMap[m.ticket_id].push(m);
-          }
-        }
-      }
-
       for (let t of tickets) {
-        t.messages = msgsMap[t.id] || [];
+        // A listagem da fila carrega apenas resumos. As mensagens são buscadas
+        // sob demanda quando o atendente abre uma conversa.
+        t.messages = [];
         t.clientName = t.client_name;
         t.avatarColor = t.avatar_color;
         t.unreadCount = t.unread_count || 0;
@@ -1152,7 +1287,6 @@ ${rendered}`,
         // 3. Emite WebSocket IMEDIATAMENTE para a interface
         if (io) {
           emitTicketEvent(io, 'new_message', { ticketId: ticket.id, message: savedMsg, ticket }, ticket);
-          emitTicketEvent(io, 'queue_updated', { ticket }, ticket);
         }
         return { success: true, ticket, message: savedMsg };
       }
@@ -1172,14 +1306,21 @@ ${rendered}`,
       if (ticketError) throw ticketError;
       if (!ticket || !canUserAccessTicket(currentUser, ticket)) return { success: false, error: 'Ticket nao encontrado' };
 
-      const mimeType = String(metadata.mimeType || 'application/octet-stream').slice(0, 120).toLowerCase();
+      let mimeType = String(metadata.mimeType || 'application/octet-stream').slice(0, 120).toLowerCase();
       const requestedType = String(metadata.mediaType || '').toLowerCase();
       const mediaType = requestedType === 'audio' || mimeType.startsWith('audio/') ? 'audio'
         : requestedType === 'image' || mimeType.startsWith('image/') ? 'image'
           : requestedType === 'video' || mimeType.startsWith('video/') ? 'video'
             : 'document';
       const { displayName, extension } = safeUploadedFileName(metadata.fileName);
-      const inferredExtension = extension || ({ audio: '.ogg', image: '.jpg', video: '.mp4', document: '.bin' }[mediaType]);
+      const normalizedMedia = await normalizeOutgoingMedia(fileBuffer, {
+        mediaType,
+        mimeType,
+        voiceNote: metadata.voiceNote === true
+      });
+      const outgoingBuffer = normalizedMedia.buffer;
+      mimeType = normalizedMedia.mimeType;
+      const inferredExtension = normalizedMedia.fileExtension || extension || ({ audio: '.ogg', image: '.jpg', video: '.mp4', document: '.bin' }[mediaType]);
       const storedName = `sent_${Date.now()}_${crypto.randomUUID().replace(/-/g, '')}${inferredExtension}`;
       const mediaUrl = `/api/media/${storedName}`;
       const caption = String(metadata.caption || '').trim().slice(0, 4000);
@@ -1188,16 +1329,31 @@ ${rendered}`,
       const accountId = ticket.channel?.startsWith('whatsapp:') ? ticket.channel.slice('whatsapp:'.length) : null;
 
       await fs.promises.mkdir(MEDIA_DIR, { recursive: true });
-      await fs.promises.writeFile(path.join(MEDIA_DIR, storedName), fileBuffer);
-      const sent = await whatsappService.sendMediaMessage(targetJid, fileBuffer, mediaType, caption, displayName, accountId, mimeType);
+      const storedMediaPath = path.join(MEDIA_DIR, storedName);
+      const sendPromise = whatsappService.sendMediaMessage(
+        targetJid,
+        outgoingBuffer,
+        mediaType,
+        caption,
+        displayName,
+        accountId,
+        mimeType,
+        normalizedMedia.voiceNote === true
+      );
+      // O salvamento do histórico local e o upload ao WhatsApp são independentes.
+      // Executá-los juntos reduz a espera, sobretudo em arquivos maiores.
+      const [, sent] = await Promise.all([
+        fs.promises.writeFile(storedMediaPath, outgoingBuffer),
+        sendPromise
+      ]);
       if (!sent) {
-        await fs.promises.unlink(path.join(MEDIA_DIR, storedName)).catch(() => {});
+        await fs.promises.unlink(storedMediaPath).catch(() => {});
         return { success: false, error: 'Falha ao enviar arquivo para o WhatsApp.' };
       }
 
       const now = new Date();
       const formattedText = `*${agentName}:*${caption ? `\n\n${caption}` : ''}`;
-      const messageResult = await supabase.from('messages').insert({
+      const messagePromise = supabase.from('messages').insert({
         ticket_id: ticket.id,
         sender: 'agent',
         type: mediaType,
@@ -1207,16 +1363,18 @@ ${rendered}`,
         media_type: mimeType,
         file_name: displayName
       }).select().single();
-      const savedMessage = assertSupabase(messageResult, 'Falha ao salvar mídia enviada');
-      rememberMediaTicket(mediaUrl, ticket.id);
-
       const preview = caption || ({ audio: '🎙️ Áudio', image: '📷 Imagem', video: '🎥 Vídeo', document: `📄 ${displayName}` }[mediaType]);
       const updatePayload = { preview, time: makeTimeStr(now), updated_at: now.toISOString() };
-      assertSupabase(await supabase.from('tickets').update(updatePayload).eq('id', ticket.id), 'Falha ao atualizar ticket');
+      const [messageResult, ticketUpdateResult] = await Promise.all([
+        messagePromise,
+        supabase.from('tickets').update(updatePayload).eq('id', ticket.id)
+      ]);
+      const savedMessage = assertSupabase(messageResult, 'Falha ao salvar mídia enviada');
+      assertSupabase(ticketUpdateResult, 'Falha ao atualizar ticket');
+      rememberMediaTicket(mediaUrl, ticket.id);
       Object.assign(ticket, updatePayload);
       if (io) {
         emitTicketEvent(io, 'new_message', { ticketId: ticket.id, message: savedMessage, ticket }, ticket);
-        emitTicketEvent(io, 'queue_updated', { ticket }, ticket);
       }
       return { success: true, ticket, message: savedMessage };
     } catch (error) {
@@ -1251,7 +1409,7 @@ ${rendered}`,
 
       assertSupabase(await supabase.from('messages').insert({ ticket_id: ticketId, sender: 'system', type: 'divider', text: `Atendimento assumido por ${agentName}`, time: makeTimeStr(new Date()) }), 'Falha ao registrar atendimento');
       const fullTicket = await this.getFullTicket(ticketId);
-      if (io) { emitTicketEvent(io, 'ticket_updated', { ticket: fullTicket }, fullTicket); emitTicketEvent(io, 'queue_updated', { ticket: fullTicket }, fullTicket); io.emit('kpis_updated'); }
+      if (io) { emitTicketEvent(io, 'ticket_updated', { ticket: fullTicket }, fullTicket); scheduleKpiUpdate(io); }
       return { success: true, ticket: fullTicket };
     } catch (e) { return { success: false, error: e.message }; }
   }
@@ -1320,8 +1478,7 @@ ${rendered}`,
       if (io) {
         emitTicketEvent(io, 'ticket_transferred', { ticket: updatedTicket, fromDept: oldDept, toDept: newDept, by: currentUser.name }, updatedTicket);
         emitTicketEvent(io, 'ticket_updated', { ticket: updatedTicket }, updatedTicket);
-        emitTicketEvent(io, 'queue_updated', { ticket: updatedTicket }, updatedTicket);
-        io.emit('kpis_updated');
+        scheduleKpiUpdate(io);
       }
 
       // Notifica o cliente via WhatsApp sobre a transferência em background
@@ -1387,8 +1544,7 @@ ${rendered}`,
       // Emite WebSocket imediatamente para a tela atualizar na hora
       if (io) {
         emitTicketEvent(io, 'ticket_updated', { ticket: closedTicket }, closedTicket);
-        emitTicketEvent(io, 'queue_updated', { ticket: closedTicket }, closedTicket);
-        io.emit('kpis_updated');
+        scheduleKpiUpdate(io);
       }
 
       // Envia pesquisa de satisfação via WhatsApp em background (não atrasa a resposta)
@@ -1467,7 +1623,6 @@ ${rendered}`,
       const fullTicket = await this.getFullTicket(ticketId);
       if (io && fullTicket) {
         emitTicketEvent(io, 'ticket_updated', { ticket: fullTicket }, fullTicket);
-        emitTicketEvent(io, 'queue_updated', { ticket: fullTicket }, fullTicket);
       }
 
       return { success: true, ticket: fullTicket };
@@ -1517,7 +1672,6 @@ ${rendered}`,
       const fullTicket = await this.getFullTicket(media.ticketId);
       if (io && fullTicket) {
         emitTicketEvent(io, 'ticket_updated', { ticket: fullTicket }, fullTicket);
-        emitTicketEvent(io, 'queue_updated', { ticket: fullTicket }, fullTicket);
       }
       return true;
     } catch (error) {
