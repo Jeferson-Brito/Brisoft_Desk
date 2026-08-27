@@ -332,16 +332,38 @@ ${rendered}`,
       };
 
       // 1. Verifica se o cliente já possui um ticket ATIVO (chatbot, aguardando ou em_atendimento)
+      const lookupConditions = [
+        `phone.eq.${phone}`,
+        `jid.eq.${from}`
+      ];
+      if (rawJid && rawJid !== from) {
+        lookupConditions.push(`raw_jid.eq.${rawJid}`);
+        lookupConditions.push(`jid.eq.${rawJid}`);
+      }
+      const rawLidNum = rawJid ? rawJid.replace('@lid', '').replace(/:\d+$/, '') : null;
+      if (rawLidNum && rawLidNum !== phone) {
+        lookupConditions.push(`phone.eq.${rawLidNum}`);
+      }
+
       let activeTicketQuery = supabase
         .from('tickets')
         .select('*')
-        .or(`phone.eq.${phone},jid.eq.${from}`)
+        .or(lookupConditions.join(','))
         .in('status', ['aguardando', 'em_atendimento', 'chatbot']);
       activeTicketQuery = scopeWhatsAppChannel(activeTicketQuery);
       let { data: ticket } = await activeTicketQuery
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      if (ticket && phone && phone.length <= 13 && ticket.phone !== phone) {
+        await supabase.from('tickets').update({ phone, jid: from }).eq('id', ticket.id);
+        ticket.phone = phone;
+        ticket.jid = from;
+        if (ticket.contact_id) {
+          await supabase.from('contacts').update({ phone }).eq('id', ticket.contact_id);
+        }
+      }
 
       if (ticket && knownContact?.name && isGeneratedCustomerName(ticket.client_name)) {
         const updatedIdentity = {

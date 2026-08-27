@@ -46,15 +46,81 @@ function normalizeAccountRouting(config = {}) {
   return { routingMode, departmentId, departmentName };
 }
 
+function loadLidMap(account) {
+  try {
+    const file = path.join(ACCOUNTS_ROOT, account.id, 'lid-map.json');
+    if (fs.existsSync(file)) {
+      const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+      for (const [k, v] of Object.entries(data)) {
+        account.lidMap.set(k, v);
+      }
+    }
+  } catch (_) {}
+
+  try {
+    const credsFile = path.join(ACCOUNTS_ROOT, account.id, 'creds.json');
+    if (fs.existsSync(credsFile)) {
+      const creds = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+      if (creds?.me?.id && creds?.me?.lid) {
+        recordLidPair(account, creds.me.id, creds.me.lid);
+      }
+    }
+  } catch (_) {}
+}
+
+function saveLidMap(account) {
+  try {
+    const file = path.join(ACCOUNTS_ROOT, account.id, 'lid-map.json');
+    const obj = Object.fromEntries(account.lidMap.entries());
+    fs.writeFileSync(file, JSON.stringify(obj, null, 2), 'utf8');
+  } catch (_) {}
+}
+
+function recordLidPair(account, phoneOrJid, lidOrJid) {
+  if (!account?.lidMap || !phoneOrJid || !lidOrJid) return false;
+  let phoneJid = String(phoneOrJid).trim();
+  let lidJid = String(lidOrJid).trim();
+
+  if (phoneJid.includes('@lid') && !lidJid.includes('@lid')) {
+    const tmp = phoneJid;
+    phoneJid = lidJid;
+    lidJid = tmp;
+  }
+
+  if (!phoneJid.includes('@') && /^\d+$/.test(phoneJid)) {
+    phoneJid = `${phoneJid}@s.whatsapp.net`;
+  }
+  if (!lidJid.includes('@') && /^\d+$/.test(lidJid)) {
+    lidJid = `${lidJid}@lid`;
+  }
+
+  const cleanPhoneJid = phoneJid.replace(/:\d+@/, '@').replace(/:\d+$/, '');
+  const cleanLidJid = lidJid.replace(/:\d+@/, '@').replace(/:\d+$/, '');
+  const rawPhone = cleanPhoneJid.replace('@s.whatsapp.net', '');
+  const rawLid = cleanLidJid.replace('@lid', '');
+
+  if (!rawPhone || !rawLid || rawPhone === rawLid) return false;
+
+  account.lidMap.set(lidJid, cleanPhoneJid);
+  account.lidMap.set(cleanLidJid, cleanPhoneJid);
+  account.lidMap.set(rawLid, cleanPhoneJid);
+  account.lidMap.set(cleanPhoneJid, cleanLidJid);
+  account.lidMap.set(rawPhone, cleanLidJid);
+  return true;
+}
+
 function getPhoneFromJid(jid, lidMap) {
   if (!jid) return '';
-  const resolved = lidMap.get(jid) || jid;
+  const cleanJid = jid.replace(/:\d+@/, '@').replace(/:\d+$/, '');
+  const resolved = lidMap?.get(jid) || lidMap?.get(cleanJid) || cleanJid;
   return resolved.replace('@lid', '').replace('@s.whatsapp.net', '').replace(/:\d+$/, '');
 }
 
 function resolveJid(jid, state) {
-  if (!jid?.includes('@lid')) return jid;
-  return state.lidMap.get(jid) || jid;
+  if (!jid) return '';
+  const cleanJid = jid.replace(/:\d+@/, '@').replace(/:\d+$/, '');
+  if (!cleanJid.includes('@lid')) return cleanJid;
+  return state?.lidMap?.get(jid) || state?.lidMap?.get(cleanJid) || cleanJid;
 }
 
 function unwrapMessageContent(message) {
@@ -183,6 +249,7 @@ class WhatsAppService {
         manualDisconnect: false,
         lidMap: new Map()
       });
+      loadLidMap(this.accounts.get(id));
     }
     return this.accounts.get(id);
   }
@@ -270,7 +337,7 @@ class WhatsAppService {
         defaultQueryTimeoutMs: 30000,
         keepAliveIntervalMs: 10000,
         generateHighQualityLinkPreview: false,
-        syncFullHistory: false,
+        syncFullHistory: true,
         emitOwnEvents: false
       });
       account.sock = sock;
@@ -288,16 +355,37 @@ class WhatsAppService {
   }
 
   bindContacts(account) {
-    const update = contacts => {
-      for (const contact of contacts || []) {
-        if (contact.id && contact.lid) {
-          account.lidMap.set(contact.lid, contact.id);
-          account.lidMap.set(contact.id, contact.lid);
+    const updateContacts = contacts => {
+      let changed = false;
+      for (const c of contacts || []) {
+        if (c.lid && (c.id || c.jid || c.phoneNumber)) {
+          if (recordLidPair(account, c.id || c.jid || c.phoneNumber, c.lid)) changed = true;
         }
       }
+      if (changed) saveLidMap(account);
     };
-    account.sock.ev.on('contacts.upsert', update);
-    account.sock.ev.on('contacts.update', update);
+
+    const updateChats = chats => {
+      let changed = false;
+      for (const ch of chats || []) {
+        if (ch.lidJid && ch.id) {
+          if (recordLidPair(account, ch.id, ch.lidJid)) changed = true;
+        }
+      }
+      if (changed) saveLidMap(account);
+    };
+
+    account.sock.ev.on('contacts.upsert', updateContacts);
+    account.sock.ev.on('contacts.update', updateContacts);
+    account.sock.ev.on('contacts.set', data => updateContacts(data?.contacts));
+    account.sock.ev.on('messaging-history.set', ({ contacts, chats }) => {
+      updateContacts(contacts);
+      updateChats(chats);
+      this.syncLidContactsToDatabase(account).catch(() => {});
+    });
+    account.sock.ev.on('chats.upsert', updateChats);
+    account.sock.ev.on('chats.update', updateChats);
+    account.sock.ev.on('chats.set', data => updateChats(data?.chats));
   }
 
   bindConnection(account, DisconnectReason) {
@@ -313,6 +401,10 @@ class WhatsAppService {
 
       if (connection === 'open') {
         const user = account.sock.user || {};
+        if (user.id && user.lid) {
+          recordLidPair(account, user.id, user.lid);
+          saveLidMap(account);
+        }
         account.phone = getPhoneFromJid(user.id, account.lidMap) || account.phone;
         account.displayName = user.name || account.displayName || account.name;
         account.lastConnectedAt = new Date().toISOString();
@@ -322,6 +414,7 @@ class WhatsAppService {
         console.log(`[WhatsApp:${account.name}] conectado${account.phone ? ` (${account.phone})` : ''}.`);
         await this.saveConfigs();
         this.emitAccounts();
+        this.syncLidContactsToDatabase(account).catch(() => {});
       }
 
       if (connection === 'close') {
@@ -339,6 +432,116 @@ class WhatsAppService {
         }
       }
     });
+  }
+
+  async resolveLidToPhone(account, jid, msg = null) {
+    if (!jid) return '';
+    const cleanJid = jid.replace(/:\d+@/, '@');
+    
+    // Se não é @lid, extrai o telefone diretamente
+    if (!cleanJid.includes('@lid')) {
+      return cleanJid.replace('@s.whatsapp.net', '').replace(/:\d+$/, '');
+    }
+
+    const rawLid = cleanJid.replace('@lid', '').replace(/:\d+$/, '');
+    const mapped = account.lidMap.get(jid) || account.lidMap.get(cleanJid) || account.lidMap.get(rawLid);
+    if (mapped && !mapped.includes('@lid')) {
+      return mapped.replace('@s.whatsapp.net', '').replace(/:\d+$/, '');
+    }
+
+    // Tenta obter do participant da mensagem
+    const participant = msg?.key?.participant || msg?.participant;
+    if (participant && !participant.includes('@lid')) {
+      const phone = participant.replace('@s.whatsapp.net', '').replace(/:\d+$/, '');
+      recordLidPair(account, participant, jid);
+      saveLidMap(account);
+      return phone;
+    }
+
+    // Tenta obter de campos de telefone explícitos da mensagem
+    const pn = msg?.key?.participantPn || msg?.key?.senderPn || msg?.key?.remoteJidPn;
+    if (pn && !String(pn).includes('@lid')) {
+      const phone = String(pn).replace(/\D/g, '');
+      if (phone.length >= 10 && phone.length <= 13) {
+        recordLidPair(account, phone, jid);
+        saveLidMap(account);
+        return phone;
+      }
+    }
+
+    // Tenta consulta USync no Baileys sob demanda
+    if (account.sock?.executeUSyncQuery) {
+      try {
+        const baileys = await import('@whiskeysockets/baileys');
+        const usyncQuery = new baileys.USyncQuery()
+          .withContext('interactive')
+          .withMode('query')
+          .withUser(new baileys.USyncUser().withId(cleanJid))
+          .withContactProtocol();
+
+        const result = await account.sock.executeUSyncQuery(usyncQuery);
+        if (result?.list?.length) {
+          for (const item of result.list) {
+            if (item?.id && !item.id.includes('@lid')) {
+              const phone = item.id.replace('@s.whatsapp.net', '').replace(/:\d+$/, '');
+              recordLidPair(account, item.id, jid);
+              saveLidMap(account);
+              return phone;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    return rawLid;
+  }
+
+  async syncLidContactsToDatabase(account) {
+    if (!isSupabaseConfigured() || account.lidMap.size === 0) return;
+    try {
+      // 1. Corrige tickets que foram gravados com o LID como telefone (>= 14 dígitos)
+      const { data: tickets, error: ticketError } = await supabase
+        .from('tickets')
+        .select('id, phone, jid, raw_jid, contact_id')
+        .limit(200);
+
+      if (!ticketError && tickets) {
+        for (const t of tickets) {
+          const rawPhone = String(t.phone || '').replace(/\D/g, '');
+          if (rawPhone.length >= 14) {
+            const mappedPhone = await this.resolveLidToPhone(account, t.raw_jid || t.jid || `${rawPhone}@lid`);
+            if (mappedPhone && mappedPhone !== rawPhone && mappedPhone.length <= 13) {
+              console.log(`[WhatsApp:${account.name}] Atualizando telefone do ticket ${t.id}: ${rawPhone} -> ${mappedPhone}`);
+              await supabase.from('tickets').update({ phone: mappedPhone, jid: `${mappedPhone}@s.whatsapp.net` }).eq('id', t.id);
+              if (t.contact_id) {
+                await supabase.from('contacts').update({ phone: mappedPhone }).eq('id', t.contact_id);
+              }
+            }
+          }
+        }
+      }
+
+      // 2. Corrige contatos gravados com o LID como telefone
+      const { data: contacts, error: contactError } = await supabase
+        .from('contacts')
+        .select('id, phone')
+        .limit(200);
+
+      if (!contactError && contacts) {
+        for (const c of contacts) {
+          const rawPhone = String(c.phone || '').replace(/\D/g, '');
+          if (rawPhone.length >= 14) {
+            const mappedPhone = await this.resolveLidToPhone(account, `${rawPhone}@lid`);
+            if (mappedPhone && mappedPhone !== rawPhone && mappedPhone.length <= 13) {
+              console.log(`[WhatsApp:${account.name}] Atualizando telefone do contato ${c.id}: ${rawPhone} -> ${mappedPhone}`);
+              await supabase.from('contacts').update({ phone: mappedPhone }).eq('id', c.id);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`[WhatsApp:${account.name}] aviso na sincronização de LIDs: ${e.message}`);
+    }
   }
 
   bindMessages(account, downloadMediaMessage, downloadContentFromMessage) {
@@ -379,14 +582,10 @@ class WhatsAppService {
   async processIncomingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage) {
     const rawJid = msg.key.remoteJid;
     let resolvedJid = resolveJid(rawJid, account);
-    if (resolvedJid.includes('@lid')) {
-      const participant = msg.key.participant || msg.participant;
-      if (participant && !participant.includes('@lid')) {
-        resolvedJid = participant;
-        account.lidMap.set(rawJid, participant);
-      }
+    const phone = await this.resolveLidToPhone(account, rawJid, msg);
+    if (phone && !phone.includes('@') && phone.length <= 13) {
+      resolvedJid = `${phone}@s.whatsapp.net`;
     }
-    const phone = getPhoneFromJid(resolvedJid, account.lidMap);
     const content = unwrapMessageContent(msg.message);
     const media = await this.downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage);
     const text = content.conversation || content.extendedTextMessage?.text ||

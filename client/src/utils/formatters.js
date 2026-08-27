@@ -6,7 +6,7 @@
  * Formata telefone brasileiro ou internacional de forma legível
  */
 export function formatPhone(phone) {
-  if (!phone) return 'WhatsApp';
+  if (!phone) return '—';
   const clean = String(phone).replace(/\D/g, '');
   
   if (clean.length === 13 && clean.startsWith('55')) {
@@ -21,8 +21,11 @@ export function formatPhone(phone) {
   if (clean.length === 10) {
     return `(${clean.slice(0, 2)}) ${clean.slice(2, 6)}-${clean.slice(6)}`;
   }
+  if (clean.length >= 10 && clean.length <= 13) {
+    return `+${clean}`;
+  }
   
-  // Se for ID interno do WhatsApp (@lid)
+  // Se for ID interno do WhatsApp (@lid) ainda não resolvido
   if (clean.length >= 14) {
     return `WhatsApp (ID: ${clean.slice(0, 4)}...${clean.slice(-4)})`;
   }

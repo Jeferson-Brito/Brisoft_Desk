@@ -139,7 +139,7 @@
                       </span>
                       <span class="contact-cell-sub">
                         <i class="fa-brands fa-whatsapp" style="color:#22c55e;margin-right:2px;"></i>
-                        {{ item.phone || 'WhatsApp' }}
+                        {{ formatPhone(item.phone) }}
                       </span>
                     </div>
                   </div>
@@ -281,7 +281,7 @@
                 <span class="modal-title" style="font-size:15px;display:flex;align-items:center;gap:8px;">
                   {{ selectedTicketModal.clientName || selectedTicketModal.client_name || 'Cliente' }}
                   <span class="badge badge-whatsapp" style="font-size:10.5px;">
-                    <i class="fa-brands fa-whatsapp"></i> {{ selectedTicketModal.phone }}
+                    <i class="fa-brands fa-whatsapp"></i> {{ formatPhone(selectedTicketModal.phone) }}
                   </span>
                 </span>
                 <span style="font-size:11px;color:#64748b;">

@@ -54,7 +54,7 @@
                     </div>
                   </div>
                 </td>
-                <td>{{ c.phone || '—' }}</td>
+                <td>{{ formatPhone(c.phone) }}</td>
                 <td style="color:#64748b;">{{ c.email || '—' }}</td>
                 <td>
                   <span v-if="c.channel" class="badge" style="background:#1e293b;color:#94a3b8;">
@@ -175,6 +175,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import api from '@/api/http'
+import { formatPhone } from '@/utils/formatters'
 
 const contacts = ref([])
 const loading = ref(true)

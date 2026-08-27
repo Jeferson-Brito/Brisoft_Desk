@@ -64,7 +64,7 @@
               <tr v-for="r in ratings" :key="r.id">
                 <td style="font-weight:600;">
                   <i class="fa-brands fa-whatsapp" style="color:#22c55e;margin-right:4px;"></i>
-                  {{ r.phone || r.jid || 'WhatsApp' }}
+                  {{ formatPhone(r.phone) }}
                 </td>
                 <td style="color:#64748b;">{{ r.agent_name || 'Atendente' }}</td>
                 <td>
@@ -88,6 +88,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import http from '@/api/http'
+import { formatPhone } from '@/utils/formatters'
 
 const ratings = ref([])
 const loading = ref(false)
