@@ -28,6 +28,7 @@ export const useTicketStore = defineStore('tickets', () => {
 
   const waitingTickets     = computed(() => visibleTickets.value.filter(t => t.status === 'aguardando'))
   const inProgressTickets  = computed(() => visibleTickets.value.filter(t => t.status === 'em_atendimento'))
+  const chatbotTickets     = computed(() => visibleTickets.value.filter(t => t.status === 'chatbot'))
 
   const activeTicket = computed(() =>
     visibleTickets.value.find(t => t.id === activeTicketId.value) ?? null
@@ -207,7 +208,7 @@ export const useTicketStore = defineStore('tickets', () => {
     // state
     queue, activeTicketId, loading,
     // getters
-    visibleTickets, waitingTickets, inProgressTickets, activeTicket,
+    visibleTickets, waitingTickets, inProgressTickets, chatbotTickets, activeTicket,
     // actions
     fetchQueue, fetchTickets: fetchQueue, receiveTicket, appendMessage, removeTicket, patchTicket,
     selectTicket, assume, close
