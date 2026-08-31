@@ -17,6 +17,7 @@ const MEDIA_DIR = path.join(__dirname, '../../public/media');
 const ROUTING_MODE_GENERAL = 'general';
 const ROUTING_MODE_DEPARTMENT = 'department';
 const EMIT_OWN_EVENTS = true;
+const MARK_ONLINE_ON_CONNECT = false;
 
 class ExpiringCache {
   constructor({ ttlMs = 60 * 60 * 1000, maxEntries = 10000 } = {}) {
@@ -178,11 +179,47 @@ function getPhoneFromJid(jid, lidMap) {
   return resolved.replace('@lid', '').replace('@s.whatsapp.net', '').replace(/:\d+$/, '');
 }
 
-function resolveJid(jid, state) {
+function phoneJidFromMessageMetadata(msg = null) {
+  const candidates = [
+    msg?.key?.remoteJidAlt,
+    msg?.key?.participantAlt,
+    msg?.key?.senderPn,
+    msg?.key?.participantPn,
+    msg?.key?.remoteJidPn,
+    msg?.senderPn,
+    msg?.participantPn,
+    msg?.remoteJidPn,
+    msg?.participant
+  ];
+  for (const candidate of candidates) {
+    const value = String(candidate || '').trim().replace(/:\d+@/, '@').replace(/:\d+$/, '');
+    if (!value || value.includes('@lid')) continue;
+    if (!value.endsWith('@s.whatsapp.net') && !value.endsWith('@c.us')) continue;
+    const digits = value.replace(/@(?:s\.whatsapp\.net|c\.us)$/, '').replace(/\D/g, '');
+    if (digits.length >= 10 && digits.length <= 15) return `${digits}@s.whatsapp.net`;
+  }
+  return '';
+}
+
+async function resolveJid(jid, account) {
   if (!jid) return '';
   const cleanJid = jid.replace(/:\d+@/, '@').replace(/:\d+$/, '');
   if (!cleanJid.includes('@lid')) return cleanJid;
-  return state?.lidMap?.get(jid) || state?.lidMap?.get(cleanJid) || cleanJid;
+  const locallyMapped = account?.lidMap?.get(jid) || account?.lidMap?.get(cleanJid);
+  if (locallyMapped && !locallyMapped.includes('@lid')) return locallyMapped;
+  try {
+    const internallyMapped = await account?.sock?.signalRepository?.lidMapping?.getPNForLID(cleanJid);
+    if (internallyMapped && !internallyMapped.includes('@lid')) {
+      if (recordLidPair(account, internallyMapped, cleanJid)) saveLidMap(account);
+      return internallyMapped.replace(/:\d+@/, '@').replace(/:\d+$/, '');
+    }
+  } catch (error) {
+    console.warn(`[WhatsApp:${account?.name || 'conta'}] não foi possível resolver o LID antes do envio: ${error.message}`);
+  }
+  // A linha 7 do Baileys trata LIDs internamente. Não transformamos o número
+  // opaco do LID em telefone, pois isso cria uma sessão Signal incorreta e faz
+  // o celular exibir "Aguardando mensagem".
+  return cleanJid;
 }
 
 function unwrapMessageContent(message) {
@@ -416,7 +453,10 @@ class WhatsAppService {
         },
         logger: socketLogger,
         browser: ['Brisoft Desk', 'Chrome', '1.0.0'],
-        markOnlineOnConnect: true,
+        // Mantém as notificações e a sincronização normais no celular principal.
+        // Quando true, o WhatsApp pode considerar o cliente Web permanentemente
+        // ativo e reduzir a entrega de notificações para o telefone.
+        markOnlineOnConnect: MARK_ONLINE_ON_CONNECT,
         connectTimeoutMs: 30000,
         defaultQueryTimeoutMs: 30000,
         keepAliveIntervalMs: 10000,
@@ -480,6 +520,16 @@ class WhatsAppService {
     account.sock.ev.on('chats.upsert', updateChats);
     account.sock.ev.on('chats.update', updateChats);
     account.sock.ev.on('chats.set', data => updateChats(data?.chats));
+    account.sock.ev.on('lid-mapping.update', mapping => {
+      const entries = Array.isArray(mapping?.mapping) ? mapping.mapping : [mapping];
+      let changed = false;
+      for (const entry of entries) {
+        const lid = entry?.lid || entry?.lidJid;
+        const pn = entry?.pn || entry?.pnJid;
+        if (lid && pn && recordLidPair(account, pn, lid)) changed = true;
+      }
+      if (changed) saveLidMap(account);
+    });
   }
 
   bindConnection(account, DisconnectReason) {
@@ -527,13 +577,20 @@ class WhatsAppService {
     });
   }
 
-  extractPhone(account, jid, msg = null) {
+  async extractPhone(account, jid, msg = null) {
     if (!jid) return '';
     const cleanJid = jid.replace(/:\d+@/, '@').replace(/:\d+$/, '');
     
     // 1. Se não é @lid, extrai diretamente o número (ex: 5583981131352@s.whatsapp.net -> 5583981131352)
     if (!cleanJid.includes('@lid')) {
       return cleanJid.replace('@s.whatsapp.net', '').replace(/:\d+$/, '');
+    }
+
+    const metadataPhoneJid = phoneJidFromMessageMetadata(msg);
+    if (metadataPhoneJid) {
+      recordLidPair(account, metadataPhoneJid, cleanJid);
+      saveLidMap(account);
+      return getPhoneFromJid(metadataPhoneJid, account?.lidMap);
     }
 
     const rawLid = cleanJid.replace('@lid', '').replace(/:\d+$/, '');
@@ -544,29 +601,18 @@ class WhatsAppService {
       return mapped.replace('@s.whatsapp.net', '').replace(/:\d+$/, '');
     }
 
-    // 3. Se a mensagem veio com participant em formato de telefone
-    const participant = msg?.key?.participant || msg?.participant;
-    if (participant && !participant.includes('@lid')) {
-      const pPhone = participant.replace('@s.whatsapp.net', '').replace(/:\d+$/, '');
-      if (pPhone.length >= 10 && pPhone.length <= 13) {
-        recordLidPair(account, participant, jid);
+    // 3. A versão 7 mantém um repositório persistente de mapeamentos LID/PN.
+    try {
+      const mappedPn = await account?.sock?.signalRepository?.lidMapping?.getPNForLID(cleanJid);
+      if (mappedPn && !mappedPn.includes('@lid')) {
+        recordLidPair(account, mappedPn, cleanJid);
         saveLidMap(account);
-        return pPhone;
+        return getPhoneFromJid(mappedPn, account?.lidMap);
       }
-    }
+    } catch (_) {}
 
-    // 4. Se a mensagem contém número no participantPn ou senderPn
-    const pn = msg?.key?.participantPn || msg?.key?.senderPn || msg?.key?.remoteJidPn;
-    if (pn && !String(pn).includes('@lid')) {
-      const pPhone = String(pn).replace(/\D/g, '');
-      if (pPhone.length >= 10 && pPhone.length <= 13) {
-        recordLidPair(account, pPhone, jid);
-        saveLidMap(account);
-        return pPhone;
-      }
-    }
-
-    return rawLid;
+    console.warn(`[WhatsApp:${account?.name || 'conta'}] LID ${rawLid} ainda não possui telefone associado; ele não será tratado como número.`);
+    return '';
   }
 
   bindMessages(account, downloadMediaMessage, downloadContentFromMessage) {
@@ -631,7 +677,7 @@ class WhatsAppService {
 
   async processIncomingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage) {
     const rawJid = msg.key.remoteJid;
-    const phone = this.extractPhone(account, rawJid, msg);
+    const phone = await this.extractPhone(account, rawJid, msg);
     const content = unwrapMessageContent(msg.message);
     const media = await this.downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage);
     const text = content.conversation || content.extendedTextMessage?.text ||
@@ -670,7 +716,7 @@ class WhatsAppService {
 
   async processExternalOutgoingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage) {
     const rawJid = msg.key.remoteJid;
-    const phone = this.extractPhone(account, rawJid, msg);
+    const phone = await this.extractPhone(account, rawJid, msg);
     const content = unwrapMessageContent(msg.message);
     const media = await this.downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage);
     const text = content.conversation || content.extendedTextMessage?.text ||
@@ -876,7 +922,7 @@ class WhatsAppService {
     }
     let jid = target;
     if (!jid.includes('@')) jid = `${target.replace(/\D/g, '')}@s.whatsapp.net`;
-    jid = resolveJid(jid, account);
+    jid = await resolveJid(jid, account);
     try {
       const result = await account.sock.sendMessage(jid, { text });
       if (result?.key?.id && result?.message) account.messageCache.set(messageCacheKey(result.key), result.message);
@@ -893,7 +939,7 @@ class WhatsAppService {
     const account = this.selectAccount(accountId);
     if (!account?.sock || account.status !== 'connected') return false;
     let jid = target.includes('@') ? target : `${target.replace(/\D/g, '')}@s.whatsapp.net`;
-    jid = resolveJid(jid, account);
+    jid = await resolveJid(jid, account);
     const payloads = {
       image: { image: fileBuffer, caption: caption || '' },
       audio: buildAudioPayload(fileBuffer, mimeType, voiceNote),
@@ -981,9 +1027,12 @@ whatsappService._test = {
   normalizeAccountRouting,
   applyAccountRoutingWithPersistence,
   getPhoneFromJid,
+  phoneJidFromMessageMetadata,
+  resolveJid,
   ExpiringCache,
   messageCacheKey,
-  EMIT_OWN_EVENTS
+  EMIT_OWN_EVENTS,
+  MARK_ONLINE_ON_CONNECT
 };
 
 module.exports = whatsappService;

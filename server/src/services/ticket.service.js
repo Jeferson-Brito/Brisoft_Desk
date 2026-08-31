@@ -182,6 +182,15 @@ function preferredWhatsAppJid(phone, fallbackJid = '') {
   return String(fallbackJid || '');
 }
 
+function phoneFromWhatsAppIdentity(phone, fallbackJid = '') {
+  const explicitDigits = String(phone || '').replace(/\D/g, '');
+  if (explicitDigits.length >= 10 && explicitDigits.length <= 15) return explicitDigits;
+  const fallback = String(fallbackJid || '').replace(/:\d+@/, '@').replace(/:\d+$/, '');
+  if (!fallback || fallback.includes('@lid')) return '';
+  const fallbackDigits = fallback.replace(/@(?:s\.whatsapp\.net|c\.us)$/, '').replace(/\D/g, '');
+  return fallbackDigits.length >= 10 && fallbackDigits.length <= 15 ? fallbackDigits : '';
+}
+
 function uuidOrNull(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '')) ? value : null;
 }
@@ -255,9 +264,7 @@ class TicketService {
       console.warn('Mensagem recebida sem JID válido:', msgData);
       return null;
     }
-    const phone = (rawPhone && rawPhone !== 'undefined' && rawPhone !== 'null')
-      ? String(rawPhone).replace(/\D/g, '')
-      : String(targetJid).replace('@lid', '').replace('@s.whatsapp.net', '').replace(/:\d+$/, '').replace(/\D/g, '');
+    const phone = phoneFromWhatsAppIdentity(rawPhone, targetJid);
     const outboundJid = preferredWhatsAppJid(phone, targetJid);
     const whatsappChannel = whatsappAccountId ? `whatsapp:${whatsappAccountId}` : 'whatsapp';
     let cleanName = senderName || (phone ? `Cliente ${phone.slice(-4)}` : 'Cliente');
@@ -1090,7 +1097,7 @@ ${rendered}`,
       }
 
       const targetJid = rawJid || from;
-      const phone = String(rawPhone || targetJid || '').replace(/@.*$/, '').replace(/:\d+$/, '').replace(/\D/g, '');
+      const phone = phoneFromWhatsAppIdentity(rawPhone, targetJid);
       const outboundJid = preferredWhatsAppJid(phone, targetJid);
       const channel = whatsappAccountId ? `whatsapp:${whatsappAccountId}` : 'whatsapp';
       const now = new Date();
@@ -2268,6 +2275,6 @@ ${rendered}`,
 }
 
 const ticketService = new TicketService();
-ticketService._test = { mergeHandledVia, preferredWhatsAppJid };
+ticketService._test = { mergeHandledVia, preferredWhatsAppJid, phoneFromWhatsAppIdentity };
 
 module.exports = ticketService;

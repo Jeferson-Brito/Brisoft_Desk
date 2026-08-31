@@ -16,6 +16,10 @@ test('mantém habilitados os eventos de mensagens enviadas por outros dispositiv
   assert.equal(whatsappService._test.EMIT_OWN_EVENTS, true);
 });
 
+test('não mantém a sessão artificialmente online para preservar o celular principal', () => {
+  assert.equal(whatsappService._test.MARK_ONLINE_ON_CONNECT, false);
+});
+
 test('não troca um JID telefônico pelo LID ao exibir o destinatário', () => {
   const lidMap = new Map([
     ['558393858515@s.whatsapp.net', '25117639839856@lid'],
@@ -28,6 +32,42 @@ test('não troca um JID telefônico pelo LID ao exibir o destinatário', () => {
   assert.equal(
     whatsappService._test.getPhoneFromJid('25117639839856@lid', lidMap),
     '558393858515'
+  );
+});
+
+test('prioriza o telefone alternativo fornecido pelo WhatsApp para mensagens LID', () => {
+  const message = {
+    key: {
+      remoteJid: '25117639839856@lid',
+      remoteJidAlt: '558393858515@s.whatsapp.net'
+    }
+  };
+  assert.equal(
+    whatsappService._test.phoneJidFromMessageMetadata(message),
+    '558393858515@s.whatsapp.net'
+  );
+});
+
+test('não confunde o identificador numérico LID com um telefone', () => {
+  const message = { key: { remoteJid: '25117639839856@lid' } };
+  assert.equal(whatsappService._test.phoneJidFromMessageMetadata(message), '');
+});
+
+test('resolve LID pelo repositório interno antes de enviar', async () => {
+  const account = {
+    name: 'Teste',
+    lidMap: new Map(),
+    sock: {
+      signalRepository: {
+        lidMapping: {
+          getPNForLID: async () => '558393858515@s.whatsapp.net'
+        }
+      }
+    }
+  };
+  assert.equal(
+    await whatsappService._test.resolveJid('25117639839856@lid', account),
+    '558393858515@s.whatsapp.net'
   );
 });
 
