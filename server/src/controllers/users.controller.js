@@ -22,7 +22,7 @@ class UsersController {
       if (isSupabaseConfigured()) {
         let query = supabase
           .from('users')
-          .select('id, name, email, role, department_id, avatar_url, status, is_active, is_temporary, phone, created_at, departments(id, name, color)')
+          .select('id, name, email, role, department_id, avatar_url, status, is_active, is_temporary, phone, created_at, departments!users_department_id_fkey(id, name, color)')
           .order('created_at', { ascending: true });
         if (isSupervisor(req.user)) {
           const allowed = departmentIds(req.user);

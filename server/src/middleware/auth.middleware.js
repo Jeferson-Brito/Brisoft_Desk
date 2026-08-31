@@ -31,7 +31,7 @@ async function resolveAuthenticatedUser(token) {
 
   const { data: user, error } = await supabase
     .from('users')
-    .select('id, name, email, role, department_id, is_active, is_temporary, departments(name)')
+    .select('id, name, email, role, department_id, is_active, is_temporary, departments!users_department_id_fkey(name)')
     .eq('id', payload.id)
     .single();
 

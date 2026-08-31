@@ -101,7 +101,7 @@ class AuthController {
 
       const { data: users, error } = await supabase
         .from('users')
-        .select('id, name, email, role, department_id, avatar_url, password_hash, is_active, is_temporary, departments(id, name, color)')
+        .select('id, name, email, role, department_id, avatar_url, password_hash, is_active, is_temporary, departments!users_department_id_fkey(id, name, color)')
         .eq('email', email.toLowerCase())
         .eq('is_active', true)
         .limit(1);
@@ -174,7 +174,7 @@ class AuthController {
 
       const { data, error } = await supabase
         .from('users')
-        .select('id, name, email, role, department_id, avatar_url, status, is_active, is_temporary, phone, departments(id, name, color)')
+        .select('id, name, email, role, department_id, avatar_url, status, is_active, is_temporary, phone, departments!users_department_id_fkey(id, name, color)')
         .eq('id', id)
         .single();
 
