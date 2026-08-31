@@ -234,6 +234,35 @@ function scopeTicketQuery(query, user) {
   return filters.length ? query.or(filters.join(',')) : query.is('id', null);
 }
 
+function historyTicketVisibleToUser(user, ticket, participatedTicketIds = new Set()) {
+  if (!user || !ticket) return false;
+  if (isAdmin(user)) return true;
+  if (isSupervisor(user)) return departmentIds(user).includes(String(ticket.department_id || ''));
+  return Boolean(
+    (user.id && ticket.user_id && String(ticket.user_id) === String(user.id)) ||
+    (user.name && ticket.agent_name === user.name) ||
+    (user.name && ticket.encerrado_por === user.name) ||
+    participatedTicketIds.has(String(ticket.id))
+  );
+}
+
+async function analystParticipatedInTicket(user, ticketId) {
+  if (!user || !ticketId || isAdmin(user) || isSupervisor(user)) return false;
+  const queries = [];
+  const validUserId = uuidOrNull(user.id);
+  if (validUserId) queries.push(supabase.from('messages').select('id').eq('ticket_id', ticketId).eq('user_id', validUserId).limit(1).maybeSingle());
+  if (user.name) queries.push(supabase.from('messages').select('id').eq('ticket_id', ticketId).eq('sender_name', user.name).limit(1).maybeSingle());
+  const results = await Promise.all(queries);
+  return results.some(result => !result.error && Boolean(result.data));
+}
+
+async function canUserAccessTicketDetails(user, ticket) {
+  if (!user || !ticket) return false;
+  if (ticket.status !== 'finalizado') return canUserAccessTicket(user, ticket);
+  if (historyTicketVisibleToUser(user, ticket)) return true;
+  return analystParticipatedInTicket(user, ticket.id);
+}
+
 function emitTicketEvent(io, event, payload, ticket) {
   if (!io || !ticket) return;
   let target = io.to('admins');
@@ -1666,7 +1695,7 @@ ${rendered}`,
         .eq('id', ticketId)
         .single();
       if (error || !ticket) return null;
-      if (user && !canUserAccessTicket(user, ticket)) return null;
+      if (user && !(await canUserAccessTicketDetails(user, ticket))) return null;
       ticket.messages = await this.get24hMessagesForTicket(ticket, user);
       ticket.messages = ticket.messages.map(message => ({
         ...message,
@@ -1691,18 +1720,56 @@ ${rendered}`,
   async getHistory(user) {
     if (!isSupabaseConfigured()) return [];
     try {
-      let historyQuery = supabase
-        .from('tickets')
-        .select('*, departments(id, name, color)')
-        .eq('status', 'finalizado');
-      historyQuery = scopeTicketQuery(historyQuery, user);
-      const { data: tickets, error } = await historyQuery
-        .order('updated_at', { ascending: false })
-        .limit(200);
-      if (error) throw error;
+      const select = '*, departments(id, name, color)';
+      const baseQuery = () => supabase.from('tickets').select(select).eq('status', 'finalizado');
+      let tickets = [];
+      let participatedTicketIds = new Set();
+
+      if (isAdmin(user) || isSupervisor(user)) {
+        let historyQuery = baseQuery();
+        if (isSupervisor(user)) {
+          const ids = departmentIds(user);
+          historyQuery = ids.length ? historyQuery.in('department_id', ids) : historyQuery.is('id', null);
+        }
+        const result = await historyQuery.order('updated_at', { ascending: false }).limit(200);
+        if (result.error) throw result.error;
+        tickets = result.data || [];
+      } else {
+        // Registra também participação anterior em conversas transferidas. O
+        // responsável final pode ser outro analista, mas quem enviou uma
+        // mensagem pelo sistema continua autorizado a consultar o histórico.
+        const participationQueries = [];
+        const validUserId = uuidOrNull(user?.id);
+        if (validUserId) participationQueries.push(supabase.from('messages').select('ticket_id').eq('user_id', validUserId).order('created_at', { ascending: false }).limit(500));
+        if (user?.name) participationQueries.push(supabase.from('messages').select('ticket_id').eq('sender_name', user.name).order('created_at', { ascending: false }).limit(500));
+        const participationResults = await Promise.all(participationQueries);
+        participatedTicketIds = new Set(participationResults.flatMap(result => result.error ? [] : (result.data || []).map(item => String(item.ticket_id))));
+
+        const ticketQueries = [];
+        if (validUserId) ticketQueries.push(baseQuery().eq('user_id', validUserId).order('updated_at', { ascending: false }).limit(200));
+        if (user?.name) {
+          ticketQueries.push(baseQuery().eq('agent_name', user.name).order('updated_at', { ascending: false }).limit(200));
+          ticketQueries.push(baseQuery().eq('encerrado_por', user.name).order('updated_at', { ascending: false }).limit(200));
+        }
+        const participantIds = [...participatedTicketIds];
+        for (let index = 0; index < participantIds.length; index += 100) {
+          ticketQueries.push(baseQuery().in('id', participantIds.slice(index, index + 100)).order('updated_at', { ascending: false }).limit(200));
+        }
+
+        const ticketResults = await Promise.all(ticketQueries);
+        const ticketMap = new Map();
+        for (const result of ticketResults) {
+          if (result.error) throw result.error;
+          for (const ticket of result.data || []) ticketMap.set(ticket.id, ticket);
+        }
+        tickets = [...ticketMap.values()]
+          .filter(ticket => historyTicketVisibleToUser(user, ticket, participatedTicketIds))
+          .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
+          .slice(0, 200);
+      }
 
       // Busca avaliações e mensagens para cada ticket
-      const ticketIds = (tickets || []).map(t => t.id);
+      const ticketIds = tickets.map(t => t.id);
       let ratingMap = {};
       let messagesMap = {};
 
@@ -1720,7 +1787,7 @@ ${rendered}`,
         });
       }
 
-      return (tickets || []).map(t => {
+      return tickets.map(t => {
         let deptName = t.departments?.name || t.department || '';
         let deptColor = t.departments?.color || '#2563eb';
 
@@ -1898,6 +1965,7 @@ ${rendered}`,
         const agentMessagePayload = {
           ticket_id: ticket.id,
           sender: 'agent',
+          user_id: uuidOrNull(currentUser.id),
           text: formattedText,
           time: t,
           remote_message_id: sent?.key?.id || null,
@@ -2009,6 +2077,7 @@ ${rendered}`,
       const messagePromise = supabase.from('messages').insert({
         ticket_id: ticket.id,
         sender: 'agent',
+        user_id: uuidOrNull(currentUser.id),
         ...(conversationTrackingColumnsAvailable === true ? {
           sender_type: 'platform', sender_name: agentName, message_context: 'service'
         } : {}),
@@ -2429,15 +2498,15 @@ ${rendered}`,
 
     const { data: ticket, error: ticketError } = await supabase
       .from('tickets')
-      .select('id, agent_name, department_id, department')
+      .select('id, user_id, agent_name, encerrado_por, department_id, department, status')
       .eq('id', ticketId)
       .maybeSingle();
     if (ticketError || !ticket) return false;
-    return canUserAccessTicket(user, ticket);
+    return canUserAccessTicketDetails(user, ticket);
   }
 }
 
 const ticketService = new TicketService();
-ticketService._test = { mergeHandledVia, preferredWhatsAppJid, phoneFromWhatsAppIdentity, makeTimeStr, APP_TIME_ZONE };
+ticketService._test = { mergeHandledVia, preferredWhatsAppJid, phoneFromWhatsAppIdentity, makeTimeStr, APP_TIME_ZONE, historyTicketVisibleToUser };
 
 module.exports = ticketService;

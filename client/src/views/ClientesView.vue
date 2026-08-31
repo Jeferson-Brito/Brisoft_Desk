@@ -96,11 +96,11 @@
 
     <!-- Modal de Edição / Criação -->
     <Teleport to="body">
-      <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-        <div class="modal-panel clientes-modal">
+      <div v-if="showModal" class="modal-overlay active" @click.self="closeModal">
+        <div class="modal-container clientes-modal">
           <div class="modal-header">
             <h3>{{ isNew ? 'Novo contato' : 'Editar contato' }}</h3>
-            <button class="modal-close-btn" @click="closeModal"><i class="fa-solid fa-xmark"></i></button>
+            <button type="button" class="btn-icon" title="Fechar" @click="closeModal"><i class="fa-solid fa-xmark"></i></button>
           </div>
           <div class="modal-body">
             <div class="form-grid">
@@ -173,15 +173,15 @@
 
     <!-- Modal de Confirmação de Exclusão -->
     <Teleport to="body">
-      <div v-if="deleteTarget" class="modal-overlay" @click.self="deleteTarget = null">
-        <div class="modal-panel" style="max-width:380px;">
+      <div v-if="deleteTarget" class="modal-overlay active" @click.self="deleteTarget = null">
+        <div class="modal-container" style="max-width:380px;">
           <div class="modal-header">
             <h3>Excluir Contato</h3>
-            <button class="modal-close-btn" @click="deleteTarget = null"><i class="fa-solid fa-xmark"></i></button>
+            <button type="button" class="btn-icon" title="Fechar" @click="deleteTarget = null"><i class="fa-solid fa-xmark"></i></button>
           </div>
           <div class="modal-body" style="padding:20px 24px;">
-            <p style="color:#cbd5e1;margin:0 0 4px;">Tem certeza que deseja excluir o contato:</p>
-            <p style="font-weight:700;color:#f1f5f9;margin:0;">{{ deleteTarget.name }}</p>
+            <p style="color:#475569;margin:0 0 4px;">Tem certeza que deseja excluir o contato:</p>
+            <p style="font-weight:700;color:#0f172a;margin:0;">{{ deleteTarget.name }}</p>
             <p style="font-size:12px;color:#64748b;margin:8px 0 0;">Esta ação não pode ser desfeita.</p>
           </div>
           <div class="modal-footer">
@@ -349,7 +349,7 @@ onMounted(loadContacts)
 .form-group label {
   font-size: 12px;
   font-weight: 600;
-  color: #94a3b8;
+  color: #475569;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -357,11 +357,11 @@ onMounted(loadContacts)
 .form-group input,
 .form-group select,
 .form-group textarea {
-  background: #0f172a;
-  border: 1px solid #334155;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 9px 12px;
-  color: #e2e8f0;
+  color: #0f172a;
   font-size: 14px;
   outline: none;
   transition: border-color 0.2s;
@@ -438,10 +438,10 @@ onMounted(loadContacts)
   align-items: center;
   gap: 10px;
   padding: 12px;
-  border: 1px solid #334155;
+  border: 1px solid #cbd5e1;
   border-radius: 9px;
   cursor: pointer;
-  color: #cbd5e1;
+  color: #334155;
   text-transform: none;
   letter-spacing: normal;
 }
@@ -452,8 +452,8 @@ onMounted(loadContacts)
 .contact-type-options input { width: auto; padding: 0; }
 .contact-type-options i { font-size: 17px; color: #60a5fa; }
 .contact-type-options span { display: flex; flex-direction: column; gap: 2px; }
-.contact-type-options strong { font-size: 13px; color: #e2e8f0; }
-.contact-type-options small { font-size: 10px; color: #94a3b8; font-weight: 400; }
+.contact-type-options strong { font-size: 13px; color: #0f172a; }
+.contact-type-options small { font-size: 10px; color: #64748b; font-weight: 400; }
 
 @media (max-width: 640px) {
   .contact-type-options { grid-template-columns: 1fr; }
