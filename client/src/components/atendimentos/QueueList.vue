@@ -1,10 +1,10 @@
 <template>
   <div class="queue-column">
-    <!-- Header da Fila estilo Image 2 -->
+    <!-- Header da Fila -->
     <div class="queue-header-row">
       <div class="queue-header-left">
         <i class="fa-solid fa-bars queue-menu-icon"></i>
-        <span class="queue-title-bold">{{ queueTitle }}</span>
+        <span class="queue-title-bold">Fila de Atendimento</span>
       </div>
       <div class="queue-header-right">
         <button
@@ -18,16 +18,34 @@
       </div>
     </div>
 
-    <!-- Dropdown / Sub-header bar: Open Count & Sort -->
-    <div class="queue-subheader-row">
-      <div class="queue-filter-dropdown-btn">
-        <span>{{ activeTabLabel }} {{ filteredTickets.length }}</span>
-        <i class="fa-solid fa-chevron-down"></i>
-      </div>
-      <div class="queue-sort-dropdown-btn" @click="toggleSort">
-        <span>{{ sortBy === 'recent' ? 'Mais recentes' : 'Mais antigos' }}</span>
-        <i class="fa-solid fa-chevron-down"></i>
-      </div>
+    <!-- Abas da Fila: Aguardando vs Em atendimento -->
+    <div class="queue-tabs-row">
+      <button
+        type="button"
+        class="queue-tab-btn"
+        :class="{ active: currentTab === 'aguardando' }"
+        @click="currentTab = 'aguardando'"
+      >
+        <span>Aguardando</span>
+        <span
+          class="queue-tab-count"
+          :class="{ 'badge-alert': waitingCount > 0 }"
+        >
+          {{ waitingCount }}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        class="queue-tab-btn"
+        :class="{ active: currentTab === 'em_atendimento' }"
+        @click="currentTab = 'em_atendimento'"
+      >
+        <span>Em atendimento</span>
+        <span class="queue-tab-count">
+          {{ inProgressCount }}
+        </span>
+      </button>
     </div>
 
     <!-- Barra de Busca compacta -->
@@ -58,7 +76,7 @@
 
       <div v-else-if="filteredTickets.length === 0" class="queue-empty-msg">
         <i class="fa-regular fa-comments"></i>
-        <span>Nenhum atendimento encontrado</span>
+        <span>Nenhum atendimento em {{ currentTab === 'aguardando' ? 'espera' : 'atendimento' }}</span>
       </div>
 
       <div v-else class="queue-cards-wrapper">
@@ -85,34 +103,15 @@ import { useTicketStore } from '@/stores/tickets.store'
 import QueueItem from '@/components/atendimentos/QueueItem.vue'
 import NewConversationModal from '@/components/atendimentos/NewConversationModal.vue'
 
-const props = defineProps({
-  filterCategory: {
-    type: String,
-    default: 'all'
-  }
-})
-
 const emit = defineEmits(['ticket-selected'])
 
 const ticketStore = useTicketStore()
+const currentTab = ref('aguardando')
 const searchTerm = ref('')
-const sortBy = ref('recent')
 const showNewConversation = ref(false)
 
-const queueTitle = computed(() => {
-  if (props.filterCategory === 'mine') return 'Meus Atendimentos'
-  if (props.filterCategory === 'waiting') return 'Aguardando Fila'
-  if (props.filterCategory.startsWith('dept:')) {
-    return props.filterCategory.slice(5)
-  }
-  return 'Fila de Atendimento'
-})
-
-const activeTabLabel = computed(() => 'Abertos')
-
-function toggleSort() {
-  sortBy.value = sortBy.value === 'recent' ? 'oldest' : 'recent'
-}
+const waitingCount = computed(() => (ticketStore.waitingTickets || []).length)
+const inProgressCount = computed(() => (ticketStore.inProgressTickets || []).length)
 
 function onTicketClick(ticketId) {
   emit('ticket-selected', ticketId)
@@ -121,13 +120,10 @@ function onTicketClick(ticketId) {
 const filteredTickets = computed(() => {
   let list = (ticketStore.visibleTickets || []).filter(t => t.status !== 'finalizado')
 
-  if (props.filterCategory === 'waiting') {
+  if (currentTab.value === 'aguardando') {
     list = list.filter(t => t.status === 'aguardando' || !t.assumed)
-  } else if (props.filterCategory === 'mine') {
-    list = list.filter(t => t.assumed || t.status === 'em_atendimento')
-  } else if (props.filterCategory.startsWith('dept:')) {
-    const dept = props.filterCategory.slice(5)
-    list = list.filter(t => (t.department || t.deptInitial) === dept)
+  } else if (currentTab.value === 'em_atendimento') {
+    list = list.filter(t => t.assumed || t.status === 'em_atendimento' || t.status === 'chatbot')
   }
 
   if (searchTerm.value.trim()) {
@@ -146,9 +142,9 @@ const filteredTickets = computed(() => {
 
 <style scoped>
 .queue-column {
-  width: 310px;
-  min-width: 310px;
-  max-width: 310px;
+  width: 320px;
+  min-width: 320px;
+  max-width: 320px;
   flex-shrink: 0;
   background-color: #ffffff;
   border-right: 1px solid #e5e7eb;
@@ -207,36 +203,63 @@ const filteredTickets = computed(() => {
   background: #eff6ff;
 }
 
-.queue-subheader-row {
+/* Abas Aguardando vs Em atendimento */
+.queue-tabs-row {
+  display: flex;
+  padding: 8px 10px 4px;
+  gap: 6px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.queue-tab-btn {
+  flex: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 14px 6px;
-  font-size: 11.5px;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: none;
+  background: #f8fafc;
   color: #64748b;
+  font-size: 12px;
   font-weight: 600;
-}
-
-.queue-filter-dropdown-btn,
-.queue-sort-dropdown-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.queue-filter-dropdown-btn:hover,
-.queue-sort-dropdown-btn:hover {
+.queue-tab-btn:hover {
+  background: #f1f5f9;
   color: #0f172a;
 }
 
-.queue-filter-dropdown-btn i,
-.queue-sort-dropdown-btn i {
-  font-size: 9px;
+.queue-tab-btn.active {
+  background: #eff6ff;
+  color: #1f62d0;
+  font-weight: 700;
+}
+
+.queue-tab-count {
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  font-weight: 700;
+}
+
+.queue-tab-btn.active .queue-tab-count {
+  background: #dbeafe;
+  color: #1f62d0;
+}
+
+.badge-alert {
+  background: #fee2e2 !important;
+  color: #ef4444 !important;
 }
 
 .queue-search-container {
-  padding: 4px 10px 8px;
+  padding: 8px 10px;
 }
 
 .search-input-box {

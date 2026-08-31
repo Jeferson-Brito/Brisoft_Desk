@@ -7,20 +7,12 @@
         'mobile-chat-active': mobilePanel === 'chat'
       }"
     >
-      <!-- Coluna A: Navegação do Inbox / Pastas / Filtros (Image 2) -->
-      <InboxNav
-        :active-filter="activeFilter"
-        @update:active-filter="f => activeFilter = f"
-        @new-conversation="showNewConversation = true"
-      />
-
-      <!-- Coluna B: Fila de Atendimentos (Image 2) -->
+      <!-- Coluna 1: Fila de Atendimentos (Aguardando / Em atendimento) -->
       <QueueList
-        :filter-category="activeFilter"
         @ticket-selected="onTicketSelected"
       />
 
-      <!-- Coluna C: Chat em Tempo Real (Image 2) -->
+      <!-- Coluna 2: Chat em Tempo Real -->
       <ChatPanel
         :ticket="ticketStore.activeTicket"
         :is-details-open="isDetailsOpen && !!ticketStore.activeTicket"
@@ -28,7 +20,7 @@
         @go-back="mobilePanel = 'queue'"
       />
 
-      <!-- Coluna D: Detalhes do Atendimento & Contato (Image 2) -->
+      <!-- Coluna 3: Detalhes do Atendimento & Contato -->
       <ContactDrawer
         v-if="isDetailsOpen && ticketStore.activeTicket"
         :ticket="ticketStore.activeTicket"
@@ -56,7 +48,6 @@ import { useTicketStore } from '@/stores/tickets.store'
 import { useUiStore }     from '@/stores/ui.store'
 import { useAuthStore }   from '@/stores/auth.store'
 import { ticketsApi }     from '@/api/tickets.api'
-import InboxNav           from '@/components/atendimentos/InboxNav.vue'
 import QueueList          from '@/components/atendimentos/QueueList.vue'
 import ChatPanel          from '@/components/atendimentos/ChatPanel.vue'
 import ContactDrawer      from '@/components/atendimentos/ContactDrawer.vue'
@@ -67,7 +58,6 @@ const ticketStore = useTicketStore()
 const ui          = useUiStore()
 const auth        = useAuthStore()
 
-const activeFilter = ref('all')
 const isDetailsOpen = ref(true)
 const showNewConversation = ref(false)
 const mobilePanel = ref('queue')
