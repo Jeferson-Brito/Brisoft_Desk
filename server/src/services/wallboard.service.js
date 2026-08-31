@@ -4,7 +4,7 @@ const { isAdmin, isSupervisor, departmentIds, canAccessDepartment } = require('.
 
 const SETTINGS_KEY = 'wallboard_config';
 const performanceCache = new Map();
-const CACHE_TTL_MS = 30000;
+const CACHE_TTL_MS = 1500;
 
 const DEFAULT_CONFIG = Object.freeze({
   monthlyTarget: 0,

@@ -46,15 +46,39 @@ async function restoreSession(accountId, targetDir) {
 async function backupSession(accountId, sourceDir) {
   if (!storageEnabled() || !fs.existsSync(sourceDir)) return 0;
   const entries = await fs.promises.readdir(sourceDir, { withFileTypes: true });
-  let uploaded = 0;
+  const snapshots = [];
   for (const entry of entries) {
     if (!entry.isFile() || !/\.json$/i.test(entry.name)) continue;
-    const buffer = await fs.promises.readFile(path.join(sourceDir, entry.name));
-    const { error } = await supabase.storage.from(SESSION_BUCKET).upload(`${accountId}/${entry.name}`, buffer, {
+    try {
+      snapshots.push({ name: entry.name, buffer: await fs.promises.readFile(path.join(sourceDir, entry.name)) });
+    } catch (error) {
+      // As pre-keys do Signal são descartadas logo após o uso. Isso é normal e
+      // não deve cancelar o backup completo da sessão.
+      if (error?.code !== 'ENOENT') throw error;
+    }
+  }
+
+  let uploaded = 0;
+  for (const snapshot of snapshots) {
+    const { error } = await supabase.storage.from(SESSION_BUCKET).upload(`${accountId}/${snapshot.name}`, snapshot.buffer, {
       contentType: 'application/json', upsert: true, cacheControl: '0'
     });
     if (error) throw error;
     uploaded += 1;
+  }
+
+  // Remove da nuvem apenas chaves temporárias que já não existem localmente.
+  // Sem isso, uma restauração futura pode ressuscitar pre-keys expiradas.
+  const currentEntries = await fs.promises.readdir(sourceDir, { withFileTypes: true });
+  const currentNames = new Set(currentEntries.filter(entry => entry.isFile() && /\.json$/i.test(entry.name)).map(entry => entry.name));
+  const { data: remoteEntries, error: listError } = await supabase.storage.from(SESSION_BUCKET).list(String(accountId), { limit: 1000 });
+  if (listError) throw listError;
+  const stalePaths = (remoteEntries || [])
+    .filter(entry => entry.name && /\.json$/i.test(entry.name) && !currentNames.has(entry.name))
+    .map(entry => `${accountId}/${entry.name}`);
+  if (stalePaths.length) {
+    const { error: removeError } = await supabase.storage.from(SESSION_BUCKET).remove(stalePaths);
+    if (removeError) throw removeError;
   }
   return uploaded;
 }

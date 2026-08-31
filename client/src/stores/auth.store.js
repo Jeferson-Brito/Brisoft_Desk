@@ -18,6 +18,10 @@ export const useAuthStore = defineStore('auth', () => {
   const isTemporary     = computed(() => user.value?.is_temporary === true)
   const departmentId    = computed(() => user.value?.department_id ?? null)
   const departmentName  = computed(() => user.value?.department_name ?? null)
+  const departmentIds   = computed(() => [...new Set([
+    ...(Array.isArray(user.value?.department_ids) ? user.value.department_ids : []),
+    user.value?.department_id
+  ].filter(Boolean).map(String))])
 
   // ─── Actions ─────────────────────────────────────────────────────────────────
 
@@ -72,7 +76,7 @@ export const useAuthStore = defineStore('auth', () => {
     // state
     token, user, initialized,
     // getters
-    isAuthenticated, isAdmin, isSupervisor, canManageTeam, isTemporary, departmentId, departmentName,
+    isAuthenticated, isAdmin, isSupervisor, canManageTeam, isTemporary, departmentId, departmentName, departmentIds,
     // actions
     login, logout, initAuth, setSession, clearSession
   }

@@ -3,6 +3,36 @@ import { getMediaSource } from '@/utils/media-message'
 
 const MAX_CACHED_MEDIA = 100
 const mediaCache = new Map()
+const RETRY_DELAYS_MS = [0, 700, 1500, 3000]
+
+function wait(ms) {
+  return ms > 0 ? new Promise(resolve => setTimeout(resolve, ms)) : Promise.resolve()
+}
+
+function shouldRetry(error) {
+  const status = Number(error?.response?.status || 0)
+  return !status || [404, 408, 425, 429, 500, 502, 503, 504].includes(status)
+}
+
+async function requestMedia(apiPath) {
+  let lastError
+  for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt += 1) {
+    await wait(RETRY_DELAYS_MS[attempt])
+    const separator = apiPath.includes('?') ? '&' : '?'
+    const refreshedPath = `${apiPath}${separator}media_cache=3&attempt=${attempt + 1}`
+    try {
+      return await http.get(refreshedPath, {
+        responseType: 'blob',
+        timeout: 45000,
+        headers: { 'Cache-Control': 'no-cache' }
+      })
+    } catch (error) {
+      lastError = error
+      if (!shouldRetry(error) || attempt === RETRY_DELAYS_MS.length - 1) throw error
+    }
+  }
+  throw lastError
+}
 
 function trimCache() {
   if (mediaCache.size <= MAX_CACHED_MEDIA) return
@@ -23,9 +53,7 @@ export async function loadProtectedMedia(source) {
 
   const entry = { lastUsed: Date.now(), objectUrl: null, promise: null, settled: false }
   const apiPath = source.startsWith('/api/') ? source.slice(4) : source
-  const refreshedPath = `${apiPath}${apiPath.includes('?') ? '&' : '?'}media_cache=2`
-  entry.promise = http
-    .get(refreshedPath, { responseType: 'blob', headers: { 'Cache-Control': 'no-cache' } })
+  entry.promise = requestMedia(apiPath)
     .then(response => {
       entry.objectUrl = URL.createObjectURL(response.data)
       entry.settled = true

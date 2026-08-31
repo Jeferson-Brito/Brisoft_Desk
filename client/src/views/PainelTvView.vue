@@ -189,6 +189,7 @@ async function loadDepartments() {
 
 async function fetchData(force = false) {
   if (!selectedDepartmentId.value) return
+  if (refreshing.value && !force) return
   refreshing.value = true
   try {
     const { data: response } = await ticketsApi.wallboard({ departmentId: selectedDepartmentId.value, force })
@@ -303,7 +304,7 @@ onMounted(async () => {
   try { await loadDepartments(); await fetchData(true); bindSocket() }
   catch (mountError) { error.value = mountError.message; loading.value = false }
   clockTimer = setInterval(() => { now.value = new Date() }, 1000)
-  pollTimer = setInterval(() => fetchData(false), 30000)
+  pollTimer = setInterval(() => fetchData(false), 2000)
   document.addEventListener('fullscreenchange', onFullscreenChange)
   document.addEventListener('visibilitychange', onVisibilityChange)
 })

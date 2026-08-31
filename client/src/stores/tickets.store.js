@@ -8,6 +8,7 @@ export const useTicketStore = defineStore('tickets', () => {
   const queue          = ref([])      // todos os tickets ativos (aguardando + em_atendimento)
   const activeTicketId = ref(null)    // ticket selecionado no painel direito
   const loading        = ref(false)
+  const kpiRevision    = ref(0)
   const assumeRequests = new Map()
 
   // ─── Getters ─────────────────────────────────────────────────────────────────
@@ -20,6 +21,7 @@ export const useTicketStore = defineStore('tickets', () => {
     return queue.value.filter(t => {
       // Ticket atribuído diretamente ao analista
       if (t.user_id && auth.user?.id && t.user_id === auth.user.id) return true
+      if (auth.isSupervisor && t.department_id && auth.departmentIds.includes(String(t.department_id))) return true
       // Ticket do departamento do analista
       if (auth.departmentId && t.department_id && String(t.department_id) === String(auth.departmentId)) return true
       if (auth.departmentName && t.department && t.department.toLowerCase() === auth.departmentName.toLowerCase()) return true
@@ -37,16 +39,23 @@ export const useTicketStore = defineStore('tickets', () => {
 
   // ─── Actions ─────────────────────────────────────────────────────────────────
 
-  async function fetchQueue() {
-    loading.value = true
+  async function fetchQueue({ silent = false } = {}) {
+    if (!silent) loading.value = true
     try {
       const { data } = await ticketsApi.list()
       if (data.success) {
-        queue.value = (data.tickets || []).map(t => ({
-          ...t,
-          unreadCount: t.unread_count || 0,
-          messages: t.messages || []
-        }))
+        queue.value = (data.tickets || []).map(t => {
+          const existing = queue.value.find(current => current.id === t.id)
+          const incomingMessages = t.messages || []
+          return {
+            ...existing,
+            ...t,
+            unreadCount: t.unread_count ?? existing?.unreadCount ?? 0,
+            messages: incomingMessages.length >= (existing?.messages?.length || 0)
+              ? incomingMessages
+              : existing.messages
+          }
+        })
         // Seleciona o primeiro ticket relevante dentro dos visíveis
         if (!activeTicketId.value || !visibleTickets.value.find(t => t.id === activeTicketId.value)) {
           const first = inProgressTickets.value[0] ?? waitingTickets.value[0] ?? null
@@ -66,8 +75,12 @@ export const useTicketStore = defineStore('tickets', () => {
         }
       }
     } finally {
-      loading.value = false
+      if (!silent) loading.value = false
     }
+  }
+
+  function notifyKpisUpdated() {
+    kpiRevision.value += 1
   }
 
   // Recebe ticket via WebSocket e insere/atualiza na fila
@@ -227,11 +240,11 @@ export const useTicketStore = defineStore('tickets', () => {
 
   return {
     // state
-    queue, activeTicketId, loading,
+    queue, activeTicketId, loading, kpiRevision,
     // getters
     visibleTickets, waitingTickets, inProgressTickets, chatbotTickets, activeTicket,
     // actions
-    fetchQueue, fetchTickets: fetchQueue, receiveTicket, appendMessage, removeTicket, patchTicket,
+    fetchQueue, fetchTickets: fetchQueue, receiveTicket, appendMessage, removeTicket, patchTicket, notifyKpisUpdated,
     selectTicket, assume, close
   }
 })

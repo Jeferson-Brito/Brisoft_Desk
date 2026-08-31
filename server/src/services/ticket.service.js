@@ -1072,6 +1072,137 @@ ${rendered}`,
     }
   }
 
+  async processWhatsAppReaction(msgData, io) {
+    if (!isSupabaseConfigured()) return null;
+    const {
+      from,
+      rawJid,
+      phone: rawPhone,
+      sender = 'client',
+      senderName,
+      emoji = '',
+      targetMessageId,
+      targetPreview = 'Mensagem',
+      timestamp,
+      messageId,
+      whatsappAccountId
+    } = msgData;
+
+    try {
+      await ensureConversationTrackingColumns();
+      if (await wasRemoteMessageProcessed(whatsappAccountId, messageId)) {
+        return { type: 'duplicate_reaction', messageId };
+      }
+
+      const targetJid = rawJid || from;
+      const phone = phoneFromWhatsAppIdentity(rawPhone, targetJid);
+      const channel = whatsappAccountId ? `whatsapp:${whatsappAccountId}` : 'whatsapp';
+      let originalMessage = null;
+      let ticket = null;
+
+      if (targetMessageId && remoteMessageColumnsAvailable !== false) {
+        const originalResult = await supabase
+          .from('messages')
+          .select('ticket_id, text, type, file_name')
+          .eq('whatsapp_account_id', whatsappAccountId)
+          .eq('remote_message_id', targetMessageId)
+          .limit(1)
+          .maybeSingle();
+        if (originalResult.error && isMissingRemoteMessageColumns(originalResult.error)) {
+          remoteMessageColumnsAvailable = false;
+        } else if (!originalResult.error && originalResult.data) {
+          remoteMessageColumnsAvailable = true;
+          originalMessage = originalResult.data;
+          const ticketResult = await supabase.from('tickets').select('*').eq('id', originalMessage.ticket_id).maybeSingle();
+          if (!ticketResult.error) ticket = ticketResult.data;
+        }
+      }
+
+      if (!ticket) {
+        const identities = [
+          phone ? `phone.eq.${phone}` : null,
+          targetJid ? `jid.eq.${targetJid}` : null,
+          targetJid ? `raw_jid.eq.${targetJid}` : null
+        ].filter(Boolean);
+        if (!identities.length) return { type: 'reaction_without_identity', messageId };
+        let ticketQuery = supabase.from('tickets').select('*').or(identities.join(','));
+        ticketQuery = whatsappAccountId === 'default'
+          ? ticketQuery.in('channel', ['whatsapp', channel])
+          : ticketQuery.eq('channel', channel);
+        const ticketResult = await ticketQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (ticketResult.error) throw ticketResult.error;
+        ticket = ticketResult.data;
+      }
+      if (!ticket) return { type: 'reaction_without_ticket', messageId };
+
+      const originalFallback = ({
+        image: '📷 Imagem', sticker: '🖼️ Figurinha', video: '🎥 Vídeo',
+        audio: '🎙️ Áudio', document: `📄 ${originalMessage?.file_name || 'Documento'}`
+      })[originalMessage?.type];
+      const quotedText = String(originalMessage?.text || originalFallback || targetPreview || 'Mensagem')
+        .replace(/^\*[^*]+:\*\s*/s, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 180) || 'Mensagem';
+      const removed = !String(emoji).trim();
+      const reactionText = JSON.stringify({
+        emoji: removed ? '↩️' : String(emoji).trim().slice(0, 16),
+        preview: quotedText,
+        targetMessageId: targetMessageId || null,
+        removed
+      });
+      const messageDateMs = whatsappTimestampMs(timestamp);
+      const date = messageDateMs ? new Date(messageDateMs) : new Date();
+      const payload = {
+        ticket_id: ticket.id,
+        sender: sender === 'agent' ? 'agent' : 'client',
+        sender_type: sender === 'agent' ? 'whatsapp_device' : 'customer',
+        sender_name: senderName || (sender === 'agent' ? 'WhatsApp' : ticket.client_name),
+        message_context: 'service',
+        type: 'reaction',
+        text: reactionText,
+        time: makeTimeStr(date),
+        remote_message_id: messageId || null,
+        whatsapp_account_id: whatsappAccountId || null,
+        created_at: date.toISOString()
+      };
+      let insertResult = await supabase.from('messages').insert(payload).select().single();
+      if (insertResult.error?.code === '23505') return { type: 'duplicate_reaction', messageId, ticket };
+      if (insertResult.error && isMissingConversationTrackingColumns(insertResult.error)) {
+        conversationTrackingColumnsAvailable = false;
+        delete payload.sender_type;
+        delete payload.sender_name;
+        delete payload.message_context;
+        insertResult = await supabase.from('messages').insert(payload).select().single();
+      }
+      const savedMessage = assertSupabase(insertResult, 'Falha ao salvar reação do WhatsApp');
+
+      if (['chatbot', 'aguardando', 'em_atendimento'].includes(ticket.status)) {
+        const updatePayload = {
+          preview: removed ? 'Reação removida' : `${String(emoji).trim()} Reagiu a uma mensagem`,
+          time: makeTimeStr(date),
+          updated_at: date.toISOString()
+        };
+        if (sender !== 'agent') updatePayload.unread_count = (ticket.unread_count || 0) + 1;
+        const updateResult = await supabase.from('tickets').update(updatePayload).eq('id', ticket.id);
+        if (!updateResult.error) Object.assign(ticket, updatePayload);
+      }
+
+      const fullTicket = await this.getFullTicket(ticket.id);
+      const emittedTicket = fullTicket || ticket;
+      if (io) {
+        emitTicketEvent(io, 'new_message', { ticketId: ticket.id, message: savedMessage, ticket: emittedTicket }, emittedTicket);
+        if (['chatbot', 'aguardando', 'em_atendimento'].includes(ticket.status)) {
+          emitTicketEvent(io, 'ticket_updated', { ticket: emittedTicket }, emittedTicket);
+        }
+      }
+      return { type: removed ? 'reaction_removed' : 'reaction_saved', ticket: emittedTicket, message: savedMessage };
+    } catch (error) {
+      console.error(`Erro ao processar reação do WhatsApp: ${error.message}`);
+      return null;
+    }
+  }
+
   async processExternalWhatsAppMessage(msgData, io, whatsappService = null) {
     if (!isSupabaseConfigured()) return null;
     const {

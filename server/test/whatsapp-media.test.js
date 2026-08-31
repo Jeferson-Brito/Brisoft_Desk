@@ -20,3 +20,14 @@ test('identifica mídia dentro de mensagens temporárias e de visualização ún
 test('remove caracteres inseguros de identificadores usados em arquivos', () => {
   assert.equal(whatsappService._test.safeFileToken('../abc,123'), 'abc123');
 });
+
+test('obtém o texto da mensagem original usada em uma reação', () => {
+  assert.equal(
+    whatsappService._test.messageContentPreview({ extendedTextMessage: { text: 'Teste de emoji' } }),
+    'Teste de emoji'
+  );
+  assert.equal(
+    whatsappService._test.messageContentPreview({ imageMessage: {} }),
+    '📷 Imagem'
+  );
+});

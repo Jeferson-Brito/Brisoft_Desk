@@ -17,6 +17,14 @@
       {{ initials || 'CL' }}
     </div>
     <div class="chat-bubble incoming">
+      <div v-if="isReaction" class="reaction-card">
+        <div class="reaction-quote">{{ reactionData.preview }}</div>
+        <div class="reaction-result">
+          <span class="reaction-emoji">{{ reactionData.emoji }}</span>
+          <span>{{ reactionData.removed ? 'Reação removida' : 'Reagiu a esta mensagem' }}</span>
+        </div>
+      </div>
+
       <div v-if="hasMedia && mediaLoading" class="media-status-card">
         <i class="fa-solid fa-spinner fa-spin"></i>
         <span>Carregando mídia...</span>
@@ -25,6 +33,7 @@
       <div v-else-if="hasMedia && mediaUnavailable" class="media-status-card media-status-error">
         <i class="fa-solid fa-triangle-exclamation"></i>
         <span>Não foi possível carregar esta mídia.</span>
+        <button type="button" class="media-retry-button" @click="retryMedia">Tentar novamente</button>
       </div>
 
       <!-- Imagem -->
@@ -81,6 +90,14 @@
         </span>
       </div>
 
+      <div v-if="isReaction" class="reaction-card">
+        <div class="reaction-quote">{{ reactionData.preview }}</div>
+        <div class="reaction-result">
+          <span class="reaction-emoji">{{ reactionData.emoji }}</span>
+          <span>{{ reactionData.removed ? 'Reação removida' : 'Reagiu a esta mensagem' }}</span>
+        </div>
+      </div>
+
       <div v-if="hasMedia && mediaLoading" class="media-status-card">
         <i class="fa-solid fa-spinner fa-spin"></i>
         <span>Carregando mídia...</span>
@@ -89,6 +106,7 @@
       <div v-else-if="hasMedia && mediaUnavailable" class="media-status-card media-status-error">
         <i class="fa-solid fa-triangle-exclamation"></i>
         <span>Não foi possível carregar esta mídia.</span>
+        <button type="button" class="media-retry-button" @click="retryMedia">Tentar novamente</button>
       </div>
 
       <!-- Imagem enviada pelo atendente -->
@@ -209,7 +227,7 @@ const mediaSrc = computed(() => {
 
 const resolvedMediaSrc = ref(null)
 
-watch(mediaSrc, async (source) => {
+async function resolveMedia(source) {
   resolvedMediaSrc.value = null
   mediaLoading.value = Boolean(source)
   mediaLoadError.value = false
@@ -238,7 +256,13 @@ watch(mediaSrc, async (source) => {
     mediaLoading.value = false
     resolvedMediaSrc.value = null
   }
-}, { immediate: true })
+}
+
+watch(mediaSrc, resolveMedia, { immediate: true })
+
+function retryMedia() {
+  if (mediaSrc.value) resolveMedia(mediaSrc.value)
+}
 
 const isImage = computed(() => {
   if (props.msg?.type === 'image' || props.msg?.type === 'sticker') return true
@@ -267,6 +291,21 @@ const isDocument = computed(() => {
 const hasMedia = computed(() => isImage.value || isAudio.value || isVideo.value || isDocument.value)
 const mediaUnavailable = computed(() => mediaLoadError.value || !mediaSrc.value || !resolvedMediaSrc.value)
 
+const reactionData = computed(() => {
+  if (props.msg?.type !== 'reaction') return null
+  try {
+    const parsed = JSON.parse(props.msg?.text || '{}')
+    return {
+      emoji: parsed.emoji || '👍',
+      preview: parsed.preview || 'Mensagem',
+      removed: parsed.removed === true
+    }
+  } catch {
+    return { emoji: '👍', preview: props.msg?.text || 'Mensagem', removed: false }
+  }
+})
+const isReaction = computed(() => Boolean(reactionData.value))
+
 const documentName = computed(() => {
   return getDocumentDisplayName(props.msg, mediaSrc.value)
 })
@@ -283,6 +322,7 @@ const isDirectWhatsapp = computed(() => props.msg?.sender_type === 'whatsapp_dev
   || String(agentName.value || '').startsWith('WhatsApp ('))
 
 const displayText = computed(() => {
+  if (isReaction.value) return ''
   let raw = agentMatch.value ? agentMatch.value[2] : props.msg?.text || ''
   return cleanMediaDisplayText(raw, Boolean(mediaSrc.value))
 })
@@ -320,5 +360,54 @@ const displayText = computed(() => {
   border-color: #fecaca;
   background: #fff7f7;
   color: #b91c1c;
+}
+
+.media-retry-button {
+  margin-left: auto;
+  padding: 4px 8px;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  background: #fff;
+  color: #b91c1c;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.media-retry-button:hover {
+  background: #fee2e2;
+}
+
+.reaction-card {
+  min-width: 180px;
+  max-width: 280px;
+}
+
+.reaction-quote {
+  padding: 7px 9px;
+  border-left: 3px solid #60a5fa;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.62);
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reaction-result {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-top: 7px;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.reaction-emoji {
+  font-size: 22px;
+  line-height: 1;
 }
 </style>

@@ -124,6 +124,7 @@ const performance = ref({
 })
 let refreshTimer      = null
 let queueRefreshTimer = null
+let liveSyncRunning   = false
 
 const currentMonthLabel = computed(() => new Intl.DateTimeFormat('pt-BR', {
   month: 'long', year: 'numeric'
@@ -155,6 +156,23 @@ watch(() => ticketStore.queue.map(ticket => `${ticket.id}:${ticket.status}:${tic
   queueRefreshTimer = setTimeout(fetchPerformance, 700)
 })
 
+watch(() => ticketStore.kpiRevision, () => {
+  clearTimeout(queueRefreshTimer)
+  queueRefreshTimer = setTimeout(fetchPerformance, 250)
+})
+
+async function syncLiveData() {
+  if (liveSyncRunning || document.visibilityState !== 'visible') return
+  liveSyncRunning = true
+  try {
+    await Promise.all([ticketStore.fetchQueue({ silent: true }), fetchPerformance()])
+  } catch (_) {
+    // Mantém os dados atuais e tenta novamente no próximo ciclo ou reconexão.
+  } finally {
+    liveSyncRunning = false
+  }
+}
+
 // Volta para fila quando ticket ativo é limpo
 watch(() => ticketStore.activeTicket, (ticket) => {
   if (!ticket) mobilePanel.value = 'queue'
@@ -162,11 +180,15 @@ watch(() => ticketStore.activeTicket, (ticket) => {
 
 onMounted(async () => {
   await Promise.all([ticketStore.fetchQueue(), fetchPerformance()])
-  refreshTimer = setInterval(fetchPerformance, 60000)
+  // O socket atualiza imediatamente; esta sincronização periódica recupera
+  // qualquer evento perdido durante oscilações de rede ou suspensão da aba.
+  refreshTimer = setInterval(syncLiveData, 10000)
+  document.addEventListener('visibilitychange', syncLiveData)
 })
 
 onBeforeUnmount(() => {
   clearInterval(refreshTimer)
   clearTimeout(queueRefreshTimer)
+  document.removeEventListener('visibilitychange', syncLiveData)
 })
 </script>

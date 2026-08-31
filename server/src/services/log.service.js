@@ -27,14 +27,23 @@ function add(level, args) {
   if (entries.length > MAX_LOGS) entries.splice(0, entries.length - MAX_LOGS);
 }
 
+function protectConsoleArgs(args) {
+  const first = String(args?.[0] || '');
+  // A biblioteca Signal pode imprimir toda a sessão criptográfica (incluindo
+  // chaves privadas) ao encerrar uma sessão antiga. Nunca exponha isso no log.
+  if (/^Closing session:/i.test(first)) return ['🔐 Sessão criptográfica anterior encerrada com segurança.'];
+  return args;
+}
+
 function installConsoleCapture() {
   if (installed) return;
   installed = true;
   for (const level of ['log', 'info', 'warn', 'error']) {
     const original = console[level].bind(console);
     console[level] = (...args) => {
-      add(level === 'log' ? 'info' : level, args);
-      original(...args);
+      const safeArgs = protectConsoleArgs(args);
+      add(level === 'log' ? 'info' : level, safeArgs);
+      original(...safeArgs);
     };
   }
   add('info', ['Captura segura de logs iniciada.']);

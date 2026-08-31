@@ -16,6 +16,12 @@ export function useSocket() {
     if (!auth.token) return
     if (socket?.connected) return
 
+    if (socket) {
+      socket.auth = { token: auth.token }
+      socket.connect()
+      return
+    }
+
     socket = io('/', {
       auth:               { token: auth.token },
       reconnectionAttempts: Infinity,
@@ -30,6 +36,8 @@ export function useSocket() {
     // ── Conexão ──────────────────────────────────────────────────────────────
     socket.on('connect', () => {
       ui.serverOnline = true
+      tickets.fetchQueue({ silent: true }).catch(() => {})
+      tickets.notifyKpisUpdated()
     })
 
     socket.on('disconnect', () => {
@@ -49,9 +57,10 @@ export function useSocket() {
       window.location.assign('/login')
     })
 
-    socket.on('reconnect', () => {
+    socket.io.on('reconnect', () => {
       ui.serverOnline = true
-      tickets.fetchQueue() // sincroniza silenciosamente
+      tickets.fetchQueue({ silent: true }).catch(() => {})
+      tickets.notifyKpisUpdated()
     })
 
     // ── WhatsApp ─────────────────────────────────────────────────────────────
@@ -69,17 +78,20 @@ export function useSocket() {
     socket.on('ticket_created', ({ ticket }) => {
       if (!ticket) return
       tickets.receiveTicket(ticket)
+      tickets.notifyKpisUpdated()
       _notifyIfRelevant(ticket, `💬 Novo atendimento (${ticket.department || 'Geral'}): ${ticket.clientName || 'Cliente'}`)
     })
 
     socket.on('ticket_updated', ({ ticket }) => {
       if (!ticket) return
       tickets.receiveTicket(ticket)
+      tickets.notifyKpisUpdated()
     })
 
     socket.on('queue_updated', ({ ticket }) => {
       if (!ticket) return
       tickets.receiveTicket(ticket)
+      tickets.notifyKpisUpdated()
     })
 
     socket.on('new_message', (data) => {
@@ -90,6 +102,7 @@ export function useSocket() {
       if (message && ticketId) {
         tickets.appendMessage(ticketId, message)
       }
+      tickets.notifyKpisUpdated()
 
       // Toast + som apenas para mensagens do cliente destinadas ao usuário
       if (message?.sender === 'client' || !message?.sender) {
@@ -111,8 +124,7 @@ export function useSocket() {
     })
 
     socket.on('kpis_updated', () => {
-      // Sinal para as views de dashboard/relatórios recarregarem KPIs
-      // Emitido como evento global via mitt ou simplesmente via store flag
+      tickets.notifyKpisUpdated()
     })
   }
 
@@ -133,6 +145,7 @@ export function useSocket() {
 function _isForMe(ticket) {
   const auth = useAuthStore()
   if (auth.isAdmin) return true
+  if (auth.isSupervisor && ticket.department_id && auth.departmentIds.includes(String(ticket.department_id))) return true
   if (auth.departmentId && ticket.department_id && String(auth.departmentId) === String(ticket.department_id)) return true
   if (auth.departmentName && ticket.department && auth.departmentName.toLowerCase() === ticket.department.toLowerCase()) return true
   return false

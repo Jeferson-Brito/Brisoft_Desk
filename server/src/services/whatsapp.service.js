@@ -330,6 +330,20 @@ function unwrapMessageContent(message) {
   return content;
 }
 
+function messageContentPreview(message) {
+  const content = unwrapMessageContent(message);
+  const text = content.conversation || content.extendedTextMessage?.text
+    || content.imageMessage?.caption || content.videoMessage?.caption
+    || content.documentMessage?.caption || '';
+  if (text) return String(text).replace(/\s+/g, ' ').trim().slice(0, 180);
+  if (content.imageMessage) return '📷 Imagem';
+  if (content.videoMessage) return '🎥 Vídeo';
+  if (content.audioMessage) return content.audioMessage.ptt ? '🎙️ Mensagem de voz' : '🎵 Áudio';
+  if (content.documentMessage) return `📄 ${content.documentMessage.fileName || 'Documento'}`;
+  if (content.stickerMessage) return '🖼️ Figurinha';
+  return 'Mensagem';
+}
+
 function safeFileToken(value) {
   return String(value || crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80) || crypto.randomUUID();
 }
@@ -787,6 +801,22 @@ class WhatsAppService {
     const rawJid = msg.key.remoteJid;
     const phone = await this.extractPhone(account, rawJid, msg);
     const content = unwrapMessageContent(msg.message);
+    if (content.reactionMessage) {
+      const reaction = content.reactionMessage;
+      return ticketService.processWhatsAppReaction({
+        from: rawJid,
+        rawJid,
+        phone,
+        sender: 'client',
+        senderName: msg.pushName || null,
+        emoji: reaction.text || '',
+        targetMessageId: reaction.key?.id || null,
+        targetPreview: messageContentPreview(getCachedRetryMessage(account, reaction.key)),
+        timestamp: msg.messageTimestamp,
+        messageId: msg.key.id,
+        whatsappAccountId: account.id
+      }, this.io);
+    }
     const media = await this.downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage);
     const text = content.conversation || content.extendedTextMessage?.text ||
       content.imageMessage?.caption || content.videoMessage?.caption ||
@@ -826,6 +856,22 @@ class WhatsAppService {
     const rawJid = msg.key.remoteJid;
     const phone = await this.extractPhone(account, rawJid, msg);
     const content = unwrapMessageContent(msg.message);
+    if (content.reactionMessage) {
+      const reaction = content.reactionMessage;
+      return ticketService.processWhatsAppReaction({
+        from: rawJid,
+        rawJid,
+        phone,
+        sender: 'agent',
+        senderName: `WhatsApp (${account.name})`,
+        emoji: reaction.text || '',
+        targetMessageId: reaction.key?.id || null,
+        targetPreview: messageContentPreview(getCachedRetryMessage(account, reaction.key)),
+        timestamp: msg.messageTimestamp,
+        messageId: msg.key.id,
+        whatsappAccountId: account.id
+      }, this.io);
+    }
     const media = await this.downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage);
     const text = content.conversation || content.extendedTextMessage?.text ||
       content.imageMessage?.caption || content.videoMessage?.caption ||
@@ -858,7 +904,7 @@ class WhatsAppService {
   }
 
   async retryMissingMedia(account, msg, downloadMediaMessage, downloadContentFromMessage, ticketId) {
-    for (const delay of [2000, 7000, 20000]) {
+    for (const delay of [1000, 2500, 5000, 10000]) {
       await new Promise(resolve => setTimeout(resolve, delay));
       if (!account.sock || account.status !== 'connected') throw new Error('Conta desconectada durante a recuperação da mídia.');
       const recovered = await this.downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage);
@@ -1144,6 +1190,7 @@ whatsappService._test = {
   messageIdCacheKey,
   cacheRetryMessage,
   getCachedRetryMessage,
+  messageContentPreview,
   EMIT_OWN_EVENTS,
   MARK_ONLINE_ON_CONNECT
 };
