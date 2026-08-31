@@ -12,6 +12,34 @@ test('mantém mensagens recentes disponíveis para novas tentativas de descripto
   assert.equal(cache.get(key), undefined);
 });
 
+test('localiza a mesma mensagem quando o retry troca telefone por LID', () => {
+  const account = {
+    messageCache: new whatsappService._test.ExpiringCache({ ttlMs: 1000, maxEntries: 10 })
+  };
+  const message = { conversation: 'Olá novamente' };
+  whatsappService._test.cacheRetryMessage(account, {
+    remoteJid: '558399999999@s.whatsapp.net',
+    id: 'MESSAGE-123'
+  }, message);
+  assert.deepEqual(
+    whatsappService._test.getCachedRetryMessage(account, {
+      remoteJid: '25117639839856@lid',
+      id: 'MESSAGE-123'
+    }),
+    message
+  );
+});
+
+test('restaura mensagens persistidas sem renovar artificialmente sua validade', () => {
+  const original = new whatsappService._test.ExpiringCache({ ttlMs: 1000, maxEntries: 2 });
+  original.set('chat:ABC', { conversation: 'Mensagem importante' });
+  const snapshot = original.snapshot();
+  const restored = new whatsappService._test.ExpiringCache({ ttlMs: 999999, maxEntries: 2 });
+  restored.restore(snapshot);
+  assert.deepEqual(restored.get('chat:ABC'), { conversation: 'Mensagem importante' });
+  assert.equal(restored.snapshot()[0].expiresAt, snapshot[0].expiresAt);
+});
+
 test('mantém habilitados os eventos de mensagens enviadas por outros dispositivos', () => {
   assert.equal(whatsappService._test.EMIT_OWN_EVENTS, true);
 });

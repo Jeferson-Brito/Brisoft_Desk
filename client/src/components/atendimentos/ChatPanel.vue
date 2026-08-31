@@ -144,9 +144,12 @@
           </span>
           <span class="pending-upload-copy">
             <strong>{{ upload.voiceNote ? 'Mensagem de voz' : upload.fileName }}</strong>
-            <small>Enviando para o WhatsApp...</small>
+            <small>{{ pendingUploadStatus(upload) }}</small>
+            <span class="pending-upload-track" role="progressbar" :aria-valuenow="upload.progress" aria-valuemin="0" aria-valuemax="100">
+              <span class="pending-upload-progress" :style="{ width: `${upload.progress}%` }"></span>
+            </span>
           </span>
-          <i class="fa-solid fa-spinner fa-spin pending-upload-spinner"></i>
+          <span class="pending-upload-percent">{{ upload.progress }}%</span>
         </div>
       </template>
     </div>
@@ -602,7 +605,18 @@ async function sendMediaFile(file, mediaType = detectMediaType(file), caption = 
     return
   }
   const pendingId = `upload_${Date.now()}_${Math.random().toString(36).slice(2)}`
-  pendingUploads.value.push({ id: pendingId, fileName: file.name, mediaType, voiceNote })
+  pendingUploads.value.push({
+    id: pendingId,
+    fileName: file.name,
+    mediaType,
+    voiceNote,
+    progress: 0,
+    uploadedBytes: 0,
+    totalBytes: file.size,
+    bytesPerSecond: 0,
+    phase: 'uploading',
+    startedAt: performance.now()
+  })
   sendingMedia.value = true
   scrollToBottom()
   try {
@@ -612,6 +626,18 @@ async function sendMediaFile(file, mediaType = detectMediaType(file), caption = 
       mediaType,
       voiceNote,
       caption
+    }, {
+      onUploadProgress: event => {
+        const upload = pendingUploads.value.find(item => item.id === pendingId)
+        if (!upload) return
+        const loaded = Math.min(Number(event.loaded || 0), file.size)
+        const elapsedSeconds = Math.max(0.1, (performance.now() - upload.startedAt) / 1000)
+        upload.uploadedBytes = loaded
+        upload.totalBytes = Number(event.total || file.size) || file.size
+        upload.progress = Math.min(100, Math.round((loaded / Math.max(1, file.size)) * 100))
+        upload.bytesPerSecond = Number(event.rate || (loaded / elapsedSeconds))
+        if (upload.progress >= 100) upload.phase = mediaType === 'video' || voiceNote ? 'processing' : 'whatsapp'
+      }
     })
     const savedMessage = data?.result?.message
     if (savedMessage) ticketStore.appendMessage(props.ticket.id, savedMessage)
@@ -625,6 +651,22 @@ async function sendMediaFile(file, mediaType = detectMediaType(file), caption = 
     sendingMedia.value = false
     focusInput()
   }
+}
+
+function formatFileSize(bytes) {
+  const value = Number(bytes || 0)
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(value < 10 * 1024 ? 1 : 0)} KB`
+  return `${(value / (1024 * 1024)).toFixed(value < 10 * 1024 * 1024 ? 1 : 0)} MB`
+}
+
+function pendingUploadStatus(upload) {
+  if (upload.phase === 'processing') {
+    return `${upload.mediaType === 'video' ? 'Preparando vídeo' : 'Preparando áudio'} · ${formatFileSize(upload.totalBytes)}`
+  }
+  if (upload.phase === 'whatsapp') return `Enviando ao WhatsApp · ${formatFileSize(upload.totalBytes)}`
+  const speed = upload.bytesPerSecond > 0 ? ` · ${formatFileSize(upload.bytesPerSecond)}/s` : ''
+  return `${formatFileSize(upload.uploadedBytes)} de ${formatFileSize(upload.totalBytes)}${speed}`
 }
 
 function pendingUploadIcon(mediaType) {
@@ -935,7 +977,28 @@ async function sendMessage() {
 }
 
 .pending-upload-copy small { color: #4d7c5d; font-size: 10.5px; }
-.pending-upload-spinner { color: #16a34a; font-size: 13px; }
+.pending-upload-track {
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  margin-top: 3px;
+  border-radius: 999px;
+  background: rgba(22, 101, 52, 0.16);
+}
+.pending-upload-progress {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #16a34a;
+  transition: width 180ms ease;
+}
+.pending-upload-percent {
+  min-width: 31px;
+  color: #15803d;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-align: right;
+}
 
 .chat-date-sticky-wrapper {
   position: sticky;

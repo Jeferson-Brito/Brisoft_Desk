@@ -9,8 +9,9 @@ export const ticketsApi = {
   close:         (ticketId)                        => http.post('/tickets/close',            { ticketId }),
   updateContact: (ticketId, contactData)           => http.put(`/tickets/${ticketId}/contact`, contactData),
   sendMessage:   (ticketId, text)                  => http.post('/tickets/send-message',     { ticketId, text }),
-  sendMedia:     (ticketId, file, metadata = {})   => http.post(`/tickets/${ticketId}/media`, file, {
-    timeout: 120000,
+  sendMedia:     (ticketId, file, metadata = {}, requestOptions = {}) => http.post(`/tickets/${ticketId}/media`, file, {
+    timeout: 300000,
+    onUploadProgress: requestOptions.onUploadProgress,
     headers: {
       'Content-Type': 'application/octet-stream',
       'X-File-Name': encodeURIComponent(metadata.fileName || file?.name || 'arquivo'),

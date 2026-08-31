@@ -1826,16 +1826,13 @@ ${rendered}`,
         mimeType,
         normalizedMedia.voiceNote === true
       );
-      // O salvamento do histórico local e o upload ao WhatsApp são independentes.
-      // Executá-los juntos reduz a espera, sobretudo em arquivos maiores.
-      const [, sent] = await Promise.all([
-        Promise.all([
-          fs.promises.writeFile(storedMediaPath, outgoingBuffer),
-          cloudStorage.uploadMedia(storedName, outgoingBuffer, mimeType)
-            .catch(error => console.warn(`Mídia enviada salva apenas localmente: ${error.message}`))
-        ]),
-        sendPromise
-      ]);
+      // A cópia local e o envio ao WhatsApp fazem parte do caminho principal.
+      // O backup no Supabase continua em paralelo, mas não segura a resposta da
+      // interface; isso reduz a espera percebida em arquivos maiores.
+      const localWritePromise = fs.promises.writeFile(storedMediaPath, outgoingBuffer);
+      cloudStorage.uploadMedia(storedName, outgoingBuffer, mimeType)
+        .catch(error => console.warn(`Mídia enviada salva apenas localmente: ${error.message}`));
+      const [, sent] = await Promise.all([localWritePromise, sendPromise]);
       if (!sent) {
         await fs.promises.unlink(storedMediaPath).catch(() => {});
         return { success: false, error: 'Falha ao enviar arquivo para o WhatsApp.' };

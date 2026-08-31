@@ -14,6 +14,7 @@ const SESSION_ROOT = path.join(__dirname, '../../session_auth');
 const ACCOUNTS_ROOT = path.join(SESSION_ROOT, 'accounts');
 const SETTINGS_KEY = 'whatsapp_accounts';
 const MEDIA_DIR = path.join(__dirname, '../../public/media');
+const RETRY_CACHE_FILE = 'message-retry-cache.json';
 const ROUTING_MODE_GENERAL = 'general';
 const ROUTING_MODE_DEPARTMENT = 'department';
 const EMIT_OWN_EVENTS = true;
@@ -52,10 +53,36 @@ class ExpiringCache {
   flushAll() {
     this.values.clear();
   }
+
+  snapshot() {
+    const now = Date.now();
+    const entries = [];
+    for (const [key, entry] of this.values) {
+      if (entry.expiresAt <= now) {
+        this.values.delete(key);
+        continue;
+      }
+      entries.push({ key, value: entry.value, expiresAt: entry.expiresAt });
+    }
+    return entries;
+  }
+
+  restore(entries = []) {
+    const now = Date.now();
+    for (const entry of entries) {
+      if (!entry?.key || !entry.expiresAt || entry.expiresAt <= now) continue;
+      this.values.set(entry.key, { value: entry.value, expiresAt: entry.expiresAt });
+    }
+    while (this.values.size > this.maxEntries) this.values.delete(this.values.keys().next().value);
+  }
 }
 
 function messageCacheKey(key = {}) {
   return `${String(key.remoteJid || '').replace(/:\d+@/, '@')}:${key.id || ''}`;
+}
+
+function messageIdCacheKey(key = {}) {
+  return key.id ? `message-id:${key.id}` : '';
 }
 
 function envInteger(name, fallback, minimum = 0) {
@@ -133,6 +160,69 @@ function saveLidMap(account) {
     const obj = Object.fromEntries(account.lidMap.entries());
     fs.writeFileSync(file, JSON.stringify(obj, null, 2), 'utf8');
   } catch (_) {}
+}
+
+function scheduleSessionBackup(account, delayMs = 5000) {
+  if (!account?.authDir || account.sessionBackupTimer) return;
+  account.sessionBackupTimer = setTimeout(async () => {
+    account.sessionBackupTimer = null;
+    if (account.sessionBackupPromise) {
+      scheduleSessionBackup(account, delayMs);
+      return;
+    }
+    try {
+      account.sessionBackupPromise = cloudStorage.backupSession(account.id, account.authDir);
+      await account.sessionBackupPromise;
+    } catch (error) {
+      console.warn(`[WhatsApp:${account.name}] falha ao salvar sessão na nuvem: ${error.message}`);
+    } finally {
+      account.sessionBackupPromise = null;
+    }
+  }, delayMs);
+  account.sessionBackupTimer.unref?.();
+}
+
+async function loadRetryMessageCache(account, BufferJSON) {
+  const file = path.join(account.authDir, RETRY_CACHE_FILE);
+  try {
+    const serialized = await fs.promises.readFile(file, 'utf8');
+    const entries = JSON.parse(serialized, BufferJSON?.reviver);
+    account.messageCache.restore(Array.isArray(entries) ? entries : []);
+  } catch (error) {
+    if (error.code !== 'ENOENT') console.warn(`[WhatsApp:${account.name}] cache de reenvio ignorado: ${error.message}`);
+  }
+}
+
+function scheduleRetryMessageCacheSave(account) {
+  if (!account?.authDir || !account.bufferJSON) return;
+  clearTimeout(account.messageCacheSaveTimer);
+  account.messageCacheSaveTimer = setTimeout(async () => {
+    const file = path.join(account.authDir, RETRY_CACHE_FILE);
+    const temporaryFile = `${file}.tmp`;
+    try {
+      const serialized = JSON.stringify(account.messageCache.snapshot(), account.bufferJSON.replacer);
+      await fs.promises.writeFile(temporaryFile, serialized, 'utf8');
+      await fs.promises.rename(temporaryFile, file);
+      scheduleSessionBackup(account);
+    } catch (error) {
+      console.warn(`[WhatsApp:${account.name}] falha ao persistir cache de reenvio: ${error.message}`);
+      fs.promises.unlink(temporaryFile).catch(() => {});
+    }
+  }, 250);
+  account.messageCacheSaveTimer.unref?.();
+}
+
+function cacheRetryMessage(account, key, message) {
+  if (!account?.messageCache || !key?.id || !message) return;
+  account.messageCache.set(messageCacheKey(key), message);
+  account.messageCache.set(messageIdCacheKey(key), message);
+  scheduleRetryMessageCacheSave(account);
+}
+
+function getCachedRetryMessage(account, key) {
+  if (!account?.messageCache) return undefined;
+  return account.messageCache.get(messageCacheKey(key))
+    || account.messageCache.get(messageIdCacheKey(key));
 }
 
 function recordLidPair(account, phoneOrJid, lidOrJid) {
@@ -369,8 +459,16 @@ class WhatsAppService {
         initializing: false,
         reconnectTimer: null,
         manualDisconnect: false,
+        authDir: null,
+        bufferJSON: null,
+        sessionBackupTimer: null,
+        sessionBackupPromise: null,
+        messageCacheSaveTimer: null,
         lidMap: new Map(),
-        messageCache: new ExpiringCache({ ttlMs: 60 * 60 * 1000, maxEntries: 10000 }),
+        messageCache: new ExpiringCache({
+          ttlMs: envInteger('WHATSAPP_RETRY_CACHE_HOURS', 24, 1) * 60 * 60 * 1000,
+          maxEntries: 10000
+        }),
         msgRetryCounterCache: new ExpiringCache({ ttlMs: 60 * 60 * 1000, maxEntries: 10000 }),
         placeholderResendCache: new ExpiringCache({ ttlMs: 10 * 60 * 1000, maxEntries: 10000 }),
         userDevicesCache: new ExpiringCache({ ttlMs: 5 * 60 * 1000, maxEntries: 5000 })
@@ -428,6 +526,7 @@ class WhatsAppService {
     this.emitAccounts();
 
     const authDir = path.join(ACCOUNTS_ROOT, account.id);
+    account.authDir = authDir;
     fs.mkdirSync(authDir, { recursive: true });
     if (!fs.existsSync(path.join(authDir, 'creds.json'))) {
       try {
@@ -441,15 +540,27 @@ class WhatsAppService {
     try {
       const baileys = await import('@whiskeysockets/baileys');
       const { state, saveCreds } = await baileys.useMultiFileAuthState(authDir);
+      account.bufferJSON = baileys.BufferJSON;
+      await loadRetryMessageCache(account, baileys.BufferJSON);
       if (account.sock) {
         try { account.sock.ev.removeAllListeners(); account.sock.end(); } catch {}
       }
 
       const socketLogger = pino({ level: 'silent' });
+      const persistentKeys = {
+        get: (...args) => state.keys.get(...args),
+        set: async data => {
+          await state.keys.set(data);
+          // As chaves Signal mudam em mensagens normais sem necessariamente
+          // disparar creds.update. Persisti-las evita restauração incompleta
+          // depois de reinícios do Render.
+          scheduleSessionBackup(account);
+        }
+      };
       const sock = baileys.default({
         auth: {
           creds: state.creds,
-          keys: baileys.makeCacheableSignalKeyStore(state.keys, socketLogger)
+          keys: baileys.makeCacheableSignalKeyStore(persistentKeys, socketLogger)
         },
         logger: socketLogger,
         browser: ['Brisoft Desk', 'Chrome', '1.0.0'],
@@ -466,7 +577,9 @@ class WhatsAppService {
         placeholderResendCache: account.placeholderResendCache,
         userDevicesCache: account.userDevicesCache,
         maxMsgRetryCount: 5,
-        getMessage: async key => account.messageCache.get(messageCacheKey(key)),
+        // O pedido de retry pode chegar por PN ou por LID. O ID da mensagem é
+        // estável entre os dois endereçamentos e serve como fallback seguro.
+        getMessage: async key => getCachedRetryMessage(account, key),
         // Necessário para receber mensagens enviadas pelo celular ou por outro
         // dispositivo vinculado à mesma conta e registrá-las no atendimento.
         emitOwnEvents: EMIT_OWN_EVENTS
@@ -474,12 +587,7 @@ class WhatsAppService {
       account.sock = sock;
       sock.ev.on('creds.update', async () => {
         await saveCreds();
-        clearTimeout(account.sessionBackupTimer);
-        account.sessionBackupTimer = setTimeout(() => {
-          cloudStorage.backupSession(account.id, authDir)
-            .catch(error => console.warn(`[WhatsApp:${account.name}] falha ao salvar sessão na nuvem: ${error.message}`));
-        }, 1500);
-        account.sessionBackupTimer.unref?.();
+        scheduleSessionBackup(account);
       });
       this.bindContacts(account);
       this.bindConnection(account, baileys.DisconnectReason);
@@ -619,7 +727,7 @@ class WhatsAppService {
     account.sock.ev.on('messages.upsert', event => {
       for (const msg of event.messages || []) {
         if (!msg.message) continue;
-        if (msg.key?.id) account.messageCache.set(messageCacheKey(msg.key), msg.message);
+        if (msg.key?.id) cacheRetryMessage(account, msg.key, msg.message);
         if (event.type !== 'notify' && !msg.key.fromMe) continue;
         const rawJid = msg.key.remoteJid;
         if (!rawJid || rawJid.includes('@g.us') || rawJid.includes('@newsletter') || rawJid.includes('status@broadcast')) continue;
@@ -925,7 +1033,7 @@ class WhatsAppService {
     jid = await resolveJid(jid, account);
     try {
       const result = await account.sock.sendMessage(jid, { text });
-      if (result?.key?.id && result?.message) account.messageCache.set(messageCacheKey(result.key), result.message);
+      if (result?.key?.id && result?.message) cacheRetryMessage(account, result.key, result.message);
       this.rememberPlatformMessage(account.id, result?.key?.id);
       console.log(`[WhatsApp:${account.name}] mensagem enviada para ${getPhoneFromJid(jid, account.lidMap)} (${jid}).`);
       return result || true;
@@ -948,7 +1056,7 @@ class WhatsAppService {
     };
     try {
       const result = await account.sock.sendMessage(jid, payloads[mediaType]);
-      if (result?.key?.id && result?.message) account.messageCache.set(messageCacheKey(result.key), result.message);
+      if (result?.key?.id && result?.message) cacheRetryMessage(account, result.key, result.message);
       this.rememberPlatformMessage(account.id, result?.key?.id);
       if (mediaType === 'audio') {
         console.log(`[WhatsApp:${account.name}] áudio enviado (${payloads.audio.mimetype}, ptt=${payloads.audio.ptt}, id=${result?.key?.id || 'n/d'}).`);
@@ -1029,8 +1137,13 @@ whatsappService._test = {
   getPhoneFromJid,
   phoneJidFromMessageMetadata,
   resolveJid,
+  scheduleSessionBackup,
+  loadRetryMessageCache,
   ExpiringCache,
   messageCacheKey,
+  messageIdCacheKey,
+  cacheRetryMessage,
+  getCachedRetryMessage,
   EMIT_OWN_EVENTS,
   MARK_ONLINE_ON_CONNECT
 };
