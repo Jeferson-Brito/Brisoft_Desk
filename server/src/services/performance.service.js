@@ -74,6 +74,10 @@ function ticketMatchesAgent(ticket, agent) {
   );
 }
 
+function isCustomerTicket(ticket) {
+  return ticket?.is_employee !== true;
+}
+
 function ticketDepartment(ticket) {
   return ticket.departments || {
     id: ticket.department_id || null,
@@ -92,12 +96,13 @@ function localDateKey(value = new Date()) {
 }
 
 function calculateMetrics({ createdTickets, closedTickets, activeTickets, ratings, period, agent = null }) {
-  const created = createdTickets.filter(ticket => ticketMatchesAgent(ticket, agent));
-  const closed = closedTickets.filter(ticket => ticketMatchesAgent(ticket, agent));
-  const active = activeTickets.filter(ticket => ticketMatchesAgent(ticket, agent));
+  const created = createdTickets.filter(isCustomerTicket).filter(ticket => ticketMatchesAgent(ticket, agent));
+  const closed = closedTickets.filter(isCustomerTicket).filter(ticket => ticketMatchesAgent(ticket, agent));
+  const active = activeTickets.filter(isCustomerTicket).filter(ticket => ticketMatchesAgent(ticket, agent));
   const agentNames = new Set(closed.flatMap(ticket => [ticket.agent_name, ticket.encerrado_por]).filter(Boolean));
+  const customerTicketIds = new Set([...created, ...closed, ...active].map(ticket => String(ticket.id)).filter(Boolean));
   if (agent?.name) agentNames.add(agent.name);
-  const visibleRatings = ratings.filter(rating => !agent || agentNames.has(rating.agent_name));
+  const visibleRatings = ratings.filter(rating => (!rating.ticket_id || customerTicketIds.has(String(rating.ticket_id))) && (!agent || agentNames.has(rating.agent_name)));
 
   const handlingSeconds = closed.map(ticket => secondsBetween(
     ticket.assumed_at || ticket.started_at || ticket.created_at,
@@ -152,11 +157,11 @@ function buildComparison(current, previous) {
 
 function buildTrend(tickets, period) {
   const values = Array.from({ length: period.days }, (_, index) => ({ day: index + 1, created: 0, completed: 0 }));
-  for (const ticket of tickets.created) {
+  for (const ticket of tickets.created.filter(isCustomerTicket)) {
     const day = Number(new Intl.DateTimeFormat('pt-BR', { day: 'numeric', timeZone: 'America/Sao_Paulo' }).format(new Date(ticket.created_at)));
     if (values[day - 1]) values[day - 1].created += 1;
   }
-  for (const ticket of tickets.closed) {
+  for (const ticket of tickets.closed.filter(isCustomerTicket)) {
     const day = Number(new Intl.DateTimeFormat('pt-BR', { day: 'numeric', timeZone: 'America/Sao_Paulo' }).format(new Date(ticket.closed_at || ticket.updated_at)));
     if (values[day - 1]) values[day - 1].completed += 1;
   }
@@ -164,8 +169,8 @@ function buildTrend(tickets, period) {
 }
 
 let performanceColumnsAvailable = null;
-const FULL_SELECT = 'id, user_id, department_id, department, agent_name, encerrado_por, status, created_at, updated_at, started_at, assumed_at, first_response_at, finished_at, closed_at, sla_minutes_target, sla_met, departments(id, name, color, sla_target_minutes)';
-const SAFE_SELECT = 'id, user_id, department_id, department, agent_name, encerrado_por, status, created_at, updated_at, assumed_at, closed_at, departments(id, name, color, sla_target_minutes)';
+const FULL_SELECT = 'id, user_id, department_id, department, agent_name, encerrado_por, status, is_employee, created_at, updated_at, started_at, assumed_at, first_response_at, finished_at, closed_at, sla_minutes_target, sla_met, departments(id, name, color, sla_target_minutes)';
+const SAFE_SELECT = 'id, user_id, department_id, department, agent_name, encerrado_por, status, is_employee, created_at, updated_at, assumed_at, closed_at, departments(id, name, color, sla_target_minutes)';
 
 class PerformanceService {
   async loadPeriod(period, departmentId = null) {
@@ -247,11 +252,11 @@ class PerformanceService {
       agent: selectedUser
     });
 
-    const relevantClosed = currentData.closed.filter(ticket => ticketMatchesAgent(ticket, selectedUser));
-    const relevantCreated = currentData.created.filter(ticket => ticketMatchesAgent(ticket, selectedUser));
+    const relevantClosed = currentData.closed.filter(isCustomerTicket).filter(ticket => ticketMatchesAgent(ticket, selectedUser));
+    const relevantCreated = currentData.created.filter(isCustomerTicket).filter(ticket => ticketMatchesAgent(ticket, selectedUser));
     const todayKey = localDateKey();
     const today = requestedPeriod.isCurrent ? {
-      departmentReceived: currentData.created.filter(ticket => localDateKey(ticket.created_at) === todayKey).length,
+      departmentReceived: currentData.created.filter(isCustomerTicket).filter(ticket => localDateKey(ticket.created_at) === todayKey).length,
       agentCompleted: relevantClosed.filter(ticket => localDateKey(ticket.closed_at || ticket.updated_at) === todayKey).length
     } : { departmentReceived: 0, agentCompleted: 0 };
     const agentRows = (users || [])
@@ -340,6 +345,6 @@ class PerformanceService {
 }
 
 const performanceService = new PerformanceService();
-performanceService._test = { parseMonth, calculateMetrics, buildComparison, formatDuration, localDateKey };
+performanceService._test = { parseMonth, calculateMetrics, buildComparison, formatDuration, localDateKey, isCustomerTicket };
 
 module.exports = performanceService;

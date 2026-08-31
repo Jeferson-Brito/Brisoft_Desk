@@ -149,15 +149,22 @@ create table if not exists public.contacts (
   channel text default 'WhatsApp',
   status text default 'Ativo',
   notes text,
+  is_employee boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index if not exists contacts_phone_idx on public.contacts(phone);
 
+alter table if exists public.contacts
+  add column if not exists is_employee boolean not null default false;
+
 -- Adiciona coluna contact_id na tabela tickets se não existir
 alter table if exists public.tickets
   add column if not exists contact_id uuid references public.contacts(id) on delete set null;
+
+alter table if exists public.tickets
+  add column if not exists is_employee boolean not null default false;
 
 -- Solicita ao PostgREST/Supabase que atualize imediatamente o cache do schema.
 notify pgrst, 'reload schema';

@@ -47,8 +47,11 @@ CREATE TABLE IF NOT EXISTS contacts (
     channel VARCHAR(30) DEFAULT 'WhatsApp',
     avatar_color VARCHAR(20) DEFAULT '#6366f1',
     status VARCHAR(20) DEFAULT 'Ativo',
+    is_employee BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_employee BOOLEAN NOT NULL DEFAULT false;
 
 -- 5. Tabela de Usuários / Atendentes
 CREATE TABLE IF NOT EXISTS users (
@@ -110,6 +113,7 @@ CREATE TABLE IF NOT EXISTS tickets (
     handled_via VARCHAR(30) DEFAULT 'pending',
     direct_whatsapp_messages INT DEFAULT 0,
     platform_messages INT DEFAULT 0,
+    is_employee BOOLEAN NOT NULL DEFAULT false,
     
     -- Métricas de SLA
     started_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
@@ -227,6 +231,7 @@ ALTER TABLE tickets ADD COLUMN IF NOT EXISTS assumed BOOLEAN DEFAULT false;
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS agent_name VARCHAR(255);
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS encerrado_em VARCHAR(20);
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS encerrado_por VARCHAR(255);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS is_employee BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender VARCHAR(20);
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS type VARCHAR(30);
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS time VARCHAR(20);

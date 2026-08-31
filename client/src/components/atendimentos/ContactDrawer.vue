@@ -51,6 +51,9 @@
               <i class="fa-brands fa-whatsapp" style="color:#22c55e;font-size:12px;"></i>
             </span>
             <span style="font-size:11px;color:#64748b;">{{ displayPhone }}</span>
+            <span v-if="ticket?.is_employee" style="margin-top:3px;font-size:10px;font-weight:700;color:#047857;">
+              <i class="fa-solid fa-id-badge"></i> Funcionário da empresa • fora dos KPIs de clientes
+            </span>
           </div>
         </div>
         <button class="btn-icon" title="Editar Contato" @click="showEditModal = true">

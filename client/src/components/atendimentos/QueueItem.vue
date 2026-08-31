@@ -24,9 +24,14 @@
     <div class="queue-card-content">
       <!-- Linha Superior: Nome do Cliente + Hora -->
       <div class="queue-card-top">
-        <span class="queue-card-name" :title="ticket.clientName || ticket.client_name || 'Cliente'">
-          {{ ticket.clientName || ticket.client_name || 'Cliente' }}
-        </span>
+        <div class="queue-card-identity">
+          <span class="queue-card-name" :title="ticket.clientName || ticket.client_name || 'Cliente'">
+            {{ ticket.clientName || ticket.client_name || 'Cliente' }}
+          </span>
+          <span v-if="ticket.is_employee" class="employee-pill" title="Funcionário da empresa — não contabilizado nos KPIs de clientes">
+            <i class="fa-solid fa-id-badge"></i> Funcionário
+          </span>
+        </div>
         <span class="queue-card-time">{{ formatTime(ticket.time) }}</span>
       </div>
 
@@ -198,12 +203,33 @@ function formatTime(timeStr) {
 }
 
 .queue-card-name {
+  min-width: 0;
   font-size: 13.5px;
   font-weight: 700;
   color: #0f172a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.queue-card-identity {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.employee-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #d1fae5;
+  color: #047857;
+  font-size: 9px;
+  font-weight: 700;
 }
 
 .queue-card-time {

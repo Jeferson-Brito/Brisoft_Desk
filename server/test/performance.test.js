@@ -38,3 +38,29 @@ test('inverte a comparação de tempos porque menor é melhor', () => {
   assert.equal(comparison.tma, 50);
   assert.equal(comparison.sla, 5);
 });
+
+test('atendimentos de funcionários não entram nos indicadores de clientes', () => {
+  const customer = {
+    id: 'customer', is_employee: false, agent_name: 'Ana', status: 'finalizado',
+    created_at: '2026-08-01T10:00:00Z', assumed_at: '2026-08-01T10:02:00Z', closed_at: '2026-08-01T10:12:00Z'
+  };
+  const employee = {
+    id: 'employee', is_employee: true, agent_name: 'Ana', status: 'finalizado',
+    created_at: '2026-08-01T11:00:00Z', assumed_at: '2026-08-01T11:01:00Z', closed_at: '2026-08-01T11:03:00Z'
+  };
+  const metrics = performanceService._test.calculateMetrics({
+    createdTickets: [customer, employee],
+    closedTickets: [customer, employee],
+    activeTickets: [],
+    ratings: [
+      { ticket_id: customer.id, agent_name: 'Ana', score: 5 },
+      { ticket_id: employee.id, agent_name: 'Ana', score: 1 }
+    ],
+    period: { days: 31, isCurrent: false }
+  });
+
+  assert.equal(metrics.total, 1);
+  assert.equal(metrics.completed, 1);
+  assert.equal(metrics.ratingAverage, 5);
+  assert.equal(metrics.ratingCount, 1);
+});

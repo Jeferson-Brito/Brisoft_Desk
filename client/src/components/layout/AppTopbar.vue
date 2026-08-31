@@ -113,7 +113,7 @@ const VIEW_META = {
   dashboard:         { title: 'Dashboard',               subtitle: 'Visão geral dos atendimentos' },
   atendimentos:      { title: 'Atendimentos',            subtitle: '' },
   historico:         { title: 'Conversas',                subtitle: 'Consulte e acompanhe conversas anteriores.' },
-  clientes:          { title: 'Clientes',                subtitle: 'Gerencie e visualize informações dos seus clientes.' },
+  clientes:          { title: 'Contatos',                subtitle: 'Cadastre clientes e identifique funcionários da empresa.' },
   mensagens_rapidas: { title: 'Mensagens rápidas',       subtitle: 'Crie e gerencie mensagens prontas.' },
   desempenho:        { title: 'Desempenho',              subtitle: 'Indicadores mensais dos atendentes e departamentos.' },
   configuracoes:     { title: 'Configurações',           subtitle: 'Gerencie as configurações gerais da plataforma.' }

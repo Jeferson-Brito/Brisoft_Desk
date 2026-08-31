@@ -76,7 +76,7 @@
 
       <!-- Texto / Legenda -->
       <div v-if="displayText" style="white-space:pre-wrap;">{{ displayText }}</div>
-      <div class="chat-bubble-time">{{ msg.time || '' }}</div>
+      <div class="chat-bubble-time">{{ displayTime }}</div>
     </div>
   </div>
 
@@ -146,7 +146,7 @@
       <!-- Texto / Legenda -->
       <div v-if="displayText" style="white-space:pre-wrap;">{{ displayText }}</div>
       <div class="chat-bubble-time">
-        {{ msg.time || '' }}
+        {{ displayTime }}
         <i class="fa-solid fa-check-double" style="margin-left:3px;"></i>
       </div>
     </div>
@@ -184,6 +184,13 @@ import { ref, computed, watch } from 'vue'
 import { cleanMediaDisplayText, getDocumentDisplayName, getMediaSource } from '@/utils/media-message'
 import { loadProtectedMedia } from '@/utils/protected-media-cache'
 
+const companyTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: 'America/Sao_Paulo',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23'
+})
+
 const props = defineProps({
   msg: {
     type: Object,
@@ -202,6 +209,16 @@ const props = defineProps({
 const showImageZoom = ref(false)
 const mediaLoading = ref(false)
 const mediaLoadError = ref(false)
+
+const displayTime = computed(() => {
+  const timestamp = props.msg?.created_at || props.msg?.createdAt
+  if (timestamp) {
+    const date = new Date(timestamp)
+    if (!Number.isNaN(date.getTime())) return companyTimeFormatter.format(date)
+  }
+
+  return props.msg?.time || ''
+})
 
 const isSystemMessage = computed(() => {
   const t = props.msg?.text || ''

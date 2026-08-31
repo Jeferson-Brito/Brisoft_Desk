@@ -42,6 +42,13 @@ let conversationTrackingColumnsAvailable = null;
 let ticketTimingColumnsAvailable = null;
 let conversationTrackingCheckPromise = null;
 const DEPARTMENT_CACHE_TTL_MS = 5 * 60 * 1000;
+const APP_TIME_ZONE = process.env.APP_TIME_ZONE || 'America/Sao_Paulo';
+const appTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: APP_TIME_ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23'
+});
 const DEFAULT_DEPARTMENTS = Object.freeze([
   { id: '1', name: 'B3 Eletrônica' },
   { id: '2', name: 'Comercial' },
@@ -173,7 +180,8 @@ function scheduleKpiUpdate(io) {
 
 function makeTimeStr(date) {
   const d = date || new Date();
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return '';
+  return appTimeFormatter.format(d);
 }
 
 function preferredWhatsAppJid(phone, fallbackJid = '') {
@@ -277,13 +285,16 @@ class TicketService {
         return { type: 'duplicate', messageId: msgData.messageId };
       }
       const now = new Date();
-      const t = makeTimeStr(now);
+      const incomingTimestamp = whatsappTimestampMs(msgData.timestamp);
+      const incomingDate = incomingTimestamp ? new Date(incomingTimestamp) : now;
+      const t = makeTimeStr(incomingDate);
 
       const deptList = await getCachedDepartments();
 
       const botConfig = await getBotConfig();
       let forceDepartmentMenu = false;
       const knownContact = await findContactByPhone(phone);
+      const isEmployee = Boolean(knownContact?.is_employee);
       const needsCustomerName = !knownContact || isGeneratedCustomerName(knownContact.name);
       if (knownContact?.name && !isGeneratedCustomerName(knownContact.name)) cleanName = knownContact.name;
       const scopeWhatsAppChannel = query => whatsappAccountId === 'default'
@@ -472,11 +483,14 @@ ${rendered}`,
         }
       }
 
-      if (ticket && knownContact?.name && isGeneratedCustomerName(ticket.client_name)) {
+      if (ticket && knownContact && (isGeneratedCustomerName(ticket.client_name) || Boolean(ticket.is_employee) !== isEmployee || ticket.contact_id !== knownContact.id)) {
         const updatedIdentity = {
-          client_name: knownContact.name,
-          initials: knownContact.name.substring(0, 2).toUpperCase(),
-          contact_id: knownContact.id
+          contact_id: knownContact.id,
+          is_employee: isEmployee,
+          ...(knownContact.name && isGeneratedCustomerName(ticket.client_name) ? {
+            client_name: knownContact.name,
+            initials: knownContact.name.substring(0, 2).toUpperCase()
+          } : {})
         };
         const result = await supabase.from('tickets').update(updatedIdentity).eq('id', ticket.id);
         if (!result.error) Object.assign(ticket, updatedIdentity);
@@ -512,7 +526,7 @@ ${rendered}`,
         if (!isNaN(rawRating) && rawRating >= 1 && rawRating <= 5 && cleanText.length <= 2) {
           let ratingTicketQuery = supabase
             .from('tickets')
-            .select('id, status, phone, jid, raw_jid, encerrado_por, agent_name, department_id, updated_at')
+            .select('id, status, phone, jid, raw_jid, encerrado_por, agent_name, department_id, updated_at, is_employee')
             .or(`phone.eq.${phone},jid.eq.${from}`)
             .eq('status', 'finalizado');
           ratingTicketQuery = scopeWhatsAppChannel(ratingTicketQuery);
@@ -523,6 +537,7 @@ ${rendered}`,
           if (closedTickets && closedTickets.length > 0) {
             const nowMs = Date.now();
             const targetTicket = closedTickets.find(ct => {
+              if (ct.is_employee) return false;
               const upTime = new Date(ct.updated_at).getTime();
               return (nowMs - upTime) < (botConfig.rating_window_minutes * 60 * 1000);
             });
@@ -604,7 +619,8 @@ ${rendered}`,
             status: 'aguardando',
             department: dedicatedDept.name,
             channel: whatsappChannel,
-            unread_count: 1
+            unread_count: 1,
+            is_employee: isEmployee
           };
           if (dedicatedDept.id && dedicatedDept.id.length > 10) {
             newTicketPayload.department_id = dedicatedDept.id;
@@ -664,7 +680,8 @@ ${rendered}`,
           preview: text.slice(0, 50),
           status: botConfig.enabled ? 'chatbot' : 'aguardando',
           channel: whatsappChannel,
-          unread_count: 0
+          unread_count: 0,
+          is_employee: isEmployee
         }).select().single();
         if (insertError) throw insertError;
         ticket = insertedTicket;
@@ -1257,17 +1274,17 @@ ${rendered}`,
       let { data: ticket, error: activeError } = await activeQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (activeError) throw activeError;
       let createdTicket = false;
+      const knownContact = await findContactByPhone(phone);
 
       let previousTicket = null;
       if (!ticket) {
-        let previousQuery = supabase.from('tickets').select('client_name, initials, contact_id, department, department_id, agent_name, handled_via').or(lookup.join(','));
+        let previousQuery = supabase.from('tickets').select('client_name, initials, contact_id, department, department_id, agent_name, handled_via, is_employee').or(lookup.join(','));
         previousQuery = whatsappAccountId === 'default'
           ? previousQuery.in('channel', ['whatsapp', channel])
           : previousQuery.eq('channel', channel);
         const previousResult = await previousQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
         if (!previousResult.error) previousTicket = previousResult.data;
 
-        const knownContact = await findContactByPhone(phone);
         const departments = await getCachedDepartments();
         const botConfig = await getBotConfig();
         const dedicatedDepartment = whatsappRoutingMode === 'department'
@@ -1286,6 +1303,7 @@ ${rendered}`,
           client_name: clientName,
           initials: clientName.substring(0, 2).toUpperCase(),
           contact_id: knownContact?.id || previousTicket?.contact_id || null,
+          is_employee: Boolean(knownContact?.is_employee ?? previousTicket?.is_employee),
           phone,
           jid: outboundJid,
           raw_jid: rawJid || targetJid,
@@ -1332,6 +1350,10 @@ ${rendered}`,
           handled_via: mergeHandledVia(inferredCurrent, 'whatsapp_device'),
           direct_whatsapp_messages: (ticket.direct_whatsapp_messages || 0) + 1
         };
+        if (knownContact) {
+          updatePayload.contact_id = knownContact.id;
+          updatePayload.is_employee = Boolean(knownContact.is_employee);
+        }
         let updateResult = await supabase.from('tickets').update(updatePayload).eq('id', ticket.id);
         if (updateResult.error && isMissingTicketTimingColumns(updateResult.error)) {
           delete updatePayload.first_response_at;
@@ -1416,13 +1438,14 @@ ${rendered}`,
     const now = new Date();
     const time = makeTimeStr(now);
     const config = botConfig || await getBotConfig();
+    const shouldSendRating = Boolean(sendRating && !ticket.is_employee && config.send_rating_request);
     const closePayload = {
       status: 'finalizado',
       assumed: false,
       encerrado_em: time,
       encerrado_por: reason,
       closed_at: now.toISOString(),
-      awaiting_rating: Boolean(sendRating && config.send_rating_request),
+      awaiting_rating: shouldSendRating,
       unread_count: 0,
       updated_at: now.toISOString()
     };
@@ -1438,7 +1461,7 @@ ${rendered}`,
       time
     });
 
-    if (sendRating && config.send_rating_request && whatsappService) {
+    if (shouldSendRating && whatsappService) {
       const targetJid = preferredWhatsAppJid(ticket.phone, ticket.jid || ticket.raw_jid);
       const accountId = ticket.channel?.startsWith('whatsapp:') ? ticket.channel.slice('whatsapp:'.length) : null;
       const ratingText = renderBotMessage(config.rating_request_message, {
@@ -1645,6 +1668,10 @@ ${rendered}`,
       if (error || !ticket) return null;
       if (user && !canUserAccessTicket(user, ticket)) return null;
       ticket.messages = await this.get24hMessagesForTicket(ticket, user);
+      ticket.messages = ticket.messages.map(message => ({
+        ...message,
+        time: message.created_at ? makeTimeStr(new Date(message.created_at)) || message.time : message.time
+      }));
       ticket.clientName = ticket.client_name;
       ticket.avatarColor = ticket.avatar_color;
       ticket.unreadCount = ticket.unread_count || 0;
@@ -1757,12 +1784,12 @@ ${rendered}`,
         { data: avaliacoes },
         { data: assumidosHoje }
       ] = await Promise.all([
-        scoped(supabase.from('tickets').select('*', { count: 'exact', head: true }).gte('created_at', todayISO)),
-        scoped(supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('status', 'em_atendimento')),
-        scoped(supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('status', 'aguardando')),
-        scoped(supabase.from('tickets').select('created_at, closed_at, encerrado_por').eq('status', 'finalizado').gte('created_at', todayISO).not('closed_at', 'is', null)),
-        supabase.from('ratings').select('score'),
-        scoped(supabase.from('tickets').select('created_at, assumed_at').gte('created_at', todayISO).not('assumed_at', 'is', null))
+        scoped(supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('is_employee', false).gte('created_at', todayISO)),
+        scoped(supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('is_employee', false).eq('status', 'em_atendimento')),
+        scoped(supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('is_employee', false).eq('status', 'aguardando')),
+        scoped(supabase.from('tickets').select('created_at, closed_at, encerrado_por').eq('is_employee', false).eq('status', 'finalizado').gte('created_at', todayISO).not('closed_at', 'is', null)),
+        supabase.from('ratings').select('score, tickets!inner(is_employee)').eq('tickets.is_employee', false),
+        scoped(supabase.from('tickets').select('created_at, assumed_at').eq('is_employee', false).gte('created_at', todayISO).not('assumed_at', 'is', null))
       ]);
 
       // Busca de live activity separada e protegida contra erro de fk
@@ -2218,7 +2245,7 @@ ${rendered}`,
 
       const { data: ticket } = await supabase
         .from('tickets')
-        .select('id, jid, raw_jid, phone, client_name, department, department_id, agent_name, channel')
+        .select('id, jid, raw_jid, phone, client_name, department, department_id, agent_name, channel, is_employee')
         .eq('id', ticketId)
         .single();
 
@@ -2230,7 +2257,7 @@ ${rendered}`,
         encerrado_em: encerradoEm,
         encerrado_por: agentName,
         closed_at: now.toISOString(),
-        awaiting_rating: true,
+        awaiting_rating: !ticket.is_employee,
         updated_at: now.toISOString()
       }).eq('id', ticketId), 'Falha ao encerrar ticket');
 
@@ -2255,7 +2282,7 @@ ${rendered}`,
       if (whatsappService && ticket) {
         const botConfig = await getBotConfig();
         const targetJid = preferredWhatsAppJid(ticket.phone, ticket.jid || ticket.raw_jid);
-        if (targetJid && botConfig.send_rating_request) {
+        if (targetJid && !ticket.is_employee && botConfig.send_rating_request) {
           const ratingMsg = renderBotMessage(botConfig.rating_request_message, {
             nome: ticket.client_name || 'Cliente',
             departamento: ticket.department || '',
@@ -2411,6 +2438,6 @@ ${rendered}`,
 }
 
 const ticketService = new TicketService();
-ticketService._test = { mergeHandledVia, preferredWhatsAppJid, phoneFromWhatsAppIdentity };
+ticketService._test = { mergeHandledVia, preferredWhatsAppJid, phoneFromWhatsAppIdentity, makeTimeStr, APP_TIME_ZONE };
 
 module.exports = ticketService;

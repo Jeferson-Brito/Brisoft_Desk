@@ -10,7 +10,7 @@
         </div>
       </div>
       <button class="btn-primary" @click="openNewModal">
-        <i class="fa-solid fa-plus"></i> Novo Cliente
+        <i class="fa-solid fa-plus"></i> Novo contato
       </button>
     </div>
 
@@ -27,7 +27,8 @@
           <table v-else class="data-table">
             <thead>
               <tr>
-                <th>Cliente</th>
+                <th>Contato</th>
+                <th>Tipo</th>
                 <th>Telefone</th>
                 <th>E-mail</th>
                 <th>Canal</th>
@@ -37,9 +38,9 @@
             </thead>
             <tbody>
               <tr v-if="filteredContacts.length === 0">
-                <td colspan="6" style="text-align:center;color:#64748b;padding:32px;">
+                <td colspan="7" style="text-align:center;color:#64748b;padding:32px;">
                   <i class="fa-solid fa-users-slash" style="margin-right:8px;"></i>
-                  Nenhum cliente encontrado.
+                  Nenhum contato encontrado.
                 </td>
               </tr>
               <tr v-for="c in filteredContacts" :key="c.id">
@@ -54,11 +55,19 @@
                     </div>
                   </div>
                 </td>
+                <td>
+                  <span class="contact-type-badge" :class="c.is_employee ? 'employee' : 'customer'">
+                    <i :class="c.is_employee ? 'fa-solid fa-id-badge' : 'fa-solid fa-user'"></i>
+                    {{ c.is_employee ? 'Funcionário' : 'Cliente' }}
+                  </span>
+                </td>
                 <td>{{ formatPhone(c.phone) }}</td>
                 <td style="color:#64748b;">{{ c.email || '—' }}</td>
                 <td>
-                  <span v-if="c.channel" class="badge" style="background:#1e293b;color:#94a3b8;">
-                    <i class="fa-brands fa-whatsapp" v-if="c.channel?.toLowerCase().includes('whatsapp')" style="color:#25d366;margin-right:4px;"></i>
+                  <span v-if="c.channel" class="badge" :style="c.channel?.toLowerCase().includes('whatsapp') ? 'background:#dcfce7;color:#166534;' : 'background:#e2e8f0;color:#475569;'">
+                    <i class="fa-brands fa-whatsapp" v-if="c.channel?.toLowerCase().includes('whatsapp')" style="color:#16a34a;margin-right:4px;"></i>
+                    <i class="fa-solid fa-globe" v-else-if="c.channel?.toLowerCase().includes('web')" style="color:#64748b;margin-right:4px;"></i>
+                    <i class="fa-solid fa-envelope" v-else-if="c.channel?.toLowerCase().includes('email')" style="color:#64748b;margin-right:4px;"></i>
                     {{ c.channel }}
                   </span>
                   <span v-else>—</span>
@@ -90,17 +99,32 @@
       <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
         <div class="modal-panel clientes-modal">
           <div class="modal-header">
-            <h3>{{ isNew ? 'Novo Cliente' : 'Editar Cliente' }}</h3>
+            <h3>{{ isNew ? 'Novo contato' : 'Editar contato' }}</h3>
             <button class="modal-close-btn" @click="closeModal"><i class="fa-solid fa-xmark"></i></button>
           </div>
           <div class="modal-body">
             <div class="form-grid">
-              <div class="form-group">
-                <label>Nome *</label>
-                <input v-model="form.name" type="text" placeholder="Nome do cliente" />
+              <div class="form-group form-group-full">
+                <label>Tipo de contato</label>
+                <div class="contact-type-options">
+                  <label :class="{ selected: !form.is_employee }">
+                    <input v-model="form.is_employee" type="radio" :value="false" />
+                    <i class="fa-solid fa-user"></i>
+                    <span><strong>Cliente</strong><small>Conta normalmente nos indicadores</small></span>
+                  </label>
+                  <label :class="{ selected: form.is_employee }">
+                    <input v-model="form.is_employee" type="radio" :value="true" />
+                    <i class="fa-solid fa-id-badge"></i>
+                    <span><strong>Funcionário</strong><small>Identificado na fila e fora dos KPIs</small></span>
+                  </label>
+                </div>
               </div>
               <div class="form-group">
-                <label>Telefone (WhatsApp)</label>
+                <label>Nome *</label>
+                <input v-model="form.name" type="text" :placeholder="form.is_employee ? 'Nome do funcionário' : 'Nome do cliente'" />
+              </div>
+              <div class="form-group">
+                <label>Telefone (WhatsApp){{ form.is_employee ? ' *' : '' }}</label>
                 <input v-model="form.phone" type="text" placeholder="Ex: 5511999999999" />
               </div>
               <div class="form-group">
@@ -138,7 +162,7 @@
           </div>
           <div class="modal-footer">
             <button class="btn-secondary" @click="closeModal">Cancelar</button>
-            <button class="btn-primary" :disabled="saving || !form.name?.trim()" @click="saveContact">
+            <button class="btn-primary" :disabled="saving || !form.name?.trim() || (form.is_employee && !form.phone?.trim())" @click="saveContact">
               <i class="fa-solid fa-floppy-disk"></i>
               {{ saving ? 'Salvando...' : 'Salvar' }}
             </button>
@@ -188,7 +212,7 @@ const saveError = ref('')
 const deleteTarget = ref(null)
 const deleting = ref(false)
 
-const emptyForm = () => ({ name: '', phone: '', email: '', cnpj: '', channel: 'WhatsApp', status: 'Ativo', notes: '' })
+const emptyForm = () => ({ name: '', phone: '', email: '', cnpj: '', channel: 'WhatsApp', status: 'Ativo', notes: '', is_employee: false })
 const form = ref(emptyForm())
 let editingId = null
 
@@ -199,7 +223,8 @@ const filteredContacts = computed(() => {
     (c.name || '').toLowerCase().includes(t) ||
     (c.phone || '').includes(t) ||
     (c.email || '').toLowerCase().includes(t) ||
-    (c.cnpj || '').includes(t)
+    (c.cnpj || '').includes(t) ||
+    (c.is_employee ? 'funcionario' : 'cliente').includes(t)
   )
 })
 
@@ -229,7 +254,7 @@ async function loadContacts() {
 function openEdit(c) {
   isNew.value = false
   editingId = c.id
-  form.value = { name: c.name || '', phone: c.phone || '', email: c.email || '', cnpj: c.cnpj || '', channel: c.channel || 'WhatsApp', status: c.status || 'Ativo', notes: c.notes || '' }
+  form.value = { name: c.name || '', phone: c.phone || '', email: c.email || '', cnpj: c.cnpj || '', channel: c.channel || 'WhatsApp', status: c.status || 'Ativo', notes: c.notes || '', is_employee: Boolean(c.is_employee) }
   saveError.value = ''
   showModal.value = true
 }
@@ -253,7 +278,9 @@ async function saveContact() {
   try {
     if (isNew.value) {
       const res = await api.post('/contacts', form.value)
-      contacts.value.unshift(res.data.contact)
+      const idx = contacts.value.findIndex(c => c.id === res.data.contact.id)
+      if (idx !== -1) contacts.value[idx] = res.data.contact
+      else contacts.value.unshift(res.data.contact)
     } else {
       const res = await api.put(`/contacts/${editingId}`, form.value)
       const idx = contacts.value.findIndex(c => c.id === editingId)
@@ -387,5 +414,48 @@ onMounted(loadContacts)
 .badge-inativo {
   background: rgba(100, 116, 139, 0.15);
   color: #94a3b8;
+}
+
+.contact-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.contact-type-badge.customer { color: #2563eb; background: #dbeafe; }
+.contact-type-badge.employee { color: #047857; background: #d1fae5; }
+
+.contact-type-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.form-group .contact-type-options label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #334155;
+  border-radius: 9px;
+  cursor: pointer;
+  color: #cbd5e1;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.form-group .contact-type-options label.selected {
+  border-color: #2563eb;
+  background: rgba(37, 99, 235, 0.1);
+}
+.contact-type-options input { width: auto; padding: 0; }
+.contact-type-options i { font-size: 17px; color: #60a5fa; }
+.contact-type-options span { display: flex; flex-direction: column; gap: 2px; }
+.contact-type-options strong { font-size: 13px; color: #e2e8f0; }
+.contact-type-options small { font-size: 10px; color: #94a3b8; font-weight: 400; }
+
+@media (max-width: 640px) {
+  .contact-type-options { grid-template-columns: 1fr; }
 }
 </style>

@@ -29,9 +29,9 @@
         <i class="fa-solid fa-clock-rotate-left"></i>
         <span class="nav-label">Conversas</span>
       </RouterLink>
-      <RouterLink class="nav-item" to="/clientes" active-class="active" title="Clientes">
+      <RouterLink class="nav-item" to="/clientes" active-class="active" title="Contatos">
         <i class="fa-solid fa-user-group"></i>
-        <span class="nav-label">Clientes</span>
+        <span class="nav-label">Contatos</span>
       </RouterLink>
       <div class="nav-item nav-item-disabled" title="Kanban — em desenvolvimento" aria-disabled="true">
         <i class="fa-solid fa-border-all"></i>

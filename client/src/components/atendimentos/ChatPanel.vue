@@ -32,6 +32,10 @@
             style="font-size:11px;color:#94a3b8;transition:transform 0.2s ease;"
           ></i>
         </div>
+        <span v-if="ticket?.is_employee" class="employee-contact-badge" title="Funcionário da empresa — atendimento fora dos KPIs de clientes">
+          <i class="fa-solid fa-id-badge"></i>
+          Funcionário
+        </span>
         <span v-if="handlingChannel.label" class="handling-channel-badge" :class="handlingChannel.kind">
           <i :class="handlingChannel.icon"></i>
           {{ handlingChannel.label }}
@@ -762,6 +766,21 @@ async function sendMessage() {
 </script>
 
 <style scoped>
+.employee-contact-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 3px 8px;
+  border: 1px solid #a7f3d0;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .handling-channel-badge {
   display: inline-flex;
   align-items: center;
