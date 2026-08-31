@@ -119,7 +119,7 @@ function onTicketClick(ticketId) {
 }
 
 const filteredTickets = computed(() => {
-  let list = ticketStore.tickets.filter(t => t.status !== 'finalizado')
+  let list = (ticketStore.visibleTickets || []).filter(t => t.status !== 'finalizado')
 
   if (props.filterCategory === 'waiting') {
     list = list.filter(t => t.status === 'aguardando' || !t.assumed)

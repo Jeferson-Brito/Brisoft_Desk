@@ -129,17 +129,17 @@ const authStore = useAuthStore()
 const myCount = computed(() => {
   const myId = authStore.user?.id
   const myName = (authStore.user?.name || '').toLowerCase()
-  return ticketStore.tickets.filter(t => {
+  return (ticketStore.visibleTickets || []).filter(t => {
     if (t.status === 'finalizado') return false
     return t.agent_id === myId || (t.agent_name && t.agent_name.toLowerCase().includes(myName))
   }).length
 })
 
-const waitingCount = computed(() => ticketStore.waitingTickets.length)
-const totalOpenCount = computed(() => ticketStore.waitingTickets.length + ticketStore.inProgressTickets.length)
+const waitingCount = computed(() => (ticketStore.waitingTickets || []).length)
+const totalOpenCount = computed(() => (ticketStore.waitingTickets || []).length + (ticketStore.inProgressTickets || []).length)
 
 function getDeptCount(deptName) {
-  return ticketStore.tickets.filter(t => {
+  return (ticketStore.visibleTickets || []).filter(t => {
     if (t.status === 'finalizado') return false
     return (t.department || t.deptInitial) === deptName
   }).length
