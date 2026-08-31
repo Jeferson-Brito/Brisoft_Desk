@@ -22,3 +22,15 @@ test('analista consulta apenas conversas atendidas ou em que participou', () => 
   assert.equal(visible(analyst, { id: 't4', department_id: 'financeiro' }, new Set(['t4'])), true);
   assert.equal(visible(analyst, { id: 't5', agent_name: 'Carlos', department_id: 'financeiro' }), false);
 });
+
+test('nova conversa prioriza o WhatsApp dedicado ao departamento e usa o geral como alternativa', () => {
+  const selectAccount = ticketService._test.selectOutboundWhatsAppAccount;
+  const accounts = [
+    { id: 'geral', status: 'connected', routingMode: 'general' },
+    { id: 'financeiro', status: 'connected', routingMode: 'department', departmentId: 'd1', departmentName: 'Financeiro' },
+    { id: 'offline', status: 'disconnected', routingMode: 'department', departmentId: 'd2' }
+  ];
+  assert.equal(selectAccount(accounts, { id: 'd1', name: 'Financeiro' }).id, 'financeiro');
+  assert.equal(selectAccount(accounts, { id: 'd2', name: 'Comercial' }).id, 'geral');
+  assert.equal(selectAccount([{ ...accounts[2] }], { id: 'd2', name: 'Comercial' }), null);
+});

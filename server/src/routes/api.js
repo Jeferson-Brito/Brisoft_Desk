@@ -64,6 +64,7 @@ router.get('/tickets', requireAuth, (req, res) => ticketController.listTickets(r
 router.get('/tickets/history', requireAuth, (req, res) => ticketController.listHistory(req, res));
 router.get('/tickets/:id', requireAuth, (req, res) => ticketController.getTicket(req, res));
 router.put('/tickets/:id/contact', requireAuth, (req, res) => ticketController.updateContact(req, res));
+router.post('/tickets/start-conversation', requireAuth, (req, res) => ticketController.startConversation(req, res));
 router.post('/tickets/send-message', requireAuth, (req, res) => ticketController.sendMessage(req, res));
 router.post(
   '/tickets/:id/media',
@@ -103,6 +104,7 @@ router.delete('/system/logs', requireAuth, requireAdmin, (req, res) => systemCon
 // Rotas de Contatos (Clientes)
 router.get('/contacts', requireAuth, (req, res) => contactsController.listContacts(req, res));
 router.post('/contacts', requireAuth, (req, res) => contactsController.createContact(req, res));
+router.post('/contacts/import', requireAuth, requireSupervisorOrAdmin, (req, res) => contactsController.importContacts(req, res));
 router.put('/contacts/:id', requireAuth, (req, res) => contactsController.updateContact(req, res));
 router.delete('/contacts/:id', requireAuth, requireAdmin, (req, res) => contactsController.deleteContact(req, res));
 

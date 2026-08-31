@@ -6,12 +6,33 @@
       <div class="table-toolbar-left">
         <div class="search-input-wrap" style="width:280px;">
           <i class="fa-solid fa-magnifying-glass"></i>
-          <input v-model="searchTerm" type="text" placeholder="Buscar por nome, telefone, e-mail..." />
+          <input v-model="searchTerm" type="text" :placeholder="activeContactTab === 'employees' ? 'Buscar funcionário...' : 'Buscar cliente...'" />
         </div>
       </div>
-      <button class="btn-primary" @click="openNewModal">
-        <i class="fa-solid fa-plus"></i> Novo contato
+      <div class="contacts-toolbar-actions">
+        <input ref="importInput" type="file" accept=".xlsx,.csv" hidden @change="importSpreadsheet" />
+        <button v-if="auth.canManageTeam" class="btn-secondary model-button" title="Baixar modelo de importação" @click="downloadImportTemplate">
+          <i class="fa-solid fa-download"></i>
+          <span>Modelo</span>
+        </button>
+        <button v-if="auth.canManageTeam" class="btn-secondary" :disabled="importing" @click="importInput?.click()">
+          <i :class="importing ? 'fa-solid fa-circle-notch fa-spin' : 'fa-solid fa-file-import'"></i>
+          {{ importing ? 'Importando...' : 'Importar planilha' }}
+        </button>
+        <button class="btn-primary" @click="openNewModal">
+          <i class="fa-solid fa-plus"></i> Novo contato
+        </button>
+      </div>
+    </div>
+
+    <div class="contacts-tabs-bar">
+      <button :class="{ active: activeContactTab === 'customers' }" @click="activeContactTab = 'customers'">
+        <i class="fa-solid fa-user-group"></i> Clientes <span>{{ customerCount }}</span>
       </button>
+      <button :class="{ active: activeContactTab === 'employees' }" @click="activeContactTab = 'employees'">
+        <i class="fa-solid fa-id-badge"></i> Funcionários <span>{{ employeeCount }}</span>
+      </button>
+      <small v-if="importSummary">{{ importSummary }}</small>
     </div>
 
     <!-- Tabela -->
@@ -28,7 +49,6 @@
             <thead>
               <tr>
                 <th>Contato</th>
-                <th>Tipo</th>
                 <th>Telefone</th>
                 <th>E-mail</th>
                 <th>Canal</th>
@@ -38,9 +58,9 @@
             </thead>
             <tbody>
               <tr v-if="filteredContacts.length === 0">
-                <td colspan="7" style="text-align:center;color:#64748b;padding:32px;">
+                <td colspan="6" style="text-align:center;color:#64748b;padding:32px;">
                   <i class="fa-solid fa-users-slash" style="margin-right:8px;"></i>
-                  Nenhum contato encontrado.
+                  Nenhum {{ activeContactTab === 'employees' ? 'funcionário' : 'cliente' }} encontrado.
                 </td>
               </tr>
               <tr v-for="c in filteredContacts" :key="c.id">
@@ -54,12 +74,6 @@
                       <span v-if="c.cnpj" style="font-size:11px;color:#64748b;">{{ c.cnpj }}</span>
                     </div>
                   </div>
-                </td>
-                <td>
-                  <span class="contact-type-badge" :class="c.is_employee ? 'employee' : 'customer'">
-                    <i :class="c.is_employee ? 'fa-solid fa-id-badge' : 'fa-solid fa-user'"></i>
-                    {{ c.is_employee ? 'Funcionário' : 'Cliente' }}
-                  </span>
                 </td>
                 <td>{{ formatPhone(c.phone) }}</td>
                 <td style="color:#64748b;">{{ c.email || '—' }}</td>
@@ -200,6 +214,12 @@
 import { ref, computed, onMounted } from 'vue'
 import api from '@/api/http'
 import { formatPhone } from '@/utils/formatters'
+import { parseCsv, rowsToContacts } from '@/utils/contact-import'
+import { useAuthStore } from '@/stores/auth.store'
+import { useUiStore } from '@/stores/ui.store'
+
+const auth = useAuthStore()
+const ui = useUiStore()
 
 const contacts = ref([])
 const loading = ref(true)
@@ -211,15 +231,23 @@ const saving = ref(false)
 const saveError = ref('')
 const deleteTarget = ref(null)
 const deleting = ref(false)
+const activeContactTab = ref('customers')
+const importInput = ref(null)
+const importing = ref(false)
+const importSummary = ref('')
 
 const emptyForm = () => ({ name: '', phone: '', email: '', cnpj: '', channel: 'WhatsApp', status: 'Ativo', notes: '', is_employee: false })
 const form = ref(emptyForm())
 let editingId = null
 
+const customerCount = computed(() => contacts.value.filter(contact => !contact.is_employee).length)
+const employeeCount = computed(() => contacts.value.filter(contact => contact.is_employee).length)
+
 const filteredContacts = computed(() => {
-  if (!searchTerm.value.trim()) return contacts.value
+  const byType = contacts.value.filter(contact => activeContactTab.value === 'employees' ? contact.is_employee : !contact.is_employee)
+  if (!searchTerm.value.trim()) return byType
   const t = searchTerm.value.toLowerCase()
-  return contacts.value.filter(c =>
+  return byType.filter(c =>
     (c.name || '').toLowerCase().includes(t) ||
     (c.phone || '').includes(t) ||
     (c.email || '').toLowerCase().includes(t) ||
@@ -262,13 +290,23 @@ function openEdit(c) {
 function openNewModal() {
   isNew.value = true
   editingId = null
-  form.value = emptyForm()
+  form.value = { ...emptyForm(), is_employee: activeContactTab.value === 'employees' }
   saveError.value = ''
   showModal.value = true
 }
 
 function closeModal() {
   showModal.value = false
+}
+
+function downloadImportTemplate() {
+  const csv = '\uFEFFNome;WhatsApp;E-mail;CPF/CNPJ;Tipo;Observações;Status\r\nMaria da Silva;5511999999999;maria@exemplo.com;12345678900;Cliente;;Ativo\r\nJoão Souza;5511888888888;joao@empresa.com;98765432100;Funcionário;;Ativo\r\n'
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'modelo-importacao-contatos.csv'
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 async function saveContact() {
@@ -312,6 +350,42 @@ async function doDelete() {
   }
 }
 
+async function importSpreadsheet(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  if (file.size > 8 * 1024 * 1024) {
+    ui.showToast('A planilha deve ter no máximo 8 MB.', 'error')
+    return
+  }
+  importing.value = true
+  importSummary.value = ''
+  try {
+    let rows
+    if (file.name.toLowerCase().endsWith('.csv')) rows = parseCsv(await file.text())
+    else {
+      const { default: readXlsxFile } = await import('read-excel-file')
+      rows = await readXlsxFile(file)
+    }
+    const parsedContacts = rowsToContacts(rows, activeContactTab.value === 'employees')
+    if (!parsedContacts.length) throw new Error('A planilha não possui linhas para importar.')
+    const totals = { imported: 0, updated: 0, ignored: 0 }
+    for (let index = 0; index < parsedContacts.length; index += 400) {
+      const { data } = await api.post('/contacts/import', { contacts: parsedContacts.slice(index, index + 400) })
+      totals.imported += Number(data.imported || 0)
+      totals.updated += Number(data.updated || 0)
+      totals.ignored += Number(data.ignored || 0)
+    }
+    await loadContacts()
+    importSummary.value = `${totals.imported} novo(s), ${totals.updated} atualizado(s)${totals.ignored ? `, ${totals.ignored} ignorado(s)` : ''}`
+    ui.showToast(`✅ Importação concluída: ${importSummary.value}`)
+  } catch (error) {
+    ui.showToast(error.response?.data?.error || error.message || 'Não foi possível importar a planilha.', 'error')
+  } finally {
+    importing.value = false
+  }
+}
+
 onMounted(loadContacts)
 </script>
 
@@ -329,6 +403,38 @@ onMounted(loadContacts)
   max-width: 600px;
   width: 100%;
 }
+
+.contacts-toolbar-actions,
+.contacts-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.contacts-tabs-bar {
+  padding: 0 20px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.contacts-tabs-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 4px 9px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.contacts-tabs-bar button.active { color: #2563eb; border-bottom-color: #2563eb; }
+.contacts-tabs-bar button span { padding: 1px 6px; border-radius: 999px; background: #f1f5f9; font-size: 10px; }
+.contacts-tabs-bar button.active span { background: #dbeafe; }
+.contacts-tabs-bar small { margin-left: auto; color: #047857; font-size: 11px; }
 
 .form-grid {
   display: grid;
@@ -457,5 +563,9 @@ onMounted(loadContacts)
 
 @media (max-width: 640px) {
   .contact-type-options { grid-template-columns: 1fr; }
+  .contacts-toolbar-actions .btn-secondary { width: 36px; padding: 8px; font-size: 0; }
+  .contacts-toolbar-actions .btn-secondary i { font-size: 13px; }
+  .contacts-toolbar-actions .model-button { display: none; }
+  .contacts-tabs-bar small { display: none; }
 }
 </style>

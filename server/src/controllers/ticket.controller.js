@@ -54,6 +54,25 @@ class TicketController {
     }
   }
 
+  async startConversation(req, res) {
+    try {
+      const { contactId, departmentId } = req.body || {};
+      const result = await ticketService.startOutboundConversation(
+        contactId,
+        departmentId,
+        req.user,
+        req.app.get('io'),
+        whatsappService
+      );
+      if (!result || result.success === false) {
+        return res.status(400).json({ success: false, error: result?.error || 'Não foi possível iniciar a conversa.' });
+      }
+      return res.status(result.existing ? 200 : 201).json(result);
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
   async sendMedia(req, res) {
     try {
       const ticketId = req.params.id;

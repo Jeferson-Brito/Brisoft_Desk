@@ -3,9 +3,13 @@
 // ==========================================================================
 
 const { supabase, isSupabaseConfigured } = require('../config/supabase');
+const crypto = require('crypto');
 
 function normalizePhone(value) {
-  return String(value || '').replace(/\D/g, '');
+  let digits = String(value || '').replace(/\D/g, '');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (digits.length === 10 || digits.length === 11) digits = `55${digits}`;
+  return digits;
 }
 
 function normalizeEmployee(value) {
@@ -46,7 +50,6 @@ class ContactsController {
     if (normalizeEmployee(is_employee) && !normalizedPhone) {
       return res.status(400).json({ success: false, error: 'Informe o número do WhatsApp do funcionário.' });
     }
-    const crypto = require('crypto');
     try {
       const contactPayload = {
         id: crypto.randomUUID(),
@@ -74,6 +77,76 @@ class ContactsController {
       if (error) throw error;
       await syncContactClassification(data);
       return res.json({ success: true, contact: data, updatedExisting: Boolean(existing) });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
+  async importContacts(req, res) {
+    if (!isSupabaseConfigured()) return res.status(503).json({ success: false, error: 'Banco de dados indisponível.' });
+    const rows = Array.isArray(req.body?.contacts) ? req.body.contacts : [];
+    if (!rows.length) return res.status(400).json({ success: false, error: 'A planilha não contém contatos válidos.' });
+    if (rows.length > 500) return res.status(400).json({ success: false, error: 'Envie no máximo 500 contatos por lote.' });
+
+    const invalid = [];
+    const normalizedRows = [];
+    rows.forEach((row, index) => {
+      const name = String(row?.name || '').trim().slice(0, 255);
+      const phone = normalizePhone(row?.phone);
+      if (!name || phone.length < 12 || phone.length > 15) {
+        invalid.push({ row: index + 2, reason: !name ? 'Nome não informado' : 'WhatsApp inválido' });
+        return;
+      }
+      normalizedRows.push({
+        name,
+        phone,
+        email: String(row?.email || '').trim().slice(0, 150) || null,
+        cnpj: String(row?.cnpj || '').trim().slice(0, 40) || null,
+        status: String(row?.status || 'Ativo').trim().slice(0, 20) || 'Ativo',
+        channel: 'WhatsApp',
+        notes: String(row?.notes || '').trim().slice(0, 2000) || null,
+        is_employee: normalizeEmployee(row?.is_employee)
+      });
+    });
+    if (!normalizedRows.length) return res.status(400).json({ success: false, error: 'Nenhuma linha possui nome e WhatsApp válidos.', invalid });
+
+    try {
+      const existingContacts = [];
+      for (let from = 0; ; from += 1000) {
+        const result = await supabase.from('contacts').select('id, phone').range(from, from + 999);
+        if (result.error) throw result.error;
+        existingContacts.push(...(result.data || []));
+        if (!result.data || result.data.length < 1000) break;
+      }
+      const existingByPhone = new Map(existingContacts.map(contact => [normalizePhone(contact.phone), contact]));
+      const uniqueByPhone = new Map();
+      for (const row of normalizedRows) uniqueByPhone.set(row.phone, row);
+      const payloads = [...uniqueByPhone.values()].map(row => ({
+        id: existingByPhone.get(row.phone)?.id || crypto.randomUUID(),
+        ...row
+      }));
+
+      const saved = [];
+      for (let index = 0; index < payloads.length; index += 100) {
+        const result = await supabase.from('contacts')
+          .upsert(payloads.slice(index, index + 100), { onConflict: 'id' })
+          .select();
+        if (result.error) throw result.error;
+        saved.push(...(result.data || []));
+      }
+      for (let index = 0; index < saved.length; index += 20) {
+        await Promise.all(saved.slice(index, index + 20).map(syncContactClassification));
+      }
+
+      const updated = payloads.filter(row => existingByPhone.has(row.phone)).length;
+      return res.json({
+        success: true,
+        imported: payloads.length - updated,
+        updated,
+        ignored: invalid.length + (normalizedRows.length - uniqueByPhone.size),
+        invalid,
+        contacts: saved
+      });
     } catch (err) {
       return res.status(500).json({ success: false, error: err.message });
     }

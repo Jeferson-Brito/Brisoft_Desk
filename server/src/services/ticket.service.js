@@ -263,6 +263,16 @@ async function canUserAccessTicketDetails(user, ticket) {
   return analystParticipatedInTicket(user, ticket.id);
 }
 
+function selectOutboundWhatsAppAccount(accounts, department) {
+  const connected = (accounts || []).filter(account => account?.status === 'connected');
+  const departmentId = String(department?.id || '');
+  const departmentName = String(department?.name || '').trim().toLocaleLowerCase('pt-BR');
+  return connected.find(account => account.routingMode === 'department' && (
+    String(account.departmentId || '') === departmentId ||
+    String(account.departmentName || '').trim().toLocaleLowerCase('pt-BR') === departmentName
+  )) || connected.find(account => account.routingMode !== 'department') || null;
+}
+
 function emitTicketEvent(io, event, payload, ticket) {
   if (!io || !ticket) return;
   let target = io.to('admins');
@@ -1940,6 +1950,125 @@ ${rendered}`,
     } catch (e) { console.error('Erro ao buscar KPIs:', e); return null; }
   }
 
+  async startOutboundConversation(contactId, requestedDepartmentId, currentUser, io, whatsappService) {
+    if (!isSupabaseConfigured()) return { success: false, error: 'Banco de dados indisponível.' };
+    if (!contactId) return { success: false, error: 'Selecione um contato.' };
+    try {
+      const departmentId = requestedDepartmentId || currentUser?.department_id;
+      if (!departmentId || !canAccessDepartment(currentUser, departmentId)) {
+        return { success: false, error: 'Selecione um departamento dentro do seu escopo de acesso.' };
+      }
+      const [{ data: contact, error: contactError }, { data: department, error: departmentError }] = await Promise.all([
+        supabase.from('contacts').select('*').eq('id', contactId).maybeSingle(),
+        supabase.from('departments').select('id, name, color').eq('id', departmentId).maybeSingle()
+      ]);
+      if (contactError) throw contactError;
+      if (departmentError) throw departmentError;
+      if (!contact || contact.status === 'Inativo') return { success: false, error: 'Contato não encontrado ou inativo.' };
+      if (!department) return { success: false, error: 'Departamento não encontrado.' };
+      let phone = String(contact.phone || '').replace(/\D/g, '');
+      if (phone.length === 10 || phone.length === 11) phone = `55${phone}`;
+      if (phone.length < 12 || phone.length > 15) return { success: false, error: 'O contato não possui um WhatsApp válido.' };
+
+      const accounts = whatsappService?.getAccounts?.(false) || [];
+      const account = selectOutboundWhatsAppAccount(accounts, department);
+      if (!account) return { success: false, error: `Nenhum WhatsApp conectado está disponível para ${department.name}.` };
+
+      const { data: activeTickets, error: activeError } = await supabase.from('tickets')
+        .select('*')
+        .eq('phone', phone)
+        .in('status', ['chatbot', 'aguardando', 'em_atendimento'])
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (activeError) throw activeError;
+      let ticket = activeTickets?.[0] || null;
+      const now = new Date();
+      const time = makeTimeStr(now);
+      let shouldRecordStart = true;
+
+      if (ticket) {
+        if (!canUserAccessTicket(currentUser, ticket)) {
+          return { success: false, error: 'Este contato já possui um atendimento ativo em outro departamento.' };
+        }
+        if (ticket.status === 'em_atendimento' && ticket.user_id && String(ticket.user_id) !== String(currentUser.id)) {
+          return { success: false, error: `Este contato já está sendo atendido por ${ticket.agent_name || 'outro atendente'}.` };
+        }
+        shouldRecordStart = !(ticket.status === 'em_atendimento' && (
+          String(ticket.user_id || '') === String(currentUser.id || '') || ticket.agent_name === currentUser.name
+        ));
+        const updatePayload = {
+          status: 'em_atendimento',
+          assumed: true,
+          user_id: uuidOrNull(currentUser.id),
+          agent_name: currentUser.name || 'Atendente',
+          assumed_at: ticket.assumed_at || now.toISOString(),
+          contact_id: contact.id,
+          is_employee: Boolean(contact.is_employee),
+          updated_at: now.toISOString()
+        };
+        assertSupabase(await supabase.from('tickets').update(updatePayload).eq('id', ticket.id), 'Falha ao abrir atendimento existente');
+        Object.assign(ticket, updatePayload);
+      } else {
+        const channel = `whatsapp:${account.id}`;
+        const payload = {
+          id: crypto.randomUUID(),
+          contact_id: contact.id,
+          client_name: contact.name,
+          initials: String(contact.name || 'CL').substring(0, 2).toUpperCase(),
+          phone,
+          jid: `${phone}@s.whatsapp.net`,
+          time,
+          preview: 'Nova conversa iniciada pelo atendente',
+          status: 'em_atendimento',
+          assumed: true,
+          user_id: uuidOrNull(currentUser.id),
+          agent_name: currentUser.name || 'Atendente',
+          department_id: department.id,
+          department: department.name,
+          channel,
+          unread_count: 0,
+          is_employee: Boolean(contact.is_employee),
+          assumed_at: now.toISOString(),
+          updated_at: now.toISOString()
+        };
+        if (conversationTrackingColumnsAvailable !== false) {
+          payload.handled_via = 'platform';
+          payload.platform_messages = 0;
+        }
+        let insertResult = await supabase.from('tickets').insert(payload).select().single();
+        if (insertResult.error && isMissingConversationTrackingColumns(insertResult.error)) {
+          conversationTrackingColumnsAvailable = false;
+          delete payload.handled_via;
+          delete payload.platform_messages;
+          insertResult = await supabase.from('tickets').insert(payload).select().single();
+        }
+        ticket = assertSupabase(insertResult, 'Falha ao iniciar nova conversa');
+      }
+
+      if (shouldRecordStart) {
+        assertSupabase(await supabase.from('messages').insert({
+          ticket_id: ticket.id,
+          sender: 'system',
+          type: 'divider',
+          text: `💬 Conversa iniciada por *${currentUser.name || 'Atendente'}*`,
+          time,
+          user_id: uuidOrNull(currentUser.id)
+        }), 'Falha ao registrar início da conversa');
+      }
+
+      const fullTicket = await this.getFullTicket(ticket.id);
+      if (io && fullTicket) {
+        emitTicketEvent(io, 'ticket_created', { ticket: fullTicket }, fullTicket);
+        emitTicketEvent(io, 'queue_updated', { ticket: fullTicket }, fullTicket);
+        scheduleKpiUpdate(io);
+      }
+      return { success: true, ticket: fullTicket || ticket, existing: Boolean(activeTickets?.length) };
+    } catch (error) {
+      console.error('Erro ao iniciar conversa:', error.message);
+      return { success: false, error: error.message };
+    }
+  }
+
   async sendAgentMessage(ticketId, text, currentUser, io, whatsappService) {
     if (!isSupabaseConfigured()) return { success: false, error: 'Supabase nao configurado' };
     await ensureConversationTrackingColumns();
@@ -2507,6 +2636,6 @@ ${rendered}`,
 }
 
 const ticketService = new TicketService();
-ticketService._test = { mergeHandledVia, preferredWhatsAppJid, phoneFromWhatsAppIdentity, makeTimeStr, APP_TIME_ZONE, historyTicketVisibleToUser };
+ticketService._test = { mergeHandledVia, preferredWhatsAppJid, phoneFromWhatsAppIdentity, makeTimeStr, APP_TIME_ZONE, historyTicketVisibleToUser, selectOutboundWhatsAppAccount };
 
 module.exports = ticketService;

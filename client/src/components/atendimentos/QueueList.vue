@@ -3,7 +3,7 @@
     <!-- Header da Fila -->
     <div class="queue-header">
       <div class="queue-header-title-wrap">
-        <span class="queue-title">Fila de Atendimentos</span>
+        <span class="queue-title">Atendimentos</span>
         <span class="queue-live-badge" title="Total de atendimentos visíveis">
           <span class="live-dot"></span>
           {{ totalActiveCount }}
@@ -12,12 +12,13 @@
       
       <div class="queue-header-actions">
         <button
-          class="btn-icon"
-          :class="{ 'spin-anim': isRefreshing }"
-          title="Recarregar atendimentos"
-          @click="refreshQueue"
+          type="button"
+          class="start-conversation-button"
+          title="Iniciar conversa com um contato"
+          @click="showNewConversation = true"
         >
-          <i class="fa-solid fa-rotate-right"></i>
+          <i class="fa-solid fa-pen-to-square"></i>
+          <span>Nova</span>
         </button>
 
         <button
@@ -44,6 +45,11 @@
             </option>
           </select>
         </div>
+
+        <label class="compact-mode-toggle">
+          <input v-model="compactMode" type="checkbox" />
+          <span><strong>Lista compacta</strong><small>Exibe mais atendimentos sem aumentar a rolagem</small></span>
+        </label>
 
         <div class="filter-group">
           <label class="filter-label">Ordenar por</label>
@@ -124,7 +130,7 @@
     </div>
 
     <!-- Lista de Atendimentos -->
-    <div class="queue-list" id="queueListContainer">
+    <div class="queue-list" :class="{ compact: compactMode }" id="queueListContainer">
       <!-- Loading Skeleton -->
       <div v-if="ticketStore.loading && filteredTickets.length === 0" class="queue-skeleton-wrap">
         <div v-for="n in 3" :key="n" class="queue-skeleton-card">
@@ -203,6 +209,12 @@
         <i class="fa-solid fa-arrows-rotate" :class="{ 'spin-anim': isRefreshing }"></i>
       </button>
     </div>
+
+    <NewConversationModal
+      v-if="showNewConversation"
+      @close="showNewConversation = false"
+      @started="handleConversationStarted"
+    />
   </div>
 </template>
 
@@ -212,6 +224,7 @@ import { useTicketStore }   from '@/stores/tickets.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore }       from '@/stores/ui.store'
 import QueueItem from './QueueItem.vue'
+import NewConversationModal from './NewConversationModal.vue'
 
 const emit = defineEmits(['ticket-selected'])
 
@@ -225,7 +238,9 @@ const selectedDepartment = ref('')
 const sortBy = ref('recent') // 'recent', 'unread', 'oldest'
 const showFilterPopover = ref(false)
 const isRefreshing = ref(false)
-const PAGE_SIZE = 100
+const showNewConversation = ref(false)
+const compactMode = ref(localStorage.getItem('attendance_queue_compact') !== 'false')
+const PAGE_SIZE = 30
 const visibleLimit = ref(PAGE_SIZE)
 
 const totalActiveCount = computed(() => ticketStore.visibleTickets.length)
@@ -250,6 +265,12 @@ async function refreshQueue() {
       isRefreshing.value = false
     }, 400)
   }
+}
+
+function handleConversationStarted(ticket) {
+  activeTab.value = 'em_atendimento'
+  showNewConversation.value = false
+  emit('ticket-selected', ticket.id)
 }
 
 const allFilteredTickets = computed(() => {
@@ -292,6 +313,8 @@ const hasMoreTickets = computed(() => filteredTickets.value.length < allFiltered
 watch([activeTab, searchTerm, selectedDepartment, sortBy], () => {
   visibleLimit.value = PAGE_SIZE
 })
+
+watch(compactMode, value => localStorage.setItem('attendance_queue_compact', String(value)))
 
 onMounted(() => {
   settingsStore.fetchDepartments().catch(() => {})
@@ -362,6 +385,40 @@ onMounted(() => {
   gap: 4px;
   flex-shrink: 0;
 }
+
+.start-conversation-button {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 7px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.start-conversation-button:hover { background: #dbeafe; }
+
+.compact-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #f8fafc;
+  cursor: pointer;
+}
+.compact-mode-toggle span { display: grid; gap: 1px; }
+.compact-mode-toggle strong { color: #334155; font-size: 11px; }
+.compact-mode-toggle small { color: #94a3b8; font-size: 9px; }
+.queue-list.compact :deep(.queue-card) { padding-top: 8px; padding-bottom: 8px; gap: 9px; }
+.queue-list.compact :deep(.avatar-wrapper),
+.queue-list.compact :deep(.queue-avatar) { width: 36px; height: 36px; }
+.queue-list.compact :deep(.queue-card-content) { gap: 2px; }
+.queue-list.compact :deep(.queue-card-preview) { font-size: 11px; }
 
 .btn-icon {
   width: 30px;
