@@ -12,6 +12,7 @@ const ClientesView          = () => import('@/views/ClientesView.vue')
 const MensagensRapidasView  = () => import('@/views/MensagensRapidasView.vue')
 const ConfiguracoesView     = () => import('@/views/ConfiguracoesView.vue')
 const PainelTvView          = () => import('@/views/PainelTvView.vue')
+const UsuariosView          = () => import('@/views/UsuariosView.vue')
 
 const routes = [
   // Rota pública
@@ -36,6 +37,12 @@ const routes = [
         name: 'configuracoes',
         component: ConfiguracoesView,
         meta: { requiresManager: true }
+      },
+      {
+        path: 'usuarios',
+        name: 'usuarios',
+        component: UsuariosView,
+        meta: { requiresAdmin: true }
       }
     ]
   },

@@ -9,6 +9,7 @@ export function isExplicitBotMessage(message) {
     || message?.sender === 'bot'
     || text.startsWith('[Chatbot]')
     || text.includes('[Chatbot]')
+    || /^\[WhatsApp\]\s*Encaminhado diretamente para a fila:/i.test(text)
 }
 
 export function classifyBotInteractions(messages = []) {
@@ -39,4 +40,3 @@ export function classifyBotInteractions(messages = []) {
 
   return classified
 }
-

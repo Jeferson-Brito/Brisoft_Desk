@@ -23,3 +23,13 @@ test('usa a classificação persistida quando disponível', () => {
     ])
   assert.deepEqual(result.map(item => item.isBotInteraction), [true, false])
 })
+
+test('reconhece também o histórico legado de um WhatsApp dedicado', () => {
+  const result = classifyBotInteractions([
+    { id: '1', ticket_id: 'dedicado', sender: 'client', text: 'Boa tarde' },
+    { id: '2', ticket_id: 'dedicado', sender: 'system', text: '[WhatsApp] Encaminhado diretamente para a fila: Suporte Técnico' },
+    { id: '3', ticket_id: 'dedicado', sender: 'bot', text: 'Seu atendimento foi encaminhado.' },
+    { id: '4', ticket_id: 'dedicado', sender: 'client', text: 'Preciso de ajuda com o sistema', message_context: 'service' }
+  ])
+  assert.deepEqual(result.map(item => item.isBotInteraction), [true, true, true, false])
+})

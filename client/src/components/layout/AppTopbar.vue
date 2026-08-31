@@ -17,12 +17,6 @@
     </div>
 
     <div class="topbar-right">
-      <!-- Notificações -->
-      <button class="btn-icon notification-btn" title="Notificações" style="position:relative; border: none; background: transparent; cursor: pointer; color: #64748b; font-size: 18px; margin-right: 16px;">
-        <i class="fa-regular fa-bell"></i>
-        <span class="notification-badge" style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background-color:#ef4444; border-radius:50%; border:2px solid #fff;"></span>
-      </button>
-
       <!-- Topbar User Profile (Dropdown Trigger) -->
       <div class="topbar-user-dropdown" ref="userMenuRef" @click="toggleUserMenu" style="position:relative; cursor:pointer; display:flex; align-items:center;">
         <span
@@ -45,11 +39,11 @@
           </div>
 
           <div class="popup-grid">
-            <button class="popup-grid-btn">
+            <button v-if="auth.isAdmin" class="popup-grid-btn" @click="() => { isUserMenuOpen = false; router.push('/usuarios') }">
               <div class="popup-grid-icon"><i class="fa-solid fa-user-group"></i></div>
               <span>Usuários</span>
             </button>
-            <button class="popup-grid-btn">
+            <button class="popup-grid-btn" @click="() => { isUserMenuOpen = false; router.push('/configuracoes') }">
               <div class="popup-grid-icon"><i class="fa-solid fa-robot"></i></div>
               <span>Config. IA</span>
             </button>

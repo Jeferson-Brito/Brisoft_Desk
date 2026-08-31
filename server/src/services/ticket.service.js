@@ -624,15 +624,19 @@ ${rendered}`,
             } catch (_) {}
           }
 
-          assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(ticket.id)), 'Falha ao registrar mensagem inicial');
+          assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(ticket.id, 'bot')), 'Falha ao registrar mensagem inicial');
 
-          await supabase.from('messages').insert({
+          const dedicatedHandoffPayload = {
             ticket_id: ticket.id,
             sender: 'system',
             type: 'divider',
-            text: `[WhatsApp] Encaminhado diretamente para a fila: ${dedicatedDept.name}`,
+            text: `[Chatbot] WhatsApp dedicado encaminhou diretamente para a fila: ${dedicatedDept.name}`,
             time: t
+          };
+          if (conversationTrackingColumnsAvailable === true) Object.assign(dedicatedHandoffPayload, {
+            sender_type: 'bot', sender_name: 'Bot', message_context: 'bot'
           });
+          await supabase.from('messages').insert(dedicatedHandoffPayload);
 
           if (whatsappService && botConfig.send_queue_confirmation) {
             try {
@@ -706,15 +710,19 @@ ${rendered}`,
            await supabase.from('tickets').update(updatePayload).eq('id', ticket.id);
            Object.assign(ticket, updatePayload);
 
-           assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(ticket.id)), 'Falha ao registrar mensagem recebida');
+           assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(ticket.id, 'bot')), 'Falha ao registrar mensagem recebida');
 
-           await supabase.from('messages').insert({
+           const dedicatedHandoffPayload = {
              ticket_id: ticket.id,
              sender: 'system',
              type: 'divider',
-             text: `[WhatsApp] Encaminhado diretamente para a fila: ${dedicatedDept.name}`,
+             text: `[Chatbot] WhatsApp dedicado encaminhou diretamente para a fila: ${dedicatedDept.name}`,
              time: t
+           };
+           if (conversationTrackingColumnsAvailable === true) Object.assign(dedicatedHandoffPayload, {
+             sender_type: 'bot', sender_name: 'Bot', message_context: 'bot'
            });
+           await supabase.from('messages').insert(dedicatedHandoffPayload);
 
            if (whatsappService && botConfig.send_queue_confirmation) {
              try {
