@@ -14,6 +14,12 @@
 
     <!-- Navigation Links (Column 1 Icons) -->
     <nav class="sidebar-nav">
+      <!-- Dashboard -->
+      <RouterLink class="nav-item" to="/" exact-active-class="active" title="Dashboard">
+        <i class="fa-solid fa-chart-pie"></i>
+        <span class="nav-label">Dashboard</span>
+      </RouterLink>
+
       <!-- Atendimentos / Inbox (Principal) -->
       <RouterLink class="nav-item" to="/atendimentos" active-class="active" title="Atendimentos / Inbox">
         <i class="fa-solid fa-inbox"></i>
@@ -33,12 +39,6 @@
       <RouterLink class="nav-item" to="/clientes" active-class="active" title="Contatos e Clientes">
         <i class="fa-regular fa-address-book"></i>
         <span class="nav-label">Contatos</span>
-      </RouterLink>
-
-      <!-- Dashboard -->
-      <RouterLink class="nav-item" to="/" exact-active-class="active" title="Dashboard">
-        <i class="fa-solid fa-chart-pie"></i>
-        <span class="nav-label">Dashboard</span>
       </RouterLink>
 
       <!-- Mensagens Rápidas -->
@@ -187,8 +187,6 @@ async function handleLogout() {
   width: 34px;
   height: 34px;
   object-fit: contain;
-  border-radius: 8px;
-  background: #1e293b;
 }
 
 .brand-wordmark {

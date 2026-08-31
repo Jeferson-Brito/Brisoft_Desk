@@ -1,24 +1,5 @@
 <template>
   <div class="table-view-layout" style="width:100%;">
-    <!-- Top Header -->
-    <div class="table-toolbar" style="margin-bottom:4px;">
-      <div>
-        <h2 style="font-size:16px;font-weight:700;margin:0;color:#1e293b;display:flex;align-items:center;gap:8px;">
-          Conversas
-          <span class="badge badge-info" style="font-size:11px;">{{ filteredHistory.length }} chamados</span>
-        </h2>
-        <p style="font-size:12px;color:#64748b;margin:2px 0 0 0;">
-          Consulte, filtre e audite todas as conversas anteriores realizadas na central.
-        </p>
-      </div>
-
-      <div style="display:flex;gap:8px;">
-        <button class="btn-secondary" title="Atualizar dados" @click="fetchHistory">
-          <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': loading }"></i> Atualizar
-        </button>
-      </div>
-    </div>
-
     <!-- Barra de Filtros Avançados -->
     <div class="card-box" style="padding:12px 16px;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
