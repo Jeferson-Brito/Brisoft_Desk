@@ -449,11 +449,12 @@ textarea:focus,
 }
 
 .atendimentos-main-grid {
-  grid-template-columns: 318px minmax(0, 1fr);
-}
-
-.atendimentos-main-grid.details-open {
-  grid-template-columns: 318px minmax(0, 1fr) 310px;
+  display: flex;
+  flex: 1;
+  height: 100vh;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .queue-column,

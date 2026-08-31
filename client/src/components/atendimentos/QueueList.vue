@@ -149,6 +149,7 @@ const filteredTickets = computed(() => {
   width: 310px;
   min-width: 310px;
   max-width: 310px;
+  flex-shrink: 0;
   background-color: #ffffff;
   border-right: 1px solid #e5e7eb;
   display: flex;

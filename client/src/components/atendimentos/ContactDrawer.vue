@@ -167,6 +167,7 @@ const waitTimeStr = computed(() => {
   width: 280px;
   min-width: 280px;
   max-width: 280px;
+  flex-shrink: 0;
   background-color: #ffffff;
   border-left: 1px solid #e5e7eb;
   display: flex;

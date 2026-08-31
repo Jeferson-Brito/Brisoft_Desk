@@ -155,6 +155,7 @@ function selectFilter(filter) {
   width: 210px;
   min-width: 210px;
   max-width: 210px;
+  flex-shrink: 0;
   background-color: #f8fafc;
   border-right: 1px solid #e5e7eb;
   display: flex;
