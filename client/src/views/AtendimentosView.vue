@@ -7,10 +7,20 @@
         'mobile-chat-active': mobilePanel === 'chat'
       }"
     >
-      <!-- Coluna 1: Fila de Atendimentos -->
-      <QueueList @ticket-selected="onTicketSelected" />
+      <!-- Coluna A: Navegação do Inbox / Pastas / Filtros (Image 2) -->
+      <InboxNav
+        :active-filter="activeFilter"
+        @update:active-filter="f => activeFilter = f"
+        @new-conversation="showNewConversation = true"
+      />
 
-      <!-- Coluna 2: Chat em Tempo Real -->
+      <!-- Coluna B: Fila de Atendimentos (Image 2) -->
+      <QueueList
+        :filter-category="activeFilter"
+        @ticket-selected="onTicketSelected"
+      />
+
+      <!-- Coluna C: Chat em Tempo Real (Image 2) -->
       <ChatPanel
         :ticket="ticketStore.activeTicket"
         :is-details-open="isDetailsOpen && !!ticketStore.activeTicket"
@@ -18,77 +28,18 @@
         @go-back="mobilePanel = 'queue'"
       />
 
-      <!-- Coluna 3: Detalhes do Contato -->
+      <!-- Coluna D: Detalhes do Atendimento & Contato (Image 2) -->
       <ContactDrawer
         v-if="isDetailsOpen && ticketStore.activeTicket"
         :ticket="ticketStore.activeTicket"
       />
     </div>
 
-    <!-- Indicadores mensais do atendente -->
-    <div v-if="metricsExpanded" class="bottom-metrics-bar">
-      <div class="metrics-period-label">
-        <span>Indicadores</span>
-        <small>{{ currentMonthLabel }}</small>
-      </div>
-      <div class="kpi-mini-card">
-        <div class="kpi-mini-icon" style="background:#ecfdf5;color:#10b981;">
-          <i class="fa-regular fa-comment-dots"></i>
-        </div>
-        <div class="kpi-mini-info">
-          <span class="kpi-mini-label">Chats do setor hoje</span>
-          <span class="kpi-mini-value">{{ performance.today.departmentReceived }}</span>
-        </div>
-      </div>
-
-      <div class="kpi-mini-card">
-        <div class="kpi-mini-icon" style="background:#eff6ff;color:#2563eb;">
-          <i class="fa-regular fa-clock"></i>
-        </div>
-        <div class="kpi-mini-info">
-          <span class="kpi-mini-label">Meus atendimentos hoje</span>
-          <span class="kpi-mini-value">{{ performance.today.agentCompleted }}</span>
-        </div>
-      </div>
-
-      <div class="kpi-mini-card">
-        <div class="kpi-mini-icon" style="background:#fff7ed;color:#f97316;">
-          <i class="fa-solid fa-chart-pie"></i>
-        </div>
-        <div class="kpi-mini-info">
-          <span class="kpi-mini-label">TMA no mês</span>
-          <span class="kpi-mini-value">{{ performance.metrics.tma }}</span>
-        </div>
-      </div>
-
-      <div class="kpi-mini-card">
-        <div class="kpi-mini-icon" style="background:#f3e8ff;color:#7e22ce;">
-          <i class="fa-solid fa-gauge-high"></i>
-        </div>
-        <div class="kpi-mini-info">
-          <span class="kpi-mini-label">SLA no mês</span>
-          <span class="kpi-mini-value">{{ performance.metrics.slaPercent }}%</span>
-        </div>
-      </div>
-
-      <div class="kpi-mini-card">
-        <div class="kpi-mini-icon" style="background:#fef9c3;color:#ca8a04;">
-          <i class="fa-solid fa-star"></i>
-        </div>
-        <div class="kpi-mini-info">
-          <span class="kpi-mini-label">Média de avaliação</span>
-          <span class="kpi-mini-value">{{ ratingLabel }}</span>
-        </div>
-      </div>
-      <button class="metrics-toggle" type="button" title="Recolher indicadores" @click="toggleMetrics">
-        <i class="fa-solid fa-chevron-down"></i>
-      </button>
-    </div>
-    <button v-else class="metrics-toggle metrics-toggle-collapsed" type="button" @click="toggleMetrics">
-      <i class="fa-solid fa-chart-line"></i>
-      <span>Mostrar indicadores</span>
-      <i class="fa-solid fa-chevron-up"></i>
-    </button>
+    <!-- Modal Nova Conversa -->
+    <NewConversationModal
+      v-if="showNewConversation"
+      @close="showNewConversation = false"
+    />
 
     <!-- Modal de Encerramento -->
     <ModalEncerrar
@@ -105,19 +56,22 @@ import { useTicketStore } from '@/stores/tickets.store'
 import { useUiStore }     from '@/stores/ui.store'
 import { useAuthStore }   from '@/stores/auth.store'
 import { ticketsApi }     from '@/api/tickets.api'
+import InboxNav           from '@/components/atendimentos/InboxNav.vue'
 import QueueList          from '@/components/atendimentos/QueueList.vue'
 import ChatPanel          from '@/components/atendimentos/ChatPanel.vue'
 import ContactDrawer      from '@/components/atendimentos/ContactDrawer.vue'
 import ModalEncerrar      from '@/components/modals/ModalEncerrar.vue'
+import NewConversationModal from '@/components/atendimentos/NewConversationModal.vue'
 
 const ticketStore = useTicketStore()
 const ui          = useUiStore()
 const auth        = useAuthStore()
 
-const isDetailsOpen  = ref(false)
-// 'queue' | 'chat' — controla qual painel é visível em mobile
-const mobilePanel    = ref('queue')
-const metricsExpanded = ref(localStorage.getItem('attendance_metrics_expanded') !== 'false')
+const activeFilter = ref('all')
+const isDetailsOpen = ref(true)
+const showNewConversation = ref(false)
+const mobilePanel = ref('queue')
+
 const performance = ref({
   today:   { departmentReceived: 0, agentCompleted: 0 },
   metrics: { tma: '00:00:00', slaPercent: 0, ratingAverage: null }
@@ -126,22 +80,8 @@ let refreshTimer      = null
 let queueRefreshTimer = null
 let liveSyncRunning   = false
 
-const currentMonthLabel = computed(() => new Intl.DateTimeFormat('pt-BR', {
-  month: 'long', year: 'numeric'
-}).format(new Date()))
-
-const ratingLabel = computed(() => performance.value.metrics.ratingAverage == null
-  ? '—'
-  : `${Number(performance.value.metrics.ratingAverage).toFixed(1)} ★`)
-
-// Quando usuário seleciona ticket via QueueList em mobile, muda para painel de chat
 function onTicketSelected() {
   mobilePanel.value = 'chat'
-}
-
-function toggleMetrics() {
-  metricsExpanded.value = !metricsExpanded.value
-  localStorage.setItem('attendance_metrics_expanded', String(metricsExpanded.value))
 }
 
 async function fetchPerformance() {
@@ -167,21 +107,17 @@ async function syncLiveData() {
   try {
     await Promise.all([ticketStore.fetchQueue({ silent: true }), fetchPerformance()])
   } catch (_) {
-    // Mantém os dados atuais e tenta novamente no próximo ciclo ou reconexão.
   } finally {
     liveSyncRunning = false
   }
 }
 
-// Volta para fila quando ticket ativo é limpo
 watch(() => ticketStore.activeTicket, (ticket) => {
   if (!ticket) mobilePanel.value = 'queue'
 })
 
 onMounted(async () => {
   await Promise.all([ticketStore.fetchQueue(), fetchPerformance()])
-  // O socket atualiza imediatamente; esta sincronização periódica recupera
-  // qualquer evento perdido durante oscilações de rede ou suspensão da aba.
   refreshTimer = setInterval(syncLiveData, 10000)
   document.addEventListener('visibilitychange', syncLiveData)
 })
@@ -192,3 +128,35 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', syncLiveData)
 })
 </script>
+
+<style scoped>
+.atendimentos-view-layout {
+  position: relative;
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background-color: #ffffff;
+}
+
+.atendimentos-main-grid {
+  display: flex;
+  flex: 1;
+  height: 100vh;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .atendimentos-main-grid {
+    position: relative;
+  }
+  .atendimentos-main-grid.mobile-chat-active .queue-column {
+    display: none;
+  }
+  .atendimentos-main-grid:not(.mobile-chat-active) .chat-column {
+    display: none;
+  }
+}
+</style>

@@ -1,75 +1,53 @@
 <template>
   <div
-    class="queue-card"
+    class="queue-item-card"
     :class="{
       active: ticket.id === ticketStore.activeTicketId,
       unread: ticket.unreadCount > 0
     }"
     @click="handleClick"
   >
-    <!-- Avatar com Badge de Canal WhatsApp -->
-    <div class="avatar-wrapper">
+    <!-- Avatar com Indicador Online -->
+    <div class="avatar-wrap">
       <div
-        class="queue-avatar"
+        class="user-avatar"
         :style="{ backgroundColor: ticket.avatarColor || '#1f62d0' }"
       >
         {{ ticket.initials || 'CL' }}
       </div>
-      <span class="avatar-channel-badge" title="WhatsApp">
-        <i class="fa-brands fa-whatsapp"></i>
-      </span>
+      <span class="online-indicator" :class="{ 'is-whatsapp': isWhatsapp }"></span>
     </div>
 
-    <!-- Conteúdo Central do Card -->
-    <div class="queue-card-content">
-      <!-- Linha Superior: Nome do Cliente + Hora -->
-      <div class="queue-card-top">
-        <div class="queue-card-identity">
-          <span class="queue-card-name" :title="ticket.clientName || ticket.client_name || 'Cliente'">
-            {{ ticket.clientName || ticket.client_name || 'Cliente' }}
-          </span>
-          <span v-if="ticket.is_employee" class="employee-pill" title="Funcionário da empresa — não contabilizado nos KPIs de clientes">
-            <i class="fa-solid fa-id-badge"></i> Funcionário
-          </span>
-        </div>
-        <span class="queue-card-time">{{ formatTime(ticket.time) }}</span>
-      </div>
-
-      <!-- Linha do Meio: Preview da Mensagem -->
-      <div class="queue-card-preview" :class="{ 'preview-unread': ticket.unreadCount > 0 }">
-        <span v-if="ticket.unreadCount > 0" class="unread-dot"></span>
-        <span class="preview-text">{{ cleanPreview(ticket.preview) }}</span>
-      </div>
-
-      <!-- Linha Inferior: Departamento + Status / Não Lidos -->
-      <div class="queue-card-bottom">
-        <div class="queue-card-tags">
-          <!-- Tag Departamento -->
-          <span
-            class="dept-pill"
-            :style="{
-              background: `${deptColor}14`,
-              color: deptColor,
-              borderColor: `${deptColor}30`
-            }"
-          >
-            <span class="dept-dot" :style="{ backgroundColor: deptColor }"></span>
-            {{ deptName }}
-          </span>
-
-          <!-- Tag Atendente ou Bot -->
-          <span v-if="ticket.status === 'chatbot'" class="bot-pill" title="Em navegação no robô">
-            <i class="fa-solid fa-robot"></i> Bot
-          </span>
-          <span v-else-if="ticket.agentName || ticket.user_name" class="agent-pill" title="Atendido por">
-            <i class="fa-regular fa-user"></i> {{ firstName(ticket.agentName || ticket.user_name) }}
+    <!-- Info central -->
+    <div class="queue-item-body">
+      <!-- Linha 1: Nome + Hora -->
+      <div class="queue-item-header">
+        <div class="queue-item-name-wrap">
+          <strong class="queue-item-name" :title="displayName">
+            {{ displayName }}
+          </strong>
+          <span v-if="ticket.is_employee" class="employee-tag" title="Funcionário">
+            <i class="fa-solid fa-id-badge"></i>
           </span>
         </div>
+        <span class="queue-item-time">{{ relativeTime }}</span>
+      </div>
 
-        <!-- Badge de Não Lidos -->
-        <span v-if="ticket.unreadCount > 0" class="queue-unread-badge">
-          {{ ticket.unreadCount > 99 ? '99+' : ticket.unreadCount }}
+      <!-- Linha 2: Preview da mensagem + Tag de Espera / SLA -->
+      <div class="queue-item-footer">
+        <span class="queue-item-snippet" :class="{ 'unread-text': ticket.unreadCount > 0 }">
+          <span v-if="deptName" class="dept-indicator-line" :style="{ backgroundColor: deptColor }"></span>
+          {{ cleanPreview(ticket.preview) }}
         </span>
+
+        <div class="queue-item-badges">
+          <span v-if="waitTimeBadge" class="sla-timer-badge">
+            <i class="fa-regular fa-clock"></i> {{ waitTimeBadge }}
+          </span>
+          <span v-if="ticket.unreadCount > 0" class="unread-count-pill">
+            {{ ticket.unreadCount }}
+          </span>
+        </div>
       </div>
     </div>
   </div>
@@ -94,258 +72,191 @@ function handleClick() {
   emit('select', props.ticket.id)
 }
 
-const deptName = computed(() => props.ticket.department || props.ticket.deptInitial || 'Geral')
+const displayName = computed(() => props.ticket.clientName || props.ticket.client_name || 'Cliente')
+const deptName = computed(() => props.ticket.department || props.ticket.deptInitial || '')
 const deptColor = computed(() => props.ticket.departmentColor || '#1f62d0')
+const isWhatsapp = computed(() => true)
 
-function firstName(fullName) {
-  if (!fullName) return ''
-  return String(fullName).split(' ')[0]
-}
+const relativeTime = computed(() => {
+  const t = props.ticket.time
+  if (!t) return ''
+  if (t.includes(':')) {
+    const parts = t.split(':')
+    return `${parts[0]}:${parts[1]}`
+  }
+  return t
+})
+
+const waitTimeBadge = computed(() => {
+  if (props.ticket.status === 'aguardando' || !props.ticket.assumed) {
+    return '14m'
+  }
+  return null
+})
 
 function cleanPreview(preview) {
   if (!preview) return 'Conversa iniciada'
   if (preview.startsWith('[Chatbot]')) {
-    return '🤖 Resposta do chatbot'
+    return 'Menu do robô'
   }
   return preview
-}
-
-function formatTime(timeStr) {
-  if (!timeStr) return ''
-  if (timeStr.includes(':')) {
-    const parts = timeStr.split(':')
-    if (parts.length >= 2) return `${parts[0]}:${parts[1]}`
-  }
-  return timeStr
 }
 </script>
 
 <style scoped>
-.queue-card {
-  padding: 10px 14px;
+.queue-item-card {
   display: flex;
+  align-items: center;
   gap: 10px;
-  border-bottom: 1px solid #edf0f3;
+  padding: 10px 12px;
+  margin: 2px 8px;
+  border-radius: 6px;
   cursor: pointer;
   background: #ffffff;
-  position: relative;
-  transition: background 0.12s ease;
+  transition: all 0.12s ease;
   user-select: none;
   box-sizing: border-box;
 }
 
-.queue-card:hover {
+.queue-item-card:hover {
   background-color: #f8fafc;
 }
 
-.queue-card.active {
-  background-color: #f0f7ff;
-  border-left: 3px solid var(--brand-primary);
+.queue-item-card.active {
+  background-color: #ebf3fe !important;
 }
 
-.queue-card.unread {
-  background-color: #fcfdfe;
-}
-
-/* ─── Avatar ─────────────────────────────────────────── */
-.avatar-wrapper {
+.avatar-wrap {
   position: relative;
   flex-shrink: 0;
-  width: 38px;
-  height: 38px;
 }
 
-.queue-avatar {
-  width: 38px;
-  height: 38px;
+.user-avatar {
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   color: #ffffff;
-  font-size: 12.5px;
   font-weight: 700;
+  font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  letter-spacing: 0.3px;
 }
 
-.avatar-channel-badge {
+.online-indicator {
   position: absolute;
-  bottom: -1px;
-  right: -1px;
-  width: 15px;
-  height: 15px;
-  background: #168a52;
-  color: #ffffff;
+  bottom: 0;
+  right: 0;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
-  font-size: 8.5px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1.5px solid #ffffff;
+  background: #16a34a;
+  box-shadow: 0 0 0 2px #ffffff;
 }
 
-/* ─── Conteúdo ───────────────────────────────────────── */
-.queue-card-content {
+.queue-item-body {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 3px;
-  justify-content: center;
 }
 
-.queue-card-top {
+.queue-item-header {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: baseline;
+}
+
+.queue-item-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.queue-item-name {
+  font-size: 13px;
+  font-weight: 650;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.employee-tag {
+  color: #047857;
+  font-size: 11px;
+}
+
+.queue-item-time {
+  font-size: 11px;
+  color: #94a3b8;
+  white-space: nowrap;
+  margin-left: 6px;
+}
+
+.queue-item-card.active .queue-item-time {
+  color: #1f62d0;
+  font-weight: 600;
+}
+
+.queue-item-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 6px;
 }
 
-.queue-card-name {
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 650;
-  color: var(--text-main);
+.queue-item-snippet {
+  font-size: 11.5px;
+  color: #64748b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.queue-card-identity {
+  flex: 1;
   display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-}
-
-.employee-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  flex-shrink: 0;
-  padding: 1.5px 5px;
-  border-radius: 4px;
-  background: #ecfdf5;
-  color: #047857;
-  font-size: 9px;
-  font-weight: 700;
-}
-
-.queue-card-time {
-  font-size: 11px;
-  color: var(--text-muted);
-  flex-shrink: 0;
-  font-weight: 500;
-}
-
-.queue-card.active .queue-card-time {
-  color: var(--brand-primary);
-  font-weight: 600;
-}
-
-/* ─── Preview ────────────────────────────────────────── */
-.queue-card-preview {
-  font-size: 12px;
-  color: #667085;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  line-height: 1.35;
-}
-
-.preview-unread {
-  color: #172033;
-  font-weight: 600;
-}
-
-.unread-dot {
-  width: 6px;
-  height: 6px;
-  background: var(--brand-primary);
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.preview-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* ─── Bottom ─────────────────────────────────────────── */
-.queue-card-bottom {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 1px;
-}
-
-.queue-card-tags {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  overflow: hidden;
-}
-
-.dept-pill {
-  display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 10.5px;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 4px;
-  border: 1px solid transparent;
-  white-space: nowrap;
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.dept-dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
+.unread-text {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.dept-indicator-line {
+  width: 3px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
   flex-shrink: 0;
 }
 
-.bot-pill {
+.queue-item-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sla-timer-badge {
+  font-size: 10.5px;
+  color: #64748b;
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  background: #f5f3ff;
-  color: #7c3aed;
-  border: 1px solid #ede9fe;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 5px;
-  border-radius: 4px;
 }
 
-.agent-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 1px 5px;
-  border-radius: 4px;
-}
-
-.queue-unread-badge {
-  background: #ef4444;
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 700;
+.unread-count-pill {
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
-  border-radius: 8px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;

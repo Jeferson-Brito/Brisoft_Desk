@@ -1,6 +1,6 @@
 <template>
   <div class="chat-column">
-    <!-- Header do Chat -->
+    <!-- Header do Chat estilo Image 2 -->
     <div v-if="ticket" class="chat-header">
       <!-- Botão Voltar (mobile) -->
       <button
@@ -11,59 +11,31 @@
       >
         <i class="fa-solid fa-chevron-left"></i>
       </button>
-      <div
-        class="chat-header-left"
-        style="cursor:pointer;"
-        title="Clique para ver os dados do contato"
-        @click="$emit('toggle-details')"
-      >
-        <div
-          class="initial-avatar"
-          id="activeChatAvatar"
-          :style="{ backgroundColor: ticket?.avatarColor || '#2563eb' }"
-        >
-          {{ ticket?.initials || 'CL' }}
-        </div>
-        <div class="chat-header-name">
-          <span id="activeChatTitle">{{ ticket?.clientName || ticket?.client_name || 'Cliente' }}</span>
-          <i
-            class="fa-solid"
-            :class="isDetailsOpen ? 'fa-chevron-up' : 'fa-chevron-down'"
-            style="font-size:11px;color:#94a3b8;transition:transform 0.2s ease;"
-          ></i>
-        </div>
-        <span v-if="ticket?.is_employee" class="employee-contact-badge" title="Funcionário da empresa — atendimento fora dos KPIs de clientes">
-          <i class="fa-solid fa-id-badge"></i>
-          Funcionário
-        </span>
-        <span v-if="handlingChannel.label" class="handling-channel-badge" :class="handlingChannel.kind">
-          <i :class="handlingChannel.icon"></i>
-          {{ handlingChannel.label }}
+
+      <!-- Título: Nome do Cliente -->
+      <div class="chat-header-title-box">
+        <h2 class="chat-contact-title">
+          {{ ticket?.clientName || ticket?.client_name || 'Cliente' }}
+        </h2>
+        <span v-if="ticket?.is_employee" class="employee-contact-badge" title="Funcionário da empresa">
+          <i class="fa-solid fa-id-badge"></i> Funcionário
         </span>
       </div>
 
-      <div class="chat-header-actions">
-        <!-- Botão Assumir -->
-        <button
-          v-if="canAssume"
-          type="button"
-          class="btn-primary"
-          :disabled="isAssuming"
-          id="btnAssumirChat"
-          style="padding:5px 12px;font-size:11.5px;display:inline-flex;align-items:center;gap:6px;"
-          @click="handleAssume"
-        >
-          <i class="fa-solid" :class="isAssuming ? 'fa-spinner fa-spin' : 'fa-hand-pointer'"></i>
-          {{ isAssuming ? 'Assumindo...' : 'Assumir' }}
-        </button>
+      <!-- Ações à Direita estilo Image 2 -->
+      <div class="chat-header-tools">
+        <!-- SLA Pill -->
+        <span class="sla-timer-pill" title="Tempo de resposta">
+          <i class="fa-regular fa-clock"></i> Responder em 14m
+        </span>
 
-        <!-- Menu Suspenso de Ações -->
-        <div v-if="ticket" class="actions-dropdown-wrapper" ref="actionsDropdownRef">
+        <!-- 3 Pontinhos Dropdown -->
+        <div class="actions-dropdown-wrapper" ref="actionsDropdownRef">
           <button
             type="button"
-            class="btn-actions-trigger"
+            class="header-tool-btn"
             :class="{ active: showActionsMenu }"
-            title="Ações do atendimento"
+            title="Mais opções"
             @click.stop="showActionsMenu = !showActionsMenu"
           >
             <i class="fa-solid fa-ellipsis-vertical"></i>
@@ -78,7 +50,6 @@
               <i class="fa-solid fa-arrow-right-arrow-left"></i>
               <span>Transferir atendimento</span>
             </button>
-
             <button
               v-if="canClose"
               type="button"
@@ -90,16 +61,58 @@
             </button>
           </div>
         </div>
-      </div>
-    </div>
 
-    <div v-if="ticket && botInteractionCount > 0" class="bot-history-toolbar">
-      <button type="button" class="bot-history-toggle" @click="showBotInteractions = !showBotInteractions">
-        <i class="fa-solid fa-robot"></i>
-        <span>{{ showBotInteractions ? 'Ocultar interação com o bot' : 'Mostrar interação com o bot' }}</span>
-        <span class="bot-history-count">{{ botInteractionCount }}</span>
-        <i class="fa-solid" :class="showBotInteractions ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-      </button>
+        <!-- Assignee Pill / Botão Assumir -->
+        <div v-if="ticket?.agent_name || ticket?.agentName" class="assignee-pill" title="Atendente responsável">
+          <span class="assignee-avatar">
+            {{ (ticket?.agent_name || ticket?.agentName || 'A').slice(0, 1).toUpperCase() }}
+          </span>
+          <span>{{ ticket?.agent_name || ticket?.agentName }}</span>
+        </div>
+        <button
+          v-else-if="canAssume"
+          type="button"
+          class="assignee-assume-btn"
+          :disabled="isAssuming"
+          id="btnAssumirChat"
+          @click="handleAssume"
+        >
+          <i class="fa-solid" :class="isAssuming ? 'fa-spinner fa-spin' : 'fa-hand-pointer'"></i>
+          <span>{{ isAssuming ? 'Assumindo...' : 'Assumir' }}</span>
+        </button>
+
+        <!-- Star Icon -->
+        <button type="button" class="header-tool-btn" title="Favoritar">
+          <i class="fa-regular fa-star"></i>
+        </button>
+
+        <!-- Snooze Icon -->
+        <button type="button" class="header-tool-btn" title="Adiar / Lembrete">
+          <i class="fa-regular fa-clock"></i>
+        </button>
+
+        <!-- Resolve / Encerrar Button (Checkmark) -->
+        <button
+          v-if="canClose"
+          type="button"
+          class="header-resolve-btn"
+          title="Encerrar atendimento"
+          @click="openClose"
+        >
+          <i class="fa-solid fa-check"></i>
+        </button>
+
+        <!-- Toggle Detalhes -->
+        <button
+          type="button"
+          class="header-tool-btn"
+          :class="{ active: isDetailsOpen }"
+          title="Detalhes do contato"
+          @click="$emit('toggle-details')"
+        >
+          <i class="fa-solid fa-gear"></i>
+        </button>
+      </div>
     </div>
 
     <!-- Mensagens do Chat -->
