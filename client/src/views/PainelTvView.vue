@@ -18,7 +18,7 @@
         <div class="tv-clock"><strong>{{ clock }}</strong><span>{{ dateLabel }}</span></div>
         <button type="button" class="tv-control" :class="{ active: audioReady }" @click="enableAudio" :title="audioReady ? 'Alertas sonoros ativos' : 'Ativar alertas sonoros'">
           <i :class="audioReady ? 'fa-solid fa-volume-high' : 'fa-solid fa-volume-xmark'"></i>
-          <span>{{ audioReady ? 'Som ativo' : 'Ativar som' }}</span>
+          <span>{{ audioReady ? 'Alarme ativo' : 'Ativar alarme' }}</span>
         </button>
         <button v-if="auth.isAdmin" type="button" class="tv-icon-btn" title="Configurar painel" @click="openSettings"><i class="fa-solid fa-sliders"></i></button>
         <button type="button" class="tv-icon-btn" title="Tela cheia" @click="toggleFullscreen"><i :class="isFullscreen ? 'fa-solid fa-compress' : 'fa-solid fa-expand'"></i></button>
@@ -110,7 +110,7 @@
       </footer>
     </template>
 
-    <div v-if="newTicketAlert" class="tv-new-ticket-alert"><i class="fa-solid fa-bell"></i><div><strong>Novo atendimento na fila</strong><span>O departamento recebeu uma nova solicitação.</span></div></div>
+    <div v-if="newTicketAlert" class="tv-new-ticket-alert"><i class="fa-solid fa-bell"></i><div><strong>Novo atendimento na fila</strong><span>Alarme acionado para o departamento.</span></div></div>
 
     <div v-if="showSettings" class="tv-modal-backdrop" @click.self="showSettings = false">
       <form class="tv-settings-modal" @submit.prevent="saveSettings">
@@ -119,7 +119,7 @@
         <label><span>Avisar quando atingir esta porcentagem do SLA</span><div class="tv-range"><input v-model.number="settings.warningSlaPercent" type="range" min="30" max="95" /><strong>{{ settings.warningSlaPercent }}%</strong></div></label>
         <label><span>Fila crítica a partir de</span><input v-model.number="settings.criticalQueueSize" type="number" min="1" max="1000" /></label>
         <label><span>Intervalo mínimo entre sons (segundos)</span><input v-model.number="settings.soundCooldownSeconds" type="number" min="3" max="120" /></label>
-        <label class="tv-switch-label"><span><strong>Alertas sonoros</strong><small>Permitir som para novos atendimentos.</small></span><input v-model="settings.soundEnabled" type="checkbox" /></label>
+        <label class="tv-switch-label"><span><strong>Alarme de novos atendimentos</strong><small>Tocar um despertador sempre que a fila aumentar.</small></span><input v-model="settings.soundEnabled" type="checkbox" /></label>
         <div class="tv-settings-actions"><button type="button" @click="showSettings = false">Cancelar</button><button type="submit" :disabled="savingSettings"><i class="fa-solid fa-floppy-disk"></i> Salvar configurações</button></div>
       </form>
     </div>
@@ -161,6 +161,9 @@ let refreshTimer = null
 let alertTimer = null
 let lastSoundAt = 0
 let wakeLock = null
+let audioContext = null
+let waitingSnapshotReady = false
+let lastWaitingCount = 0
 
 const health = computed(() => data.value?.health || { level: 'warning', label: 'Carregando', reason: 'Atualizando indicadores' })
 const realtime = computed(() => data.value?.realtime || { waiting: 0, handling: 0, oldestWait: '00:00', slaAtRisk: 0, slaBreached: 0, connectedUsers: 0, queue: [], whatsapp: {} })
@@ -194,7 +197,12 @@ async function fetchData(force = false) {
   try {
     const { data: response } = await ticketsApi.wallboard({ departmentId: selectedDepartmentId.value, force })
     if (!response.success) throw new Error(response.error || 'Não foi possível carregar o painel.')
+    const nextWaitingCount = Number(response.wallboard?.realtime?.waiting || 0)
+    const queueIncreased = waitingSnapshotReady && nextWaitingCount > lastWaitingCount
+    lastWaitingCount = nextWaitingCount
+    waitingSnapshotReady = true
     data.value = response.wallboard
+    if (queueIncreased) showNewTicket()
     error.value = ''
     serverConnected.value = true
   } catch (requestError) {
@@ -208,6 +216,8 @@ async function fetchData(force = false) {
 async function changeDepartment() {
   await router.replace({ name: 'painel_tv', query: { departmentId: selectedDepartmentId.value } })
   loading.value = true
+  waitingSnapshotReady = false
+  lastWaitingCount = 0
   await fetchData(true)
 }
 
@@ -219,36 +229,48 @@ function scheduleRefresh(force = true) {
 function showNewTicket() {
   newTicketAlert.value = true
   clearTimeout(alertTimer)
-  alertTimer = setTimeout(() => { newTicketAlert.value = false }, 5000)
+  alertTimer = setTimeout(() => { newTicketAlert.value = false }, 7000)
   playAlert()
 }
 
-function playAlert() {
+function playAlert(preview = false) {
   if (!audioReady.value || data.value?.config?.soundEnabled === false) return
   const cooldown = Number(data.value?.config?.soundCooldownSeconds || 10) * 1000
-  if (Date.now() - lastSoundAt < cooldown) return
-  lastSoundAt = Date.now()
+  if (!preview && Date.now() - lastSoundAt < cooldown) return
+  if (!preview) lastSoundAt = Date.now()
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext
-    const context = new AudioContext()
-    const tone = (frequency, start) => {
+    audioContext ||= new AudioContext()
+    const context = audioContext
+    context.resume?.().catch(() => {})
+    const tone = (frequency, start, duration = 0.28) => {
       const oscillator = context.createOscillator(); const gain = context.createGain()
       oscillator.connect(gain); gain.connect(context.destination)
       oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(frequency, start)
-      gain.gain.setValueAtTime(0.001, start); gain.gain.exponentialRampToValueAtTime(0.35, start + 0.03); gain.gain.exponentialRampToValueAtTime(0.001, start + 0.35)
-      oscillator.start(start); oscillator.stop(start + 0.36)
+      gain.gain.setValueAtTime(0.001, start)
+      gain.gain.exponentialRampToValueAtTime(0.5, start + 0.025)
+      gain.gain.setValueAtTime(0.5, start + duration - 0.05)
+      gain.gain.exponentialRampToValueAtTime(0.001, start + duration)
+      oscillator.start(start); oscillator.stop(start + duration + 0.02)
     }
-    tone(740, context.currentTime); tone(980, context.currentTime + 0.38); tone(1240, context.currentTime + 0.76)
-    setTimeout(() => context.close().catch(() => {}), 1600)
+    const cycles = preview ? 1 : 6
+    const start = context.currentTime + 0.04
+    for (let cycle = 0; cycle < cycles; cycle += 1) {
+      const offset = start + cycle * 1.05
+      tone(880, offset)
+      tone(660, offset + 0.36)
+    }
   } catch (_) {}
 }
 
 async function enableAudio() {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext
-    const context = new AudioContext(); await context.resume(); await context.close()
+    audioContext ||= new AudioContext()
+    await audioContext.resume()
     audioReady.value = true
-    ui.showToast('Alertas sonoros ativados para este painel.')
+    playAlert(true)
+    ui.showToast('Alarme ativado. Mantenha o volume da TV ligado.')
     await requestWakeLock()
   } catch (_) { ui.showToast('O navegador bloqueou o áudio. Verifique as permissões da página.', 'error') }
 }
@@ -293,8 +315,15 @@ function unbindSocket() {
 }
 function onConnect() { serverConnected.value = true; scheduleRefresh(true) }
 function onDisconnect() { serverConnected.value = false }
-function onTicketCreated({ ticket }) { if (matchesDepartment(ticket)) { if (ticket.status === 'aguardando') showNewTicket(); scheduleRefresh(true) } }
-function onTicketChanged({ ticket }) { if (matchesDepartment(ticket)) { if (ticket.status === 'aguardando') showNewTicket(); scheduleRefresh(true) } }
+function onTicketCreated({ ticket }) {
+  if (!matchesDepartment(ticket)) return
+  if (ticket.status === 'aguardando') {
+    lastWaitingCount += 1
+    showNewTicket()
+  }
+  scheduleRefresh(true)
+}
+function onTicketChanged({ ticket }) { if (matchesDepartment(ticket)) scheduleRefresh(true) }
 function onKpisUpdated() { scheduleRefresh(true) }
 function onWhatsappStatus() { scheduleRefresh(false) }
 function onFullscreenChange() { isFullscreen.value = Boolean(document.fullscreenElement) }
@@ -313,5 +342,6 @@ onBeforeUnmount(() => {
   unbindSocket(); clearInterval(clockTimer); clearInterval(pollTimer); clearTimeout(refreshTimer); clearTimeout(alertTimer)
   document.removeEventListener('fullscreenchange', onFullscreenChange); document.removeEventListener('visibilitychange', onVisibilityChange)
   wakeLock?.release?.().catch(() => {}); wakeLock = null
+  audioContext?.close?.().catch(() => {}); audioContext = null
 })
 </script>
