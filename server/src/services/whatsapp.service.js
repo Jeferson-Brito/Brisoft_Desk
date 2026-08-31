@@ -544,8 +544,10 @@ class WhatsAppService {
     fs.mkdirSync(authDir, { recursive: true });
     if (!fs.existsSync(path.join(authDir, 'creds.json'))) {
       try {
+        const restoreStartedAt = Date.now();
+        console.log(`[WhatsApp:${account.name}] restaurando sessão do armazenamento seguro...`);
         const restored = await cloudStorage.restoreSession(account.id, authDir);
-        if (restored) console.log(`[WhatsApp:${account.name}] sessão restaurada do armazenamento seguro.`);
+        if (restored) console.log(`[WhatsApp:${account.name}] sessão restaurada do armazenamento seguro (${restored} arquivos em ${((Date.now() - restoreStartedAt) / 1000).toFixed(1)}s).`);
       } catch (error) {
         console.warn(`[WhatsApp:${account.name}] não foi possível restaurar a sessão: ${error.message}`);
       }
@@ -678,6 +680,8 @@ class WhatsAppService {
         account.qrCode = null;
         account.initializing = false;
         console.log(`[WhatsApp:${account.name}] conectado${account.phone ? ` (${account.phone})` : ''}.`);
+        // Gera imediatamente o pacote único usado nos próximos deploys.
+        scheduleSessionBackup(account, 500);
         await this.saveConfigs();
         this.emitAccounts();
       }

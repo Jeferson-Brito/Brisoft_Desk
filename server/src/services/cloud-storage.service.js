@@ -1,9 +1,49 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const zlib = require('zlib');
 const { supabase, isSupabaseConfigured } = require('../config/supabase');
 
 const MEDIA_BUCKET = process.env.SUPABASE_MEDIA_BUCKET || 'chat-media';
 const SESSION_BUCKET = process.env.SUPABASE_SESSION_BUCKET || 'whatsapp-sessions';
+const SESSION_SNAPSHOT_FILE = '_session_snapshot.json.gz';
+const SESSION_CONCURRENCY = Math.max(2, Math.min(32, Number.parseInt(process.env.WHATSAPP_SESSION_STORAGE_CONCURRENCY, 10) || 12));
+
+async function mapWithConcurrency(items, concurrency, task) {
+  let cursor = 0;
+  const results = new Array(items.length);
+  async function worker() {
+    for (;;) {
+      const index = cursor++;
+      if (index >= items.length) return;
+      results[index] = await task(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
+function createSessionSnapshot(files) {
+  const normalized = files.map(file => ({ name: path.basename(file.name), data: file.buffer.toString('base64') }));
+  const serializedFiles = JSON.stringify(normalized);
+  return zlib.gzipSync(Buffer.from(JSON.stringify({
+    version: 1,
+    createdAt: new Date().toISOString(),
+    checksum: crypto.createHash('sha256').update(serializedFiles).digest('hex'),
+    files: normalized
+  })), { level: zlib.constants.Z_BEST_SPEED });
+}
+
+function parseSessionSnapshot(buffer) {
+  const snapshot = JSON.parse(zlib.gunzipSync(buffer).toString('utf8'));
+  if (snapshot?.version !== 1 || !Array.isArray(snapshot.files)) throw new Error('Formato de pacote de sessão inválido.');
+  const serializedFiles = JSON.stringify(snapshot.files);
+  const checksum = crypto.createHash('sha256').update(serializedFiles).digest('hex');
+  if (checksum !== snapshot.checksum) throw new Error('Pacote de sessão corrompido.');
+  return snapshot.files
+    .filter(file => file?.name && path.basename(file.name) === file.name && /\.json$/i.test(file.name) && typeof file.data === 'string')
+    .map(file => ({ name: file.name, buffer: Buffer.from(file.data, 'base64') }));
+}
 
 function storageEnabled() {
   return isSupabaseConfigured() && process.env.CLOUD_STORAGE_ENABLED !== 'false';
@@ -32,15 +72,29 @@ async function restoreSession(accountId, targetDir) {
     throw error;
   }
   await fs.promises.mkdir(targetDir, { recursive: true });
-  let restored = 0;
-  for (const item of data || []) {
-    if (!item.name || !item.id) continue;
-    const { data: file, error: fileError } = await supabase.storage.from(SESSION_BUCKET).download(`${prefix}/${item.name}`);
-    if (fileError || !file) continue;
-    await fs.promises.writeFile(path.join(targetDir, path.basename(item.name)), Buffer.from(await file.arrayBuffer()));
-    restored += 1;
+  const snapshotItem = (data || []).find(item => item.name === SESSION_SNAPSHOT_FILE);
+  if (snapshotItem?.id) {
+    try {
+      const { data: snapshotFile, error: snapshotError } = await supabase.storage.from(SESSION_BUCKET).download(`${prefix}/${SESSION_SNAPSHOT_FILE}`);
+      if (snapshotError || !snapshotFile) throw snapshotError || new Error('Pacote de sessão vazio.');
+      const files = parseSessionSnapshot(Buffer.from(await snapshotFile.arrayBuffer()));
+      await mapWithConcurrency(files, SESSION_CONCURRENCY, file =>
+        fs.promises.writeFile(path.join(targetDir, file.name), file.buffer)
+      );
+      return files.length;
+    } catch (error) {
+      console.warn(`Pacote rápido da sessão ${prefix} indisponível; usando restauração compatível: ${error.message}`);
+    }
   }
-  return restored;
+
+  const legacyItems = (data || []).filter(item => item.name && item.id && item.name !== SESSION_SNAPSHOT_FILE && /\.json$/i.test(item.name));
+  const restored = await mapWithConcurrency(legacyItems, SESSION_CONCURRENCY, async item => {
+    const { data: file, error: fileError } = await supabase.storage.from(SESSION_BUCKET).download(`${prefix}/${item.name}`);
+    if (fileError || !file) return 0;
+    await fs.promises.writeFile(path.join(targetDir, path.basename(item.name)), Buffer.from(await file.arrayBuffer()));
+    return 1;
+  });
+  return restored.reduce((total, value) => total + value, 0);
 }
 
 async function backupSession(accountId, sourceDir) {
@@ -58,29 +112,13 @@ async function backupSession(accountId, sourceDir) {
     }
   }
 
-  let uploaded = 0;
-  for (const snapshot of snapshots) {
-    const { error } = await supabase.storage.from(SESSION_BUCKET).upload(`${accountId}/${snapshot.name}`, snapshot.buffer, {
-      contentType: 'application/json', upsert: true, cacheControl: '0'
-    });
-    if (error) throw error;
-    uploaded += 1;
-  }
-
-  // Remove da nuvem apenas chaves temporárias que já não existem localmente.
-  // Sem isso, uma restauração futura pode ressuscitar pre-keys expiradas.
-  const currentEntries = await fs.promises.readdir(sourceDir, { withFileTypes: true });
-  const currentNames = new Set(currentEntries.filter(entry => entry.isFile() && /\.json$/i.test(entry.name)).map(entry => entry.name));
-  const { data: remoteEntries, error: listError } = await supabase.storage.from(SESSION_BUCKET).list(String(accountId), { limit: 1000 });
-  if (listError) throw listError;
-  const stalePaths = (remoteEntries || [])
-    .filter(entry => entry.name && /\.json$/i.test(entry.name) && !currentNames.has(entry.name))
-    .map(entry => `${accountId}/${entry.name}`);
-  if (stalePaths.length) {
-    const { error: removeError } = await supabase.storage.from(SESSION_BUCKET).remove(stalePaths);
-    if (removeError) throw removeError;
-  }
-  return uploaded;
+  if (!snapshots.some(snapshot => snapshot.name === 'creds.json')) return 0;
+  const packageBuffer = createSessionSnapshot(snapshots);
+  const { error } = await supabase.storage.from(SESSION_BUCKET).upload(`${accountId}/${SESSION_SNAPSHOT_FILE}`, packageBuffer, {
+    contentType: 'application/gzip', upsert: true, cacheControl: '0'
+  });
+  if (error) throw error;
+  return snapshots.length;
 }
 
 async function deleteSession(accountId) {
@@ -111,4 +149,15 @@ async function cleanupMediaOlderThan(cutoffTimestamp) {
   return removed;
 }
 
-module.exports = { MEDIA_BUCKET, SESSION_BUCKET, storageEnabled, uploadMedia, downloadMedia, restoreSession, backupSession, deleteSession, cleanupMediaOlderThan };
+module.exports = {
+  MEDIA_BUCKET,
+  SESSION_BUCKET,
+  storageEnabled,
+  uploadMedia,
+  downloadMedia,
+  restoreSession,
+  backupSession,
+  deleteSession,
+  cleanupMediaOlderThan,
+  _test: { createSessionSnapshot, parseSessionSnapshot, mapWithConcurrency, SESSION_SNAPSHOT_FILE }
+};

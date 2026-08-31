@@ -185,7 +185,17 @@ startServer().catch((error) => {
 
 async function gracefulShutdown(signal) {
   console.log(`Encerramento solicitado (${signal}). Salvando sessões...`);
-  await whatsappService.backupAllSessions().catch(() => {});
+  let backupTimeout;
+  await Promise.race([
+    whatsappService.backupAllSessions(),
+    new Promise(resolve => {
+      backupTimeout = setTimeout(() => {
+        console.warn('Tempo limite do backup final atingido; continuando o encerramento.');
+        resolve();
+      }, 7000);
+    })
+  ]).catch(error => console.warn(`Backup final incompleto: ${error.message}`));
+  clearTimeout(backupTimeout);
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(1), 10000).unref();
 }
