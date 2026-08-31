@@ -376,11 +376,9 @@ const handlingChannel = computed(() => {
   return { label: '', kind: '', icon: '' }
 })
 
-const classifiedMessages = computed(() => classifyBotInteractions(props.ticket?.messages || []))
-const botInteractionCount = computed(() => classifiedMessages.value.filter(item => item.isBotInteraction).length)
-const visibleMessages = computed(() => classifiedMessages.value
-  .filter(item => showBotInteractions.value || !item.isBotInteraction)
-  .map(item => item.message))
+const visibleMessages = computed(() => {
+  return props.ticket?.messages || []
+})
 
 function parseValidDate(val) {
   if (!val) return null

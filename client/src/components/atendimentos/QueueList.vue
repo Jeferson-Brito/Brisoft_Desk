@@ -10,12 +10,12 @@
         <button
           type="button"
           class="queue-filter-btn"
-          :class="{ active: showFilterPopover || selectedDepartment || onlyMine }"
-          title="Filtros"
+          :class="{ active: showFilterPopover || hasActiveFilters }"
+          title="Filtros e ordenação"
           @click="showFilterPopover = !showFilterPopover"
         >
           <i class="fa-solid fa-sliders"></i>
-          <span v-if="selectedDepartment || onlyMine" class="filter-dot"></span>
+          <span v-if="hasActiveFilters" class="filter-dot"></span>
         </button>
 
         <!-- Botão Nova Conversa -->
@@ -33,17 +33,38 @@
     <!-- Painel de Filtros Popover -->
     <Transition name="filter-slide">
       <div v-if="showFilterPopover" class="queue-filter-panel">
+        <!-- Ordenação -->
         <div class="filter-group">
+          <label class="filter-label">Ordenar por</label>
+          <select v-model="sortBy" class="filter-select">
+            <option value="recent">Mais recentes</option>
+            <option value="oldest">Mais antigos</option>
+          </select>
+        </div>
+
+        <!-- Filtro de Departamento (Apenas Admin ou Supervisor) -->
+        <div v-if="canFilterDepartment" class="filter-group">
           <label class="filter-label">Departamento</label>
           <select v-model="selectedDepartment" class="filter-select">
             <option value="">Todos os Departamentos</option>
-            <option v-for="d in settingsStore.departments" :key="d.id" :value="d.name">
+            <option v-for="d in allowedDepartments" :key="d.id" :value="d.name">
               {{ d.name }}
             </option>
           </select>
         </div>
 
-        <div class="filter-group">
+        <!-- Checkboxes de Filtro -->
+        <div class="filter-checkboxes-wrap">
+          <label class="filter-checkbox-label">
+            <input v-model="onlyUnread" type="checkbox" />
+            <span>Apenas não lidos</span>
+          </label>
+
+          <label class="filter-checkbox-label">
+            <input v-model="unreadFirst" type="checkbox" />
+            <span>Não lidos primeiro</span>
+          </label>
+
           <label class="filter-checkbox-label">
             <input v-model="onlyMine" type="checkbox" />
             <span>Apenas meus atendimentos</span>
@@ -51,7 +72,7 @@
         </div>
 
         <div class="filter-panel-footer">
-          <button v-if="selectedDepartment || onlyMine" type="button" class="filter-reset-btn" @click="resetFilters">
+          <button v-if="hasActiveFilters" type="button" class="filter-reset-btn" @click="resetFilters">
             <i class="fa-solid fa-xmark"></i> Limpar filtros
           </button>
           <button type="button" class="filter-close-btn" @click="showFilterPopover = false">
@@ -91,15 +112,23 @@
       </button>
     </div>
 
-    <!-- Chip de Filtro Ativo -->
-    <div v-if="selectedDepartment || onlyMine" class="queue-active-chip-bar">
+    <!-- Chips de Filtros Ativos -->
+    <div v-if="hasActiveFilters" class="queue-active-chip-bar">
       <span v-if="selectedDepartment" class="active-filter-chip">
         Setor: <strong>{{ selectedDepartment }}</strong>
         <i class="fa-solid fa-xmark" @click="selectedDepartment = ''"></i>
       </span>
+      <span v-if="onlyUnread" class="active-filter-chip">
+        Não lidos
+        <i class="fa-solid fa-xmark" @click="onlyUnread = false"></i>
+      </span>
       <span v-if="onlyMine" class="active-filter-chip">
         Apenas Meus
         <i class="fa-solid fa-xmark" @click="onlyMine = false"></i>
+      </span>
+      <span v-if="sortBy === 'oldest'" class="active-filter-chip">
+        Mais antigos
+        <i class="fa-solid fa-xmark" @click="sortBy = 'recent'"></i>
       </span>
     </div>
 
@@ -153,7 +182,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useTicketStore } from '@/stores/tickets.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -168,14 +197,47 @@ const authStore = useAuthStore()
 
 const currentTab = ref('aguardando')
 const searchTerm = ref('')
+const sortBy = ref('recent')
 const selectedDepartment = ref('')
+const onlyUnread = ref(false)
+const unreadFirst = ref(false)
 const onlyMine = ref(false)
 const showFilterPopover = ref(false)
 const showNewConversation = ref(false)
 
+onMounted(() => {
+  if (settingsStore.departments.length === 0) {
+    settingsStore.fetchDepartments()
+  }
+})
+
+const canFilterDepartment = computed(() => {
+  return authStore.isAdmin || authStore.isSupervisor
+})
+
+const allowedDepartments = computed(() => {
+  if (authStore.isAdmin) return settingsStore.departments
+  if (authStore.isSupervisor) {
+    const supervisorDepts = (authStore.departmentIds || []).map(String)
+    return settingsStore.departments.filter(d => supervisorDepts.includes(String(d.id)))
+  }
+  return []
+})
+
+const hasActiveFilters = computed(() => {
+  return Boolean(
+    selectedDepartment.value ||
+    onlyUnread.value ||
+    unreadFirst.value ||
+    onlyMine.value ||
+    sortBy.value !== 'recent'
+  )
+})
+
 const waitingCount = computed(() => {
   return (ticketStore.waitingTickets || []).filter(t => {
     if (selectedDepartment.value && (t.department || t.deptInitial) !== selectedDepartment.value) return false
+    if (onlyUnread.value && (t.unreadCount || 0) === 0) return false
     if (onlyMine.value) {
       const myId = authStore.user?.id
       if (t.agent_id !== myId && t.user_id !== myId) return false
@@ -187,6 +249,7 @@ const waitingCount = computed(() => {
 const inProgressCount = computed(() => {
   return (ticketStore.inProgressTickets || []).filter(t => {
     if (selectedDepartment.value && (t.department || t.deptInitial) !== selectedDepartment.value) return false
+    if (onlyUnread.value && (t.unreadCount || 0) === 0) return false
     if (onlyMine.value) {
       const myId = authStore.user?.id
       if (t.agent_id !== myId && t.user_id !== myId) return false
@@ -201,7 +264,17 @@ function onTicketClick(ticketId) {
 
 function resetFilters() {
   selectedDepartment.value = ''
+  onlyUnread.value = false
+  unreadFirst.value = false
   onlyMine.value = false
+  sortBy.value = 'recent'
+}
+
+function parseTicketTime(ticket) {
+  const ts = ticket.updated_at || ticket.created_at || ticket.time
+  if (!ts) return 0
+  const d = new Date(ts)
+  return isNaN(d.getTime()) ? 0 : d.getTime()
 }
 
 const filteredTickets = computed(() => {
@@ -215,6 +288,10 @@ const filteredTickets = computed(() => {
 
   if (selectedDepartment.value) {
     list = list.filter(t => (t.department || t.deptInitial) === selectedDepartment.value)
+  }
+
+  if (onlyUnread.value) {
+    list = list.filter(t => (t.unreadCount || t.unread_count || 0) > 0)
   }
 
   if (onlyMine.value) {
@@ -231,6 +308,23 @@ const filteredTickets = computed(() => {
       return name.includes(term) || phone.includes(term) || prev.includes(term)
     })
   }
+
+  // Ordenação
+  list = [...list].sort((a, b) => {
+    if (unreadFirst.value) {
+      const unreadA = (a.unreadCount || a.unread_count || 0) > 0 ? 1 : 0
+      const unreadB = (b.unreadCount || b.unread_count || 0) > 0 ? 1 : 0
+      if (unreadA !== unreadB) return unreadB - unreadA
+    }
+
+    const timeA = parseTicketTime(a)
+    const timeB = parseTicketTime(b)
+
+    if (sortBy.value === 'oldest') {
+      return timeA - timeB
+    }
+    return timeB - timeA
+  })
 
   return list
 })
@@ -363,11 +457,17 @@ const filteredTickets = computed(() => {
   border-color: #1f62d0;
 }
 
+.filter-checkboxes-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .filter-checkbox-label {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 11.5px;
   color: #334155;
   cursor: pointer;
 }

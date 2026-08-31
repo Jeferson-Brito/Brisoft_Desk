@@ -47,13 +47,22 @@ export const useTicketStore = defineStore('tickets', () => {
         queue.value = (data.tickets || []).map(t => {
           const existing = queue.value.find(current => current.id === t.id)
           const incomingMessages = t.messages || []
+          const isCurrentActive = t.id === activeTicketId.value
+          const finalUnread = isCurrentActive ? 0 : (t.unread_count ?? existing?.unreadCount ?? 0)
+
+          let messages = existing?.messages || []
+          if (incomingMessages.length > messages.length) {
+            messages = incomingMessages
+          } else if (incomingMessages.length > 0 && messages.length === 0) {
+            messages = incomingMessages
+          }
+
           return {
             ...existing,
             ...t,
-            unreadCount: t.unread_count ?? existing?.unreadCount ?? 0,
-            messages: incomingMessages.length >= (existing?.messages?.length || 0)
-              ? incomingMessages
-              : existing.messages
+            unreadCount: finalUnread,
+            unread_count: finalUnread,
+            messages
           }
         })
         // Seleciona o primeiro ticket relevante dentro dos visíveis
@@ -62,10 +71,13 @@ export const useTicketStore = defineStore('tickets', () => {
           activeTicketId.value = first?.id ?? null
         }
 
-        // Se há um ticket ativo, carrega o histórico completo de 24h em background
+        // Se há um ticket ativo, carrega o histórico completo em background
         if (activeTicketId.value) {
           const act = queue.value.find(t => t.id === activeTicketId.value)
           if (act) {
+            act.unreadCount = 0
+            act.unread_count = 0
+            ticketsApi.markAsRead(activeTicketId.value).catch(() => {})
             ticketsApi.get(activeTicketId.value).then(res => {
               if (res.data?.success && res.data.ticket?.messages) {
                 act.messages = res.data.ticket.messages
@@ -89,18 +101,29 @@ export const useTicketStore = defineStore('tickets', () => {
       removeTicket(ticket.id)
       return
     }
+    const isCurrentActive = ticket.id === activeTicketId.value
+    const finalUnread = isCurrentActive ? 0 : (ticket.unread_count ?? ticket.unreadCount ?? 0)
+
     const idx = queue.value.findIndex(t => t.id === ticket.id)
     if (idx !== -1) {
       const existing = queue.value[idx]
+      const incomingMessages = ticket.messages || []
       queue.value[idx] = {
         ...existing,
         ...ticket,
-        messages: (ticket.messages?.length ?? 0) >= (existing.messages?.length ?? 0)
-          ? ticket.messages
+        unreadCount: finalUnread,
+        unread_count: finalUnread,
+        messages: incomingMessages.length >= (existing.messages?.length ?? 0)
+          ? incomingMessages
           : existing.messages
       }
     } else {
-      queue.value.unshift({ ...ticket, unreadCount: ticket.unread_count || 0, messages: ticket.messages || [] })
+      queue.value.unshift({
+        ...ticket,
+        unreadCount: finalUnread,
+        unread_count: finalUnread,
+        messages: ticket.messages || []
+      })
     }
 
     // Se o ticket ativo atual não está mais visível para este usuário (ex: foi transferido), desseleciona imediatamente
@@ -136,8 +159,11 @@ export const useTicketStore = defineStore('tickets', () => {
     ticket.messages.push(message)
     ticket.preview = message.text || ticket.preview
     ticket.time    = message.time  || ticket.time
-    if (message.sender === 'client' && ticketId !== activeTicketId.value) {
+
+    // Apenas mensagens vindas do cliente incrementam contagem não lida se a conversa não estiver ativa
+    if (message.sender === 'client' && !message.from_me && ticketId !== activeTicketId.value) {
       ticket.unreadCount = (ticket.unreadCount || 0) + 1
+      ticket.unread_count = (ticket.unread_count || 0) + 1
     }
   }
 
@@ -158,11 +184,12 @@ export const useTicketStore = defineStore('tickets', () => {
 
   async function selectTicket(ticketId) {
     activeTicketId.value = ticketId
-    // Marca como lido
+    // Marca como lido imediatamente local e no servidor
     const ticket = queue.value.find(t => t.id === ticketId)
     if (ticket) {
       ticket.unreadCount = 0
-      // Carrega o histórico completo de 24h em background
+      ticket.unread_count = 0
+      ticketsApi.markAsRead(ticketId).catch(() => {})
       try {
         const { data } = await ticketsApi.get(ticketId)
         if (data.success && data.ticket?.messages) {
