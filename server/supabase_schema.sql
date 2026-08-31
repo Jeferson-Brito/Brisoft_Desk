@@ -232,7 +232,11 @@ ALTER TABLE tickets ADD COLUMN IF NOT EXISTS agent_name VARCHAR(255);
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS encerrado_em VARCHAR(20);
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS encerrado_por VARCHAR(255);
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS is_employee BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender VARCHAR(20);
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_type VARCHAR(20);
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR(255);
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS message_context VARCHAR(30);
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS type VARCHAR(30);
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS time VARCHAR(20);
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS remote_message_id TEXT;
@@ -245,6 +249,7 @@ ALTER TABLE ratings ADD COLUMN IF NOT EXISTS jid TEXT;
 CREATE INDEX IF NOT EXISTS tickets_department_status_idx ON tickets(department_id, status);
 CREATE INDEX IF NOT EXISTS tickets_channel_phone_status_idx ON tickets(channel, phone, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS tickets_channel_jid_status_idx ON tickets(channel, jid, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS messages_user_id_idx ON messages(user_id);
 CREATE INDEX IF NOT EXISTS messages_ticket_created_idx ON messages(ticket_id, created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS messages_whatsapp_remote_unique_idx
   ON messages(whatsapp_account_id, remote_message_id)

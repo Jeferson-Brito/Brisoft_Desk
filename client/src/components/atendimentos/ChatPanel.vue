@@ -241,6 +241,7 @@
           id="chatMessageInput"
           rows="1"
           :placeholder="chatMode === 'observacao' ? 'Digite uma observação interna (visível apenas para atendentes)...' : 'Digite sua mensagem...'"
+          @input="adjustTextareaHeight"
           @keydown.enter.exact.prevent="sendMessage"
         ></textarea>
 
@@ -487,16 +488,39 @@ function openClose() {
   ui.openModal('encerrar')
 }
 
+let resizeObserver = null
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible' && props.ticket) {
+    scrollToBottom()
+  }
+}
+
 onMounted(() => {
+  scrollToBottom()
   focusInput()
   document.addEventListener('click', handleClickOutside)
+  document.addEventListener('visibilitychange', onVisibilityChange)
   if (msgBoxRef.value) {
     msgBoxRef.value.addEventListener('scroll', onChatScroll, { passive: true })
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        if (!showScrollBottom.value) {
+          scrollToBottom()
+        }
+      })
+      resizeObserver.observe(msgBoxRef.value)
+    }
   }
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
   if (msgBoxRef.value) {
     msgBoxRef.value.removeEventListener('scroll', onChatScroll)
   }
@@ -508,7 +532,7 @@ watch(() => props.ticket?.id, () => {
   showBotInteractions.value = false
   scrollToBottom()
   focusInput()
-})
+}, { immediate: true })
 
 watch(canSend, (val) => {
   if (val) focusInput()
@@ -520,10 +544,17 @@ function setChatMode(mode) {
 }
 
 function scrollToBottom() {
-  nextTick(() => {
+  const performScroll = () => {
     if (msgBoxRef.value) {
       msgBoxRef.value.scrollTop = msgBoxRef.value.scrollHeight
     }
+  }
+
+  nextTick(() => {
+    performScroll()
+    requestAnimationFrame(performScroll)
+    setTimeout(performScroll, 40)
+    setTimeout(performScroll, 120)
   })
 }
 
@@ -752,6 +783,21 @@ async function sendMessage() {
     }
   }
 }
+
+function adjustTextareaHeight() {
+  if (!chatInputRef.value) return
+  chatInputRef.value.style.height = 'auto'
+  const newHeight = Math.min(chatInputRef.value.scrollHeight, 100)
+  chatInputRef.value.style.height = `${Math.max(22, newHeight)}px`
+}
+
+watch(inputMsg, (newVal) => {
+  if (!newVal) {
+    nextTick(() => {
+      if (chatInputRef.value) chatInputRef.value.style.height = '22px'
+    })
+  }
+})
 </script>
 
 <style scoped>
@@ -824,6 +870,104 @@ async function sendMessage() {
 
 .chat-footer {
   position: relative;
+  padding: 8px 16px 12px;
+  background: #ffffff;
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-mode-tabs {
+  display: flex;
+  gap: 14px;
+  padding: 0 2px 2px;
+}
+
+.chat-mode-btn {
+  background: none;
+  border: none;
+  padding: 0 0 4px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.chat-mode-btn.active {
+  color: var(--brand-primary, #2563eb);
+  border-bottom-color: var(--brand-primary, #2563eb);
+}
+
+.chat-input-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #d7dce2;
+  border-radius: 8px;
+  padding: 4px 6px 4px 8px;
+  min-height: 42px;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.chat-input-row:focus-within {
+  border-color: #77a4df;
+  box-shadow: 0 0 0 3px rgba(31, 98, 208, 0.08);
+}
+
+.chat-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.chat-input-actions .btn-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.12s ease;
+}
+
+.chat-input-actions .btn-icon:hover {
+  background: #f1f5f9;
+  color: var(--brand-primary, #2563eb);
+}
+
+.chat-input-actions .btn-icon.active {
+  color: var(--brand-primary, #2563eb);
+  background: #eff6ff;
+}
+
+.chat-input-row textarea {
+  flex: 1;
+  width: 100%;
+  border: none !important;
+  outline: none !important;
+  padding: 4px 8px !important;
+  font-size: 13px;
+  color: #0f172a;
+  background: transparent !important;
+  min-height: 22px !important;
+  max-height: 100px;
+  height: 22px;
+  resize: none !important;
+  font-family: inherit;
+  box-sizing: border-box;
+  line-height: 1.4;
 }
 
 .composer-popover {
@@ -907,26 +1051,27 @@ async function sendMessage() {
 }
 
 .emoji-option:hover { background: #f1f5f9; }
-.btn-icon.active { color: var(--brand-primary); background: #eff6ff; border-color: #bfdbfe; }
 
 .composer-send-btn {
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  background: var(--brand-primary);
-  border: none;
-  color: #ffffff;
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  padding: 0 !important;
+  border-radius: 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  background: var(--brand-primary, #2563eb) !important;
+  border: none !important;
+  color: #ffffff !important;
   cursor: pointer;
+  font-size: 13px !important;
   transition: background 0.15s ease;
 }
 
 .composer-send-btn:hover {
-  background: var(--brand-primary-hover);
+  background: var(--brand-primary-hover, #1d4ed8) !important;
 }
 
 .recording-status {

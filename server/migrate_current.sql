@@ -2,6 +2,7 @@
 -- Execute uma vez no SQL Editor do Supabase antes de publicar esta versão.
 
 alter table if exists public.messages
+  add column if not exists user_id uuid references public.users(id) on delete set null,
   add column if not exists media_url text,
   add column if not exists media_type text,
   add column if not exists remote_message_id text,
@@ -10,6 +11,8 @@ alter table if exists public.messages
   add column if not exists sender_type text,
   add column if not exists sender_name text,
   add column if not exists message_context text;
+
+create index if not exists messages_user_id_idx on public.messages(user_id);
 
 alter table if exists public.tickets
   add column if not exists user_id uuid references public.users(id) on delete set null,

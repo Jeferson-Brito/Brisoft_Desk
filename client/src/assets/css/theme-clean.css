@@ -613,17 +613,23 @@ textarea:focus,
 }
 
 .chat-footer {
-  padding: 10px 16px 12px !important;
+  padding: 8px 16px 10px !important;
   background: #ffffff;
   border-top: 1px solid var(--border-color);
-  gap: 8px;
+  gap: 6px;
 }
 
 .chat-input-row {
-  min-height: 44px;
-  border-radius: 7px;
+  min-height: 42px;
+  border-radius: 8px;
   border: 1px solid #d7dce2;
   background: #ffffff;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 10px;
+  box-sizing: border-box;
 }
 
 .chat-input-row:focus-within {

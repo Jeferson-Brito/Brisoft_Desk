@@ -314,54 +314,59 @@
 
 .chat-input-row {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  padding: 6px 10px 6px;
-}
-
-.chat-input-row textarea {
-  width: 100%;
-  border: none;
-  outline: none;
-  padding: 4px 2px;
-  font-size: 13px;
-  color: #0f172a;
-  background: transparent;
-  min-height: 44px;
-  resize: none;
-  font-family: inherit;
+  padding: 4px 6px 4px 10px;
+  min-height: 42px;
   box-sizing: border-box;
 }
 
-.chat-input-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 4px;
-  border-top: 1px solid #f8fafc;
+.chat-input-row textarea {
+  flex: 1;
+  width: 100%;
+  border: none;
+  outline: none;
+  padding: 4px 6px;
+  font-size: 13px;
+  color: #0f172a;
+  background: transparent;
+  min-height: 22px;
+  max-height: 100px;
+  height: 22px;
+  resize: none;
+  font-family: inherit;
+  box-sizing: border-box;
+  line-height: 1.4;
 }
 
 .chat-input-actions {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .composer-send-btn {
   background: #1f62d0;
   color: #ffffff;
   border: none;
-  border-radius: 5px;
-  padding: 5px 14px;
-  font-size: 11.5px;
+  border-radius: 6px;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  flex-shrink: 0;
   transition: background 0.15s ease;
 }
 

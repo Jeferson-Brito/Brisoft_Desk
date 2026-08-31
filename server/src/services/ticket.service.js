@@ -39,6 +39,7 @@ const MEDIA_TICKET_CACHE_MAX = 5000;
 const mediaTicketCache = new Map();
 let remoteMessageColumnsAvailable = null;
 let conversationTrackingColumnsAvailable = null;
+let messageUserIdColumnAvailable = null;
 let ticketTimingColumnsAvailable = null;
 let conversationTrackingCheckPromise = null;
 const DEPARTMENT_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -65,6 +66,10 @@ let departmentLoadPromise = null;
 let ticketBackupTimer = null;
 let kpiUpdateTimer = null;
 
+function isMissingMessageUserIdColumn(error) {
+  return error?.code === '42703' || error?.code === 'PGRST204' || /user_id/i.test(error?.message || '');
+}
+
 function isMissingRemoteMessageColumns(error) {
   return error?.code === '42703' || error?.code === 'PGRST204' || /remote_message_id|whatsapp_account_id/i.test(error?.message || '');
 }
@@ -85,16 +90,21 @@ function mergeHandledVia(current, next) {
 }
 
 async function ensureConversationTrackingColumns() {
-  if (conversationTrackingColumnsAvailable !== null) return conversationTrackingColumnsAvailable;
+  if (conversationTrackingColumnsAvailable !== null && messageUserIdColumnAvailable !== null) {
+    return conversationTrackingColumnsAvailable;
+  }
   if (!conversationTrackingCheckPromise) {
     conversationTrackingCheckPromise = Promise.all([
       supabase.from('messages').select('sender_type, sender_name, message_context').limit(1),
-      supabase.from('tickets').select('handled_via, direct_whatsapp_messages, platform_messages').limit(1)
-    ]).then(results => {
-      conversationTrackingColumnsAvailable = results.every(result => !result.error);
+      supabase.from('tickets').select('handled_via, direct_whatsapp_messages, platform_messages').limit(1),
+      supabase.from('messages').select('user_id').limit(1)
+    ]).then(([msgTracking, ticketTracking, msgUserId]) => {
+      conversationTrackingColumnsAvailable = !msgTracking?.error && !ticketTracking?.error;
+      messageUserIdColumnAvailable = !msgUserId?.error;
       return conversationTrackingColumnsAvailable;
     }).catch(() => {
       conversationTrackingColumnsAvailable = false;
+      messageUserIdColumnAvailable = false;
       return false;
     }).finally(() => {
       conversationTrackingCheckPromise = null;
@@ -250,8 +260,12 @@ async function analystParticipatedInTicket(user, ticketId) {
   if (!user || !ticketId || isAdmin(user) || isSupervisor(user)) return false;
   const queries = [];
   const validUserId = uuidOrNull(user.id);
-  if (validUserId) queries.push(supabase.from('messages').select('id').eq('ticket_id', ticketId).eq('user_id', validUserId).limit(1).maybeSingle());
-  if (user.name) queries.push(supabase.from('messages').select('id').eq('ticket_id', ticketId).eq('sender_name', user.name).limit(1).maybeSingle());
+  if (validUserId && messageUserIdColumnAvailable !== false) {
+    queries.push(supabase.from('messages').select('id').eq('ticket_id', ticketId).eq('user_id', validUserId).limit(1).maybeSingle());
+  }
+  if (user.name) {
+    queries.push(supabase.from('messages').select('id').eq('ticket_id', ticketId).eq('sender_name', user.name).limit(1).maybeSingle());
+  }
   const results = await Promise.all(queries);
   return results.some(result => !result.error && Boolean(result.data));
 }
@@ -1750,8 +1764,12 @@ ${rendered}`,
         // mensagem pelo sistema continua autorizado a consultar o histórico.
         const participationQueries = [];
         const validUserId = uuidOrNull(user?.id);
-        if (validUserId) participationQueries.push(supabase.from('messages').select('ticket_id').eq('user_id', validUserId).order('created_at', { ascending: false }).limit(500));
-        if (user?.name) participationQueries.push(supabase.from('messages').select('ticket_id').eq('sender_name', user.name).order('created_at', { ascending: false }).limit(500));
+        if (validUserId && messageUserIdColumnAvailable !== false) {
+          participationQueries.push(supabase.from('messages').select('ticket_id').eq('user_id', validUserId).order('created_at', { ascending: false }).limit(500));
+        }
+        if (user?.name) {
+          participationQueries.push(supabase.from('messages').select('ticket_id').eq('sender_name', user.name).order('created_at', { ascending: false }).limit(500));
+        }
         const participationResults = await Promise.all(participationQueries);
         participatedTicketIds = new Set(participationResults.flatMap(result => result.error ? [] : (result.data || []).map(item => String(item.ticket_id))));
 
@@ -2046,14 +2064,25 @@ ${rendered}`,
       }
 
       if (shouldRecordStart) {
-        assertSupabase(await supabase.from('messages').insert({
+        const startMessagePayload = {
           ticket_id: ticket.id,
           sender: 'system',
           type: 'divider',
           text: `💬 Conversa iniciada por *${currentUser.name || 'Atendente'}*`,
-          time,
-          user_id: uuidOrNull(currentUser.id)
-        }), 'Falha ao registrar início da conversa');
+          time
+        };
+        if (messageUserIdColumnAvailable !== false && currentUser?.id) {
+          startMessagePayload.user_id = uuidOrNull(currentUser.id);
+        }
+        let startMsgResult = await supabase.from('messages').insert(startMessagePayload);
+        if (startMsgResult.error && isMissingMessageUserIdColumn(startMsgResult.error)) {
+          messageUserIdColumnAvailable = false;
+          delete startMessagePayload.user_id;
+          startMsgResult = await supabase.from('messages').insert(startMessagePayload);
+        } else if (!startMsgResult.error && startMessagePayload.user_id) {
+          messageUserIdColumnAvailable = true;
+        }
+        assertSupabase(startMsgResult, 'Falha ao registrar início da conversa');
       }
 
       const fullTicket = await this.getFullTicket(ticket.id);
@@ -2094,20 +2123,50 @@ ${rendered}`,
         const agentMessagePayload = {
           ticket_id: ticket.id,
           sender: 'agent',
-          user_id: uuidOrNull(currentUser.id),
           text: formattedText,
           time: t,
           remote_message_id: sent?.key?.id || null,
           whatsapp_account_id: accountId || null
         };
-        if (conversationTrackingColumnsAvailable === true) Object.assign(agentMessagePayload, {
-          sender_type: 'platform', sender_name: agentName, message_context: 'service'
-        });
-        const messageResult = await supabase
+        if (messageUserIdColumnAvailable !== false && currentUser?.id) {
+          agentMessagePayload.user_id = uuidOrNull(currentUser.id);
+        }
+        if (conversationTrackingColumnsAvailable === true) {
+          Object.assign(agentMessagePayload, {
+            sender_type: 'platform',
+            sender_name: agentName,
+            message_context: 'service'
+          });
+        }
+        let messageResult = await supabase
           .from('messages')
           .insert(agentMessagePayload)
           .select()
           .single();
+        if (messageResult.error && (isMissingMessageUserIdColumn(messageResult.error) || isMissingConversationTrackingColumns(messageResult.error) || isMissingRemoteMessageColumns(messageResult.error))) {
+          if (isMissingMessageUserIdColumn(messageResult.error)) {
+            messageUserIdColumnAvailable = false;
+            delete agentMessagePayload.user_id;
+          }
+          if (isMissingConversationTrackingColumns(messageResult.error)) {
+            conversationTrackingColumnsAvailable = false;
+            delete agentMessagePayload.sender_type;
+            delete agentMessagePayload.sender_name;
+            delete agentMessagePayload.message_context;
+          }
+          if (isMissingRemoteMessageColumns(messageResult.error)) {
+            remoteMessageColumnsAvailable = false;
+            delete agentMessagePayload.remote_message_id;
+            delete agentMessagePayload.whatsapp_account_id;
+          }
+          messageResult = await supabase
+            .from('messages')
+            .insert(agentMessagePayload)
+            .select()
+            .single();
+        } else if (!messageResult.error && agentMessagePayload.user_id) {
+          messageUserIdColumnAvailable = true;
+        }
         const savedMsg = assertSupabase(messageResult, 'Falha ao salvar mensagem');
 
         ticket.preview = `Você: ${text.slice(0, 40)}`;
@@ -2203,12 +2262,14 @@ ${rendered}`,
 
       const now = new Date();
       const formattedText = `*${agentName}:*${caption ? `\n\n${caption}` : ''}`;
-      const messagePromise = supabase.from('messages').insert({
+      const outgoingMediaPayload = {
         ticket_id: ticket.id,
         sender: 'agent',
-        user_id: uuidOrNull(currentUser.id),
+        ...(messageUserIdColumnAvailable !== false && currentUser?.id ? { user_id: uuidOrNull(currentUser.id) } : {}),
         ...(conversationTrackingColumnsAvailable === true ? {
-          sender_type: 'platform', sender_name: agentName, message_context: 'service'
+          sender_type: 'platform',
+          sender_name: agentName,
+          message_context: 'service'
         } : {}),
         type: mediaType,
         text: formattedText,
@@ -2218,7 +2279,29 @@ ${rendered}`,
         file_name: displayName,
         remote_message_id: sent?.key?.id || null,
         whatsapp_account_id: accountId || null
-      }).select().single();
+      };
+      let messageResult = await supabase.from('messages').insert(outgoingMediaPayload).select().single();
+      if (messageResult.error && (isMissingMessageUserIdColumn(messageResult.error) || isMissingConversationTrackingColumns(messageResult.error) || isMissingRemoteMessageColumns(messageResult.error))) {
+        if (isMissingMessageUserIdColumn(messageResult.error)) {
+          messageUserIdColumnAvailable = false;
+          delete outgoingMediaPayload.user_id;
+        }
+        if (isMissingConversationTrackingColumns(messageResult.error)) {
+          conversationTrackingColumnsAvailable = false;
+          delete outgoingMediaPayload.sender_type;
+          delete outgoingMediaPayload.sender_name;
+          delete outgoingMediaPayload.message_context;
+        }
+        if (isMissingRemoteMessageColumns(messageResult.error)) {
+          remoteMessageColumnsAvailable = false;
+          delete outgoingMediaPayload.remote_message_id;
+          delete outgoingMediaPayload.whatsapp_account_id;
+        }
+        messageResult = await supabase.from('messages').insert(outgoingMediaPayload).select().single();
+      } else if (!messageResult.error && outgoingMediaPayload.user_id) {
+        messageUserIdColumnAvailable = true;
+      }
+      const savedMessage = assertSupabase(messageResult, 'Falha ao salvar mídia enviada');
       const preview = caption || ({ audio: '🎙️ Áudio', image: '📷 Imagem', video: '🎥 Vídeo', document: `📄 ${displayName}` }[mediaType]);
       const updatePayload = {
         preview,
@@ -2228,8 +2311,6 @@ ${rendered}`,
         handled_via: mergeHandledVia(ticket.handled_via, 'platform'),
         platform_messages: (ticket.platform_messages || 0) + 1
       };
-      const messageResult = await messagePromise;
-      const savedMessage = assertSupabase(messageResult, 'Falha ao salvar mídia enviada');
       let ticketUpdateResult = await supabase.from('tickets').update(updatePayload).eq('id', ticket.id);
       if (ticketUpdateResult.error && isMissingConversationTrackingColumns(ticketUpdateResult.error)) {
         conversationTrackingColumnsAvailable = false;
@@ -2636,6 +2717,17 @@ ${rendered}`,
 }
 
 const ticketService = new TicketService();
-ticketService._test = { mergeHandledVia, preferredWhatsAppJid, phoneFromWhatsAppIdentity, makeTimeStr, APP_TIME_ZONE, historyTicketVisibleToUser, selectOutboundWhatsAppAccount };
+ticketService._test = {
+  mergeHandledVia,
+  preferredWhatsAppJid,
+  phoneFromWhatsAppIdentity,
+  makeTimeStr,
+  APP_TIME_ZONE,
+  historyTicketVisibleToUser,
+  selectOutboundWhatsAppAccount,
+  isMissingMessageUserIdColumn,
+  isMissingConversationTrackingColumns,
+  isMissingRemoteMessageColumns
+};
 
 module.exports = ticketService;
