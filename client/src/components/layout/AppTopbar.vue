@@ -1,5 +1,16 @@
 <template>
   <header class="topbar">
+    <!-- Hambúrguer (visível apenas em mobile via CSS) -->
+    <button
+      class="topbar-hamburger"
+      style="display:none;"
+      title="Abrir menu"
+      aria-label="Abrir menu lateral"
+      @click="sidebar.toggle()"
+    >
+      <i class="fa-solid fa-bars"></i>
+    </button>
+
     <div class="topbar-left">
       <h1 class="page-title" id="pageTitle">{{ pageTitle }}</h1>
       <p v-if="pageSubtitle" class="page-subtitle" id="pageSubtitle">{{ pageSubtitle }}</p>
@@ -39,15 +50,17 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useAuthStore }  from '@/stores/auth.store'
-import { useUiStore }    from '@/stores/ui.store'
-import { useSocket }     from '@/composables/useSocket'
+import { useAuthStore }    from '@/stores/auth.store'
+import { useUiStore }      from '@/stores/ui.store'
+import { useSidebarStore } from '@/stores/sidebar.store'
+import { useSocket }       from '@/composables/useSocket'
 
-const auth   = useAuthStore()
-const ui     = useUiStore()
-const router = useRouter()
-const route  = useRoute()
-const socket = useSocket()
+const auth    = useAuthStore()
+const ui      = useUiStore()
+const sidebar = useSidebarStore()
+const router  = useRouter()
+const route   = useRoute()
+const socket  = useSocket()
 
 const isOnline = ref(true)
 
@@ -58,7 +71,7 @@ const VIEW_META = {
   historico:         { title: 'Conversas',                subtitle: 'Consulte e acompanhe conversas anteriores.' },
   clientes:          { title: 'Clientes',                subtitle: 'Gerencie e visualize informações dos seus clientes.' },
   mensagens_rapidas: { title: 'Mensagens rápidas',       subtitle: 'Crie e gerencie mensagens prontas.' },
-  avaliacoes:        { title: 'Avaliações',              subtitle: 'Satisfação dos clientes e desempenho da equipe.' },
+  desempenho:        { title: 'Desempenho',              subtitle: 'Indicadores mensais dos atendentes e departamentos.' },
   configuracoes:     { title: 'Configurações',           subtitle: 'Gerencie as configurações gerais da plataforma.' }
 }
 

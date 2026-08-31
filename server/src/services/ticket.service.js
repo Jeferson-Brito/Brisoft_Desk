@@ -5,10 +5,24 @@
 const { supabase, isSupabaseConfigured } = require('../config/supabase');
 const fs = require('fs');
 const path = require('path');
+const { isAdmin, isSupervisor, departmentIds, canAccessDepartment } = require('./access-control.service');
 const crypto = require('crypto');
 const { getBotConfig, renderBotMessage, departmentOptions } = require('./bot-config.service');
-const { normalizeBotInput, matchesCustomerCancellation } = require('./bot-intent.service');
+const {
+  normalizeBotInput,
+  matchesCustomerCancellation,
+  matchesHumanHandoff,
+  matchesMenuRequest,
+  matchesNewServiceRequest,
+  matchesExternalClosureMessage,
+  resolveDepartmentIntent,
+  resolveNameConfirmation,
+  resolveResumeChoice,
+  messageWasSentBeforePrompt,
+  whatsappTimestampMs
+} = require('./bot-intent.service');
 const { normalizeOutgoingMedia } = require('./media-transcode.service');
+const cloudStorage = require('./cloud-storage.service');
 const {
   isGeneratedCustomerName,
   extractAndValidateName,
@@ -24,6 +38,9 @@ const MEDIA_DIR = path.join(__dirname, '../../public/media');
 const MEDIA_TICKET_CACHE_MAX = 5000;
 const mediaTicketCache = new Map();
 let remoteMessageColumnsAvailable = null;
+let conversationTrackingColumnsAvailable = null;
+let ticketTimingColumnsAvailable = null;
+let conversationTrackingCheckPromise = null;
 const DEPARTMENT_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_DEPARTMENTS = Object.freeze([
   { id: '1', name: 'B3 Eletrônica' },
@@ -43,6 +60,40 @@ let kpiUpdateTimer = null;
 
 function isMissingRemoteMessageColumns(error) {
   return error?.code === '42703' || error?.code === 'PGRST204' || /remote_message_id|whatsapp_account_id/i.test(error?.message || '');
+}
+
+function isMissingConversationTrackingColumns(error) {
+  return error?.code === '42703' || error?.code === 'PGRST204' || /sender_type|sender_name|message_context|handled_via|direct_whatsapp_messages|platform_messages/i.test(error?.message || '');
+}
+
+function isMissingTicketTimingColumns(error) {
+  return error?.code === '42703' || error?.code === 'PGRST204' || /assumed_at|first_response_at|started_at|finished_at|sla_minutes_target|sla_met/i.test(error?.message || '');
+}
+
+function mergeHandledVia(current, next) {
+  const normalized = String(current || 'pending').toLowerCase();
+  if (normalized === 'mixed' || normalized === next) return normalized;
+  if (normalized === 'pending' || !normalized) return next;
+  return 'mixed';
+}
+
+async function ensureConversationTrackingColumns() {
+  if (conversationTrackingColumnsAvailable !== null) return conversationTrackingColumnsAvailable;
+  if (!conversationTrackingCheckPromise) {
+    conversationTrackingCheckPromise = Promise.all([
+      supabase.from('messages').select('sender_type, sender_name, message_context').limit(1),
+      supabase.from('tickets').select('handled_via, direct_whatsapp_messages, platform_messages').limit(1)
+    ]).then(results => {
+      conversationTrackingColumnsAvailable = results.every(result => !result.error);
+      return conversationTrackingColumnsAvailable;
+    }).catch(() => {
+      conversationTrackingColumnsAvailable = false;
+      return false;
+    }).finally(() => {
+      conversationTrackingCheckPromise = null;
+    });
+  }
+  return conversationTrackingCheckPromise;
 }
 
 async function wasRemoteMessageProcessed(whatsappAccountId, messageId) {
@@ -125,6 +176,16 @@ function makeTimeStr(date) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+function preferredWhatsAppJid(phone, fallbackJid = '') {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length >= 10 && digits.length <= 15) return `${digits}@s.whatsapp.net`;
+  return String(fallbackJid || '');
+}
+
+function uuidOrNull(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '')) ? value : null;
+}
+
 function safeUploadedFileName(value) {
   const decoded = String(value || 'arquivo').trim();
   const extension = path.extname(decoded).replace(/[^a-zA-Z0-9.]/g, '').slice(0, 12);
@@ -134,16 +195,21 @@ function safeUploadedFileName(value) {
 
 function canUserAccessTicket(user, ticket) {
   if (!user || !ticket) return false;
-  if (user.role === 'Administrador') return true;
+  if (isAdmin(user)) return true;
+  if (isSupervisor(user)) return departmentIds(user).includes(String(ticket.department_id || ''));
   return Boolean(
     (ticket.agent_name && ticket.agent_name === user.name) ||
-    (ticket.department_id && ticket.department_id === user.department_id) ||
+    (ticket.department_id && String(ticket.department_id) === String(user.department_id)) ||
     (ticket.department && user.department && ticket.department.toLowerCase() === user.department.toLowerCase())
   );
 }
 
 function scopeTicketQuery(query, user) {
-  if (!user || user.role === 'Administrador') return query;
+  if (!user || isAdmin(user)) return query;
+  if (isSupervisor(user)) {
+    const ids = departmentIds(user);
+    return ids.length ? query.in('department_id', ids) : query.is('id', null);
+  }
   const filters = [];
   if (user.name) filters.push(`agent_name.eq.${user.name}`);
   if (user.department_id) filters.push(`department_id.eq.${user.department_id}`);
@@ -192,11 +258,13 @@ class TicketService {
     const phone = (rawPhone && rawPhone !== 'undefined' && rawPhone !== 'null')
       ? String(rawPhone).replace(/\D/g, '')
       : String(targetJid).replace('@lid', '').replace('@s.whatsapp.net', '').replace(/:\d+$/, '').replace(/\D/g, '');
+    const outboundJid = preferredWhatsAppJid(phone, targetJid);
     const whatsappChannel = whatsappAccountId ? `whatsapp:${whatsappAccountId}` : 'whatsapp';
     let cleanName = senderName || (phone ? `Cliente ${phone.slice(-4)}` : 'Cliente');
     console.log(`Processando mensagem de ${cleanName} | Tel: ${phone} | JID: ${targetJid}`);
     if (!isSupabaseConfigured()) return null;
     try {
+      await ensureConversationTrackingColumns();
       if (await wasRemoteMessageProcessed(whatsappAccountId, msgData.messageId)) {
         console.log(`[WhatsApp:${whatsappAccountId}] mensagem duplicada ignorada (${msgData.messageId}).`);
         return { type: 'duplicate', messageId: msgData.messageId };
@@ -207,6 +275,7 @@ class TicketService {
       const deptList = await getCachedDepartments();
 
       const botConfig = await getBotConfig();
+      let forceDepartmentMenu = false;
       const knownContact = await findContactByPhone(phone);
       const needsCustomerName = !knownContact || isGeneratedCustomerName(knownContact.name);
       if (knownContact?.name && !isGeneratedCustomerName(knownContact.name)) cleanName = knownContact.name;
@@ -225,22 +294,34 @@ class TicketService {
       const sendBotText = async (ticketId, template, extra = {}) => {
         const rendered = renderBotMessage(template, botVariables(extra)).trim();
         if (!rendered || !whatsappService) return false;
-        const sent = await whatsappService.sendMessage(targetJid, rendered);
+        const sent = await whatsappService.sendMessage(outboundJid, rendered);
         if (sent && ticketId) {
-          const result = await supabase.from('messages').insert({
+          const botMessagePayload = {
             ticket_id: ticketId,
             sender: 'bot',
             text: `*Bot:*
 
 ${rendered}`,
-            time: makeTimeStr(new Date())
+            time: makeTimeStr(new Date()),
+            remote_message_id: sent?.key?.id || null,
+            whatsapp_account_id: whatsappAccountId || null
+          };
+          if (conversationTrackingColumnsAvailable === true) Object.assign(botMessagePayload, {
+            sender_type: 'bot', sender_name: 'Bot', message_context: 'bot'
           });
+          const result = await supabase.from('messages').insert(botMessagePayload);
           if (result.error) console.warn(`Falha ao registrar mensagem enviada pelo bot: ${result.error.message}`);
         }
         return sent;
       };
-      const incomingMessagePayload = ticketId => {
+      const incomingMessagePayload = (ticketId, messageContext = 'service') => {
         const payload = { ticket_id: ticketId, sender: 'client', text, time: t };
+        if (conversationTrackingColumnsAvailable === true) {
+          payload.sender_type = 'customer';
+          payload.message_context = messageContext;
+        }
+        const messageTimestamp = whatsappTimestampMs(msgData.timestamp);
+        if (messageTimestamp) payload.created_at = new Date(messageTimestamp).toISOString();
         if (msgData.mediaType) payload.type = msgData.mediaType;
         if (remoteMessageColumnsAvailable === true) {
           payload.remote_message_id = msgData.messageId || null;
@@ -279,13 +360,17 @@ ${rendered}`,
       };
       const botStatePrefix = '[Chatbot][State] ';
       const saveBotState = async (ticketId, state) => {
-        assertSupabase(await supabase.from('messages').insert({
+        const statePayload = {
           ticket_id: ticketId,
           sender: 'system',
           type: 'divider',
           text: `${botStatePrefix}${JSON.stringify(state)}`,
           time: t
-        }), 'Falha ao registrar estado do bot');
+        };
+        if (conversationTrackingColumnsAvailable === true) Object.assign(statePayload, {
+          sender_type: 'bot', sender_name: 'Bot', message_context: 'bot'
+        });
+        assertSupabase(await supabase.from('messages').insert(statePayload), 'Falha ao registrar estado do bot');
       };
       const getLatestBotState = async ticketId => {
         const { data, error } = await supabase
@@ -300,7 +385,7 @@ ${rendered}`,
         try { return JSON.parse(data.text.slice(botStatePrefix.length)); } catch (_) { return null; }
       };
       const askForCustomerName = async (targetTicket, attempt = 1, template = botConfig.ask_customer_name_message) => {
-        await saveBotState(targetTicket.id, { step: 'awaiting_name', attempt });
+        await saveBotState(targetTicket.id, { step: 'awaiting_name', attempt, promptedAt: new Date().toISOString() });
         await sendBotText(targetTicket.id, template, { tentativa: attempt, limite: botConfig.customer_name_attempt_limit });
         return { type: 'chatbot_asking_name', ticket: targetTicket };
       };
@@ -319,8 +404,13 @@ ${rendered}`,
           if (!result.error && result.data?.department) lastClosedTicket = result.data;
         } catch (_) {}
 
-        if (botConfig.resume_recent_enabled && lastClosedTicket) {
+        if (!forceDepartmentMenu && botConfig.resume_recent_enabled && lastClosedTicket) {
           const previousDepartment = lastClosedTicket.department;
+          await saveBotState(targetTicket.id, {
+            step: 'awaiting_resume',
+            department: previousDepartment,
+            promptedAt: new Date().toISOString()
+          });
           assertSupabase(await supabase.from('messages').insert({
             ticket_id: targetTicket.id,
             sender: 'system',
@@ -333,6 +423,7 @@ ${rendered}`,
         }
 
         if (deptList.length > 0) {
+          await saveBotState(targetTicket.id, { step: 'awaiting_department', promptedAt: new Date().toISOString() });
           await sendBotText(targetTicket.id, botConfig.greeting_message, { opcoes: botConfig.show_department_menu ? optionsText : '' });
         }
         return { type: 'chatbot_greeting', ticket: targetTicket };
@@ -341,7 +432,8 @@ ${rendered}`,
       // 1. Verifica se o cliente já possui um ticket ATIVO (chatbot, aguardando ou em_atendimento)
       const lookupConditions = [
         `phone.eq.${phone}`,
-        `jid.eq.${from}`
+        `jid.eq.${from}`,
+        `jid.eq.${outboundJid}`
       ];
       if (rawJid && rawJid !== from) {
         lookupConditions.push(`raw_jid.eq.${rawJid}`);
@@ -363,10 +455,11 @@ ${rendered}`,
         .limit(1)
         .maybeSingle();
 
-      if (ticket && phone && phone.length <= 13 && ticket.phone !== phone) {
-        await supabase.from('tickets').update({ phone, jid: from }).eq('id', ticket.id);
+      if (ticket && phone && phone.length <= 15 && (ticket.phone !== phone || ticket.jid !== outboundJid || ticket.raw_jid !== rawJid)) {
+        await supabase.from('tickets').update({ phone, jid: outboundJid, raw_jid: rawJid || from }).eq('id', ticket.id);
         ticket.phone = phone;
-        ticket.jid = from;
+        ticket.jid = outboundJid;
+        ticket.raw_jid = rawJid || from;
         if (ticket.contact_id) {
           await supabase.from('contacts').update({ phone }).eq('id', ticket.contact_id);
         }
@@ -380,6 +473,29 @@ ${rendered}`,
         };
         const result = await supabase.from('tickets').update(updatedIdentity).eq('id', ticket.id);
         if (!result.error) Object.assign(ticket, updatedIdentity);
+      }
+
+      // Uma conversa atendida pelo celular permanece humana enquanto estiver
+      // ativa. Ela volta ao bot somente por encerramento, inatividade ou quando
+      // o próprio cliente pede explicitamente um novo atendimento/menu.
+      const isExternalHumanTicket = ticket && ticket.status === 'em_atendimento'
+        && (['whatsapp_device', 'mixed'].includes(ticket.handled_via) || String(ticket.agent_name || '').startsWith('WhatsApp ('));
+      if (isExternalHumanTicket) {
+        const inactiveForMs = Date.now() - new Date(ticket.updated_at || ticket.created_at || now).getTime();
+        const expired = botConfig.auto_close_external_service
+          && inactiveForMs >= botConfig.external_service_idle_minutes * 60 * 1000;
+        const requestedRestart = matchesNewServiceRequest(text, botConfig.restart_service_keywords);
+        if (expired || requestedRestart) {
+          forceDepartmentMenu = requestedRestart;
+          await this.finalizeExternalTicket(ticket, {
+            io,
+            whatsappService,
+            botConfig,
+            sendRating: false,
+            reason: requestedRestart ? 'Novo atendimento solicitado pelo cliente' : 'Inatividade no WhatsApp'
+          });
+          ticket = null;
+        }
       }
 
       // 2. Se NÃO houver ticket ativo, verifica se é uma resposta de avaliação (1 a 5) para um ticket finalizado
@@ -474,7 +590,7 @@ ${rendered}`,
             client_name: cleanName,
             initials: cleanName.substring(0, 2).toUpperCase(),
             phone,
-            jid: from,
+            jid: outboundJid,
             raw_jid: rawJid,
             time: t,
             preview: text.slice(0, 50),
@@ -531,7 +647,7 @@ ${rendered}`,
           client_name: cleanName,
           initials: cleanName.substring(0, 2).toUpperCase(),
           phone,
-          jid: from,
+          jid: outboundJid,
           raw_jid: rawJid,
           time: t,
           preview: text.slice(0, 50),
@@ -555,12 +671,12 @@ ${rendered}`,
 
         if (!botConfig.enabled) return routeWithoutBot(ticket, text);
 
-        assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(ticket.id)), 'Falha ao registrar mensagem inicial');
+        assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(ticket.id, 'bot')), 'Falha ao registrar mensagem inicial');
 
         if (botConfig.collect_customer_name && needsCustomerName) return askForCustomerName(ticket);
         return startDepartmentRouting(ticket);
       }
-      
+
       // Processa resposta ao Chatbot
       if (ticket.status === 'chatbot') {
          const isDedicated = whatsappRoutingMode === 'department' && Boolean(whatsappDepartmentId);
@@ -609,12 +725,18 @@ ${rendered}`,
 
          if (!botConfig.enabled) return routeWithoutBot(ticket, text);
          const cleanText = text.trim();
-         const cleanLower = normalizeBotInput(cleanText);
+         assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(ticket.id, 'bot')), 'Falha ao registrar resposta ao bot');
 
-         assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(ticket.id)), 'Falha ao registrar resposta ao bot');
-
-         const nameState = await getLatestBotState(ticket.id);
-         const normalizeKeyword = normalizeBotInput;
+         const botState = await getLatestBotState(ticket.id);
+         const arrivedBeforePrompt = state => messageWasSentBeforePrompt(
+           msgData.timestamp,
+           state?.promptedAt,
+           botConfig.rapid_message_grace_seconds
+         );
+         const ignoreEarlyMessage = state => {
+           console.log(`[Chatbot] Mensagem recebida antes do prompt foi preservada e não contou como erro (ticket ${ticket.id}, etapa ${state?.step || 'desconhecida'}).`);
+           return { type: 'chatbot_early_message_ignored', ticket };
+         };
 
          // Verifica se o cliente solicitou cancelamento/encerramento do atendimento
          if (botConfig.allow_customer_cancel && matchesCustomerCancellation(cleanText, botConfig.cancel_keywords)) {
@@ -653,8 +775,7 @@ ${rendered}`,
            return { type: 'customer_cancelled', ticket };
          }
 
-         const humanKeywords = botConfig.human_handoff_keywords.split(',').map(normalizeKeyword).filter(Boolean);
-         if (botConfig.human_handoff_enabled && humanKeywords.some(keyword => cleanLower === keyword || cleanLower.includes(keyword))) {
+         if (botConfig.human_handoff_enabled && matchesHumanHandoff(cleanText, botConfig.human_handoff_keywords)) {
            return routeWithoutBot(ticket, text, false, botConfig.human_handoff_message);
          }
 
@@ -663,10 +784,11 @@ ${rendered}`,
            return { type: 'chatbot_media_blocked', ticket };
          }
          if (msgData.mediaType) {
+           if (arrivedBeforePrompt(botState)) return ignoreEarlyMessage(botState);
            try {
-             if (botConfig.collect_customer_name && nameState?.step === 'confirming_name') {
-               await sendBotText(ticket.id, botConfig.confirm_customer_name_message, { nome: nameState.candidate });
-             } else if (botConfig.collect_customer_name && nameState?.step === 'awaiting_name') {
+             if (botConfig.collect_customer_name && botState?.step === 'confirming_name') {
+               await sendBotText(ticket.id, botConfig.confirm_customer_name_message, { nome: botState.candidate });
+             } else if (botConfig.collect_customer_name && botState?.step === 'awaiting_name') {
                await sendBotText(ticket.id, botConfig.ask_customer_name_message);
              } else {
                await sendBotText(ticket.id, botConfig.greeting_message, { opcoes: botConfig.show_department_menu ? optionsText : '' });
@@ -676,10 +798,11 @@ ${rendered}`,
          }
 
          // Fluxo de coleta de nome — só entra se a opção estiver ativada
-         if (botConfig.collect_customer_name && nameState?.step === 'awaiting_name') {
+         if (botConfig.collect_customer_name && botState?.step === 'awaiting_name') {
+           if (arrivedBeforePrompt(botState)) return ignoreEarlyMessage(botState);
            const validation = extractAndValidateName(cleanText, botConfig, deptList);
            if (!validation.valid) {
-             const nextAttempt = (nameState.attempt || 1) + 1;
+             const nextAttempt = (botState.attempt || 1) + 1;
              if (nextAttempt > botConfig.customer_name_attempt_limit) {
                await saveBotState(ticket.id, { step: 'name_skipped' });
                await sendBotText(ticket.id, botConfig.customer_name_skipped_message);
@@ -688,27 +811,31 @@ ${rendered}`,
              return askForCustomerName(ticket, nextAttempt, botConfig.invalid_customer_name_message);
            }
 
-           await saveBotState(ticket.id, { step: 'confirming_name', candidate: validation.name, attempt: nameState.attempt || 1 });
+           await saveBotState(ticket.id, {
+             step: 'confirming_name',
+             candidate: validation.name,
+             attempt: botState.attempt || 1,
+             promptedAt: new Date().toISOString()
+           });
            await sendBotText(ticket.id, botConfig.confirm_customer_name_message, {
              nome: validation.name,
-             tentativa: nameState.attempt || 1,
+             tentativa: botState.attempt || 1,
              limite: botConfig.customer_name_attempt_limit
            });
            return { type: 'chatbot_confirming_name', ticket, candidate: validation.name };
          }
 
-         if (botConfig.collect_customer_name && nameState?.step === 'confirming_name') {
-           const confirmation = ['1', '1️⃣', 'sim', 's', 'correto', 'isso', 'confirmo'].includes(cleanLower);
-           const correction = ['2', '2️⃣', 'nao', 'n', 'corrigir', 'correcao', 'errado'].includes(cleanLower);
-           if (confirmation) {
+         if (botConfig.collect_customer_name && botState?.step === 'confirming_name') {
+           const nameDecision = resolveNameConfirmation(cleanText);
+           if (nameDecision === 'confirm') {
              let contactId = null;
              try {
-               const contact = await saveConfirmedContact(phone, nameState.candidate);
+               const contact = await saveConfirmedContact(phone, botState.candidate);
                contactId = contact?.id || null;
              } catch (errContact) {
                console.warn('Aviso: falha ao salvar contato após confirmação de nome:', errContact.message);
              }
-             cleanName = nameState.candidate;
+             cleanName = botState.candidate;
              const identity = {
                client_name: cleanName,
                initials: cleanName.substring(0, 2).toUpperCase(),
@@ -722,42 +849,46 @@ ${rendered}`,
              await sendBotText(ticket.id, botConfig.customer_name_saved_message, { nome: cleanName });
              return startDepartmentRouting(ticket);
            }
-           if (correction) return askForCustomerName(ticket, nameState.attempt || 1);
-           await sendBotText(ticket.id, botConfig.confirm_customer_name_message, { nome: nameState.candidate });
-           return { type: 'chatbot_confirming_name', ticket, candidate: nameState.candidate };
+           if (nameDecision === 'correct') return askForCustomerName(ticket, botState.attempt || 1);
+           if (arrivedBeforePrompt(botState)) return ignoreEarlyMessage(botState);
+           await saveBotState(ticket.id, { ...botState, promptedAt: new Date().toISOString() });
+           await sendBotText(ticket.id, botConfig.confirm_customer_name_message, { nome: botState.candidate });
+           return { type: 'chatbot_confirming_name', ticket, candidate: botState.candidate };
          }
 
          // Só pede o nome novamente se collect_customer_name está ativado e nenhum estado de nome existe ainda
-         if (botConfig.collect_customer_name && needsCustomerName && isGeneratedCustomerName(ticket.client_name) && !nameState) {
+         if (botConfig.collect_customer_name && needsCustomerName && isGeneratedCustomerName(ticket.client_name) && !botState) {
            return askForCustomerName(ticket);
          }
 
-         // Verifica se o chatbot estava aguardando decisão do menu de 24h
-         const { data: chatbotMsgs } = await supabase
-           .from('messages')
-           .select('text')
-           .eq('ticket_id', ticket.id)
-           .like('text', '[Chatbot]%')
-           .order('created_at', { ascending: false })
-           .limit(1);
-
-         const isWaitingResume = chatbotMsgs?.[0]?.text?.startsWith('[Chatbot] Menu 24h enviado: Retomar') || false;
-         let resumeTargetDept = null;
-         if (isWaitingResume) {
-           const match = chatbotMsgs[0].text.match(/\[Chatbot\] Menu 24h enviado: Retomar (.+)/);
-           if (match) resumeTargetDept = match[1].trim();
+         // Estado estruturado é a fonte principal; a busca textual mantém compatibilidade
+         // com tickets que já estavam abertos antes desta versão.
+         let isWaitingResume = botState?.step === 'awaiting_resume';
+         let resumeTargetDept = isWaitingResume ? botState.department : null;
+         if (!isWaitingResume) {
+           const { data: chatbotMsgs } = await supabase
+             .from('messages')
+             .select('text')
+             .eq('ticket_id', ticket.id)
+             .like('text', '[Chatbot]%')
+             .order('created_at', { ascending: false })
+             .limit(1);
+           isWaitingResume = chatbotMsgs?.[0]?.text?.startsWith('[Chatbot] Menu 24h enviado: Retomar') || false;
+           if (isWaitingResume) {
+             const match = chatbotMsgs[0].text.match(/\[Chatbot\] Menu 24h enviado: Retomar (.+)/);
+             if (match) resumeTargetDept = match[1].trim();
+           }
          }
 
          let selectedDept = null;
 
          // Se estava aguardando resposta do menu de 24 horas:
          if (isWaitingResume && resumeTargetDept) {
-           const isOptionResume = cleanText === '1' || ['retomar', 'continuar', 'mesmo', 'sim', 'anterior', '1️⃣'].some(w => cleanLower.includes(w));
-           const isOptionOther = cleanText === '2' || ['outro', 'novo', 'mudar', 'diferente', '2️⃣'].some(w => cleanLower.includes(w));
+           const resumeChoice = resolveResumeChoice(cleanText);
 
-           if (isOptionResume) {
+           if (resumeChoice === 'resume') {
              selectedDept = deptList.find(d => d.name.toLowerCase() === resumeTargetDept.toLowerCase()) || { name: resumeTargetDept };
-           } else if (isOptionOther) {
+           } else if (resumeChoice === 'other') {
              // Cliente optou por outro departamento -> envia menu padrão com todos os setores
              // Registra que o cliente escolheu ver outro departamento
              await supabase.from('messages').insert({
@@ -768,33 +899,24 @@ ${rendered}`,
                time: t
              });
 
+             await saveBotState(ticket.id, { step: 'awaiting_department', promptedAt: new Date().toISOString() });
              try { await sendBotText(ticket.id, botConfig.greeting_message, { opcoes: botConfig.show_department_menu ? optionsText : '' }); } catch(e) {}
              return { type: 'chatbot_menu_sent', ticket };
+           } else if (arrivedBeforePrompt(botState)) {
+             return ignoreEarlyMessage(botState);
+           } else {
+             // Uma resposta diferente de 1/2 pode ser o nome direto de outro setor.
+             // A partir daqui seguimos pelo reconhecedor do menu completo.
+             isWaitingResume = false;
+             resumeTargetDept = null;
            }
          }
 
-         // 1. Tenta identificar por número (ex: "1", "2", "3") se não selecionou retomar
-         if (!selectedDept) {
-           const option = parseInt(cleanText, 10);
-           if (deptList.length > 0 && !isNaN(option) && option >= 1 && option <= deptList.length) {
-              selectedDept = deptList[option - 1];
-           }
-         }
-
-         // 2. Se não identificou por número, identifica por nome ou palavras-chave
-         if (!selectedDept && botConfig.accept_department_name && deptList.length > 0) {
-            selectedDept = deptList.find(d => {
-               const deptNorm = d.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-               if (cleanLower === deptNorm || cleanLower.includes(deptNorm) || (cleanLower.length >= 3 && deptNorm.includes(cleanLower))) {
-                  return true;
-               }
-               // Siglas e sinônimos comuns
-               if (deptNorm.includes('recursos humanos') && (cleanLower === 'rh' || cleanLower.includes('rh'))) {
-                  return true;
-               }
-               const deptWords = deptNorm.split(/\s+/).filter(w => w.length > 2);
-               return deptWords.some(w => cleanLower.includes(w));
-            });
+         // Reconhece número, nome, siglas, frases naturais e pequenos erros de digitação.
+         if (!selectedDept && !(isWaitingResume && resumeTargetDept)) {
+           selectedDept = resolveDepartmentIntent(cleanText, deptList, {
+             acceptDepartmentName: botConfig.accept_department_name
+           })?.department || null;
          }
 
          if (selectedDept) {
@@ -832,13 +954,14 @@ ${rendered}`,
             return { type: 'chatbot_routed', ticket: fullTicket || ticket };
          } else {
              // Se o cliente digitou uma saudação ou comando para reiniciar menu
-             const menuKeywords = botConfig.menu_keywords.split(',').map(normalizeKeyword).filter(Boolean);
-             const isGreeting = menuKeywords.some(keyword => cleanLower === keyword || cleanLower.startsWith(`${keyword} `));
+             const isGreeting = matchesMenuRequest(cleanText, botConfig.menu_keywords);
 
              if (whatsappService) {
                 if (isGreeting || deptList.length === 0) {
+                  await saveBotState(ticket.id, { step: 'awaiting_department', promptedAt: new Date().toISOString() });
                   try { await sendBotText(ticket.id, botConfig.greeting_message, { opcoes: botConfig.show_department_menu ? optionsText : '' }); } catch(e) {}
                 } else {
+                  if (arrivedBeforePrompt(botState)) return ignoreEarlyMessage(botState);
                   const { count: previousInvalidAttempts } = await supabase
                     .from('messages')
                     .select('*', { count: 'exact', head: true })
@@ -852,6 +975,7 @@ ${rendered}`,
                     return routeWithoutBot(ticket, text, false, botConfig.fallback_routing_message);
                   }
 
+                  await saveBotState(ticket.id, { step: isWaitingResume ? 'awaiting_resume' : 'awaiting_department', department: resumeTargetDept, promptedAt: new Date().toISOString() });
                   try { await sendBotText(ticket.id, botConfig.invalid_option_message, { tentativa: attempt }); } catch(e) {}
                 }
              }
@@ -939,6 +1063,301 @@ ${rendered}`,
       console.error('Erro no Supabase ao processar mensagem:', e);
       return null;
     }
+  }
+
+  async processExternalWhatsAppMessage(msgData, io, whatsappService = null) {
+    if (!isSupabaseConfigured()) return null;
+    const {
+      from,
+      rawJid,
+      phone: rawPhone,
+      text = '',
+      mediaType,
+      mediaUrl,
+      fileName,
+      timestamp,
+      messageId,
+      whatsappAccountId,
+      whatsappAccountName,
+      whatsappRoutingMode,
+      whatsappDepartmentId,
+      whatsappDepartmentName
+    } = msgData;
+    try {
+      await ensureConversationTrackingColumns();
+      if (await wasRemoteMessageProcessed(whatsappAccountId, messageId)) {
+        return { type: 'duplicate', messageId };
+      }
+
+      const targetJid = rawJid || from;
+      const phone = String(rawPhone || targetJid || '').replace(/@.*$/, '').replace(/:\d+$/, '').replace(/\D/g, '');
+      const outboundJid = preferredWhatsAppJid(phone, targetJid);
+      const channel = whatsappAccountId ? `whatsapp:${whatsappAccountId}` : 'whatsapp';
+      const now = new Date();
+      const messageDateMs = whatsappTimestampMs(timestamp);
+      const createdAt = messageDateMs ? new Date(messageDateMs).toISOString() : now.toISOString();
+      const time = makeTimeStr(messageDateMs ? new Date(messageDateMs) : now);
+      const accountLabel = String(whatsappAccountName || 'celular').trim().slice(0, 80);
+      const senderLabel = `WhatsApp (${accountLabel})`;
+      const previewText = text || ({ audio: '🎙️ Áudio', image: '📷 Imagem', video: '🎥 Vídeo', document: `📄 ${fileName || 'Documento'}` }[mediaType] || 'Mensagem enviada pelo WhatsApp');
+
+      const lookup = [`phone.eq.${phone}`, `jid.eq.${targetJid}`];
+      if (outboundJid && outboundJid !== targetJid) lookup.push(`jid.eq.${outboundJid}`);
+      if (rawJid && rawJid !== targetJid) lookup.push(`raw_jid.eq.${rawJid}`);
+      let activeQuery = supabase.from('tickets').select('*').or(lookup.join(',')).in('status', ['chatbot', 'aguardando', 'em_atendimento']);
+      activeQuery = whatsappAccountId === 'default'
+        ? activeQuery.in('channel', ['whatsapp', channel])
+        : activeQuery.eq('channel', channel);
+      let { data: ticket, error: activeError } = await activeQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (activeError) throw activeError;
+      let createdTicket = false;
+
+      let previousTicket = null;
+      if (!ticket) {
+        let previousQuery = supabase.from('tickets').select('client_name, initials, contact_id, department, department_id, agent_name, handled_via').or(lookup.join(','));
+        previousQuery = whatsappAccountId === 'default'
+          ? previousQuery.in('channel', ['whatsapp', channel])
+          : previousQuery.eq('channel', channel);
+        const previousResult = await previousQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (!previousResult.error) previousTicket = previousResult.data;
+
+        const knownContact = await findContactByPhone(phone);
+        const departments = await getCachedDepartments();
+        const botConfig = await getBotConfig();
+        const dedicatedDepartment = whatsappRoutingMode === 'department'
+          ? departments.find(department => String(department.id) === String(whatsappDepartmentId)
+            || normalizeBotInput(department.name) === normalizeBotInput(whatsappDepartmentName))
+          : null;
+        const inheritedDepartment = previousTicket?.department_id
+          ? departments.find(department => String(department.id) === String(previousTicket.department_id))
+          : null;
+        const targetDepartment = dedicatedDepartment || inheritedDepartment
+          || departments.find(department => String(department.id) === String(botConfig.default_department_id))
+          || departments[0] || null;
+        const clientName = knownContact?.name || previousTicket?.client_name || (phone ? `Cliente ${phone.slice(-4)}` : 'Cliente');
+        const ticketPayload = {
+          id: crypto.randomUUID(),
+          client_name: clientName,
+          initials: clientName.substring(0, 2).toUpperCase(),
+          contact_id: knownContact?.id || previousTicket?.contact_id || null,
+          phone,
+          jid: outboundJid,
+          raw_jid: rawJid || targetJid,
+          time,
+          preview: `WhatsApp: ${previewText.slice(0, 70)}`,
+          status: 'em_atendimento',
+          assumed: true,
+          assumed_at: now.toISOString(),
+          first_response_at: createdAt,
+          agent_name: senderLabel,
+          channel,
+          unread_count: 0,
+          handled_via: 'whatsapp_device',
+          direct_whatsapp_messages: 1
+        };
+        if (targetDepartment?.name) ticketPayload.department = targetDepartment.name;
+        if (targetDepartment?.id && String(targetDepartment.id).length > 10) ticketPayload.department_id = targetDepartment.id;
+        let insertResult = await supabase.from('tickets').insert(ticketPayload).select().single();
+        if (insertResult.error && isMissingTicketTimingColumns(insertResult.error)) {
+          delete ticketPayload.first_response_at;
+          insertResult = await supabase.from('tickets').insert(ticketPayload).select().single();
+        }
+        if (insertResult.error && isMissingConversationTrackingColumns(insertResult.error)) {
+          conversationTrackingColumnsAvailable = false;
+          delete ticketPayload.handled_via;
+          delete ticketPayload.direct_whatsapp_messages;
+          insertResult = await supabase.from('tickets').insert(ticketPayload).select().single();
+        } else if (!insertResult.error) {
+          conversationTrackingColumnsAvailable = true;
+        }
+        ticket = assertSupabase(insertResult, 'Falha ao criar atendimento iniciado pelo WhatsApp');
+        createdTicket = true;
+      } else {
+        const inferredCurrent = ticket.handled_via || (ticket.agent_name && !String(ticket.agent_name).startsWith('WhatsApp (') ? 'platform' : 'pending');
+        const updatePayload = {
+          status: 'em_atendimento',
+          assumed: true,
+          assumed_at: ticket.assumed_at || now.toISOString(),
+          first_response_at: ticket.first_response_at || createdAt,
+          agent_name: ticket.agent_name || senderLabel,
+          time,
+          preview: `WhatsApp: ${previewText.slice(0, 70)}`,
+          updated_at: now.toISOString(),
+          handled_via: mergeHandledVia(inferredCurrent, 'whatsapp_device'),
+          direct_whatsapp_messages: (ticket.direct_whatsapp_messages || 0) + 1
+        };
+        let updateResult = await supabase.from('tickets').update(updatePayload).eq('id', ticket.id);
+        if (updateResult.error && isMissingTicketTimingColumns(updateResult.error)) {
+          delete updatePayload.first_response_at;
+          updateResult = await supabase.from('tickets').update(updatePayload).eq('id', ticket.id);
+        }
+        if (updateResult.error && isMissingConversationTrackingColumns(updateResult.error)) {
+          conversationTrackingColumnsAvailable = false;
+          delete updatePayload.handled_via;
+          delete updatePayload.direct_whatsapp_messages;
+          updateResult = await supabase.from('tickets').update(updatePayload).eq('id', ticket.id);
+        } else if (!updateResult.error) {
+          conversationTrackingColumnsAvailable = true;
+        }
+        assertSupabase(updateResult, 'Falha ao atualizar atendimento respondido pelo WhatsApp');
+        Object.assign(ticket, updatePayload);
+      }
+
+      // O @lid identifica o dispositivo/conversa, mas não deve ser usado como
+      // destinatário. Mantemos o valor bruto para correlação e persistimos o
+      // JID telefônico para que as mensagens possam ser descriptografadas.
+      if (ticket && phone && phone.length <= 15
+        && (ticket.phone !== phone || ticket.jid !== outboundJid || ticket.raw_jid !== (rawJid || targetJid))) {
+        const identity = { phone, jid: outboundJid, raw_jid: rawJid || targetJid };
+        const identityResult = await supabase.from('tickets').update(identity).eq('id', ticket.id);
+        if (!identityResult.error) Object.assign(ticket, identity);
+      }
+
+      const formattedText = `*${senderLabel}:*${text ? `\n\n${text}` : ''}`;
+      const messagePayload = {
+        ticket_id: ticket.id,
+        sender: 'agent',
+        sender_type: 'whatsapp_device',
+        sender_name: senderLabel,
+        message_context: 'service',
+        type: mediaType || null,
+        text: formattedText,
+        time,
+        media_url: mediaUrl || null,
+        file_name: fileName || null,
+        remote_message_id: messageId || null,
+        whatsapp_account_id: whatsappAccountId || null,
+        created_at: createdAt
+      };
+      let messageResult = await supabase.from('messages').insert(messagePayload).select().single();
+      if (messageResult.error?.code === '23505') return { type: 'duplicate', messageId, ticket };
+      if (messageResult.error && isMissingConversationTrackingColumns(messageResult.error)) {
+        conversationTrackingColumnsAvailable = false;
+        delete messagePayload.sender_type;
+        delete messagePayload.sender_name;
+        delete messagePayload.message_context;
+        messageResult = await supabase.from('messages').insert(messagePayload).select().single();
+      } else if (!messageResult.error) {
+        conversationTrackingColumnsAvailable = true;
+      }
+      const savedMessage = assertSupabase(messageResult, 'Falha ao salvar resposta feita pelo WhatsApp');
+      if (mediaUrl) rememberMediaTicket(mediaUrl, ticket.id);
+
+      const fullTicket = await this.getFullTicket(ticket.id);
+      const emittedTicket = fullTicket || ticket;
+      if (io) {
+        emitTicketEvent(io, createdTicket ? 'ticket_created' : 'ticket_updated', { ticket: emittedTicket }, emittedTicket);
+        emitTicketEvent(io, 'new_message', { ticketId: ticket.id, message: savedMessage, ticket: emittedTicket }, emittedTicket);
+        scheduleKpiUpdate(io);
+      }
+      if (matchesExternalClosureMessage(text)) {
+        await this.finalizeExternalTicket(emittedTicket, {
+          io,
+          whatsappService,
+          reason: 'Encerrado pelo atendente no WhatsApp'
+        });
+        return { type: 'external_whatsapp_closed', ticket: emittedTicket, message: savedMessage };
+      }
+      return { type: 'external_whatsapp_message', ticket: emittedTicket, message: savedMessage };
+    } catch (error) {
+      console.error('Falha ao registrar resposta enviada diretamente pelo WhatsApp:', error.message);
+      return null;
+    }
+  }
+
+  async finalizeExternalTicket(ticket, { io, whatsappService = null, botConfig = null, sendRating = true, reason = 'Inatividade no WhatsApp' } = {}) {
+    if (!ticket?.id) return false;
+    const now = new Date();
+    const time = makeTimeStr(now);
+    const config = botConfig || await getBotConfig();
+    const closePayload = {
+      status: 'finalizado',
+      assumed: false,
+      encerrado_em: time,
+      encerrado_por: reason,
+      closed_at: now.toISOString(),
+      awaiting_rating: Boolean(sendRating && config.send_rating_request),
+      unread_count: 0,
+      updated_at: now.toISOString()
+    };
+    const closeResult = await supabase.from('tickets').update(closePayload).eq('id', ticket.id);
+    if (closeResult.error) throw closeResult.error;
+    Object.assign(ticket, closePayload);
+
+    await supabase.from('messages').insert({
+      ticket_id: ticket.id,
+      sender: 'system',
+      type: 'divider',
+      text: `✅ Atendimento pelo WhatsApp encerrado • ${reason}`,
+      time
+    });
+
+    if (sendRating && config.send_rating_request && whatsappService) {
+      const targetJid = preferredWhatsAppJid(ticket.phone, ticket.jid || ticket.raw_jid);
+      const accountId = ticket.channel?.startsWith('whatsapp:') ? ticket.channel.slice('whatsapp:'.length) : null;
+      const ratingText = renderBotMessage(config.rating_request_message, {
+        nome: ticket.client_name || 'Cliente',
+        departamento: ticket.department || 'Atendimento'
+      }).trim();
+      if (targetJid && ratingText) {
+        const sent = await whatsappService.sendMessage(targetJid, ratingText, accountId);
+        if (sent) {
+          const ratingPayload = {
+            ticket_id: ticket.id,
+            sender: 'bot',
+            text: `*Bot:*\n\n${ratingText}`,
+            time,
+            remote_message_id: sent?.key?.id || null,
+            whatsapp_account_id: accountId || null
+          };
+          if (conversationTrackingColumnsAvailable === true) Object.assign(ratingPayload, {
+            sender_type: 'bot', sender_name: 'Bot', message_context: 'bot'
+          });
+          await supabase.from('messages').insert(ratingPayload);
+        }
+      }
+    }
+
+    if (io) {
+      emitTicketEvent(io, 'ticket_closed', {
+        ticketId: ticket.id,
+        status: 'finalizado',
+        closed_at: closePayload.closed_at,
+        encerrado_por: reason
+      }, ticket);
+      emitTicketEvent(io, 'queue_updated', { ticket }, ticket);
+      scheduleKpiUpdate(io);
+    }
+    return true;
+  }
+
+  async closeInactiveExternalTickets(io, whatsappService) {
+    if (!isSupabaseConfigured()) return 0;
+    await ensureConversationTrackingColumns();
+    if (conversationTrackingColumnsAvailable !== true) return 0;
+    const config = await getBotConfig();
+    if (!config.auto_close_external_service) return 0;
+    const cutoff = new Date(Date.now() - config.external_service_idle_minutes * 60 * 1000).toISOString();
+    const { data: tickets, error } = await supabase
+      .from('tickets')
+      .select('*')
+      .eq('status', 'em_atendimento')
+      .in('handled_via', ['whatsapp_device', 'mixed'])
+      .lt('updated_at', cutoff)
+      .limit(100);
+    if (error) {
+      if (!isMissingConversationTrackingColumns(error)) console.warn(`Falha ao verificar atendimentos externos inativos: ${error.message}`);
+      return 0;
+    }
+    let closed = 0;
+    for (const ticket of tickets || []) {
+      try {
+        if (await this.finalizeExternalTicket(ticket, { io, whatsappService, botConfig: config })) closed += 1;
+      } catch (closeError) {
+        console.warn(`Falha ao encerrar atendimento externo ${ticket.id}: ${closeError.message}`);
+      }
+    }
+    return closed;
   }
 
   /**
@@ -1203,7 +1622,7 @@ ${rendered}`,
       // Busca de live activity separada e protegida contra erro de fk
       let messagesData = [];
       try {
-        if (user?.role !== 'Administrador') throw new Error('Atividade global restrita');
+        if (!isAdmin(user)) throw new Error('Atividade global restrita');
         const res = await supabase.from('messages').select('text, time, sender, created_at, ticket_id').order('created_at', { ascending: false }).limit(5);
         if (res.data) messagesData = res.data;
       } catch (e) {}
@@ -1230,7 +1649,7 @@ ${rendered}`,
       }
 
       let mediaAvaliacao = '--'; let totalAvaliacoes = 0;
-      const visibleRatings = user?.role === 'Administrador' ? (avaliacoes || []) : [];
+      const visibleRatings = isAdmin(user) ? (avaliacoes || []) : [];
       if (visibleRatings.length > 0) {
         totalAvaliacoes = visibleRatings.length;
         mediaAvaliacao = (visibleRatings.reduce((acc, a) => acc + a.score, 0) / totalAvaliacoes).toFixed(1);
@@ -1283,18 +1702,19 @@ ${rendered}`,
 
   async sendAgentMessage(ticketId, text, currentUser, io, whatsappService) {
     if (!isSupabaseConfigured()) return { success: false, error: 'Supabase nao configurado' };
+    await ensureConversationTrackingColumns();
     
     // Busca rápida do ticket sem overhead de recarregar histórico pesado
     const { data: ticket } = await supabase
       .from('tickets')
-      .select('id, jid, raw_jid, phone, client_name, department, department_id, agent_name, status, channel')
+      .select('*')
       .eq('id', ticketId)
       .single();
 
     if (!ticket || !canUserAccessTicket(currentUser, ticket)) return { success: false, error: 'Ticket nao encontrado' };
     const agentName = currentUser.name || 'Atendente';
     const now = new Date(); const t = makeTimeStr(now);
-    const targetJid = ticket.jid || ticket.raw_jid;
+    const targetJid = preferredWhatsAppJid(ticket.phone, ticket.jid || ticket.raw_jid);
     const formattedText = `*${agentName}:*\n\n${text}`;
     try {
       // 1. Envia imediatamente para o WhatsApp
@@ -1302,16 +1722,45 @@ ${rendered}`,
       const sent = await whatsappService.sendMessage(targetJid, formattedText, accountId);
       if (sent) {
         // 2. Grava a mensagem no banco
+        const agentMessagePayload = {
+          ticket_id: ticket.id,
+          sender: 'agent',
+          text: formattedText,
+          time: t,
+          remote_message_id: sent?.key?.id || null,
+          whatsapp_account_id: accountId || null
+        };
+        if (conversationTrackingColumnsAvailable === true) Object.assign(agentMessagePayload, {
+          sender_type: 'platform', sender_name: agentName, message_context: 'service'
+        });
         const messageResult = await supabase
           .from('messages')
-          .insert({ ticket_id: ticket.id, sender: 'agent', text: formattedText, time: t })
+          .insert(agentMessagePayload)
           .select()
           .single();
         const savedMsg = assertSupabase(messageResult, 'Falha ao salvar mensagem');
 
         ticket.preview = `Você: ${text.slice(0, 40)}`;
         ticket.time = t;
-        assertSupabase(await supabase.from('tickets').update({ preview: ticket.preview, time: t, updated_at: now.toISOString() }).eq('id', ticket.id), 'Falha ao atualizar ticket');
+        const platformUpdate = {
+          preview: ticket.preview,
+          time: t,
+          updated_at: now.toISOString(),
+          agent_name: agentName,
+          handled_via: mergeHandledVia(ticket.handled_via, 'platform'),
+          platform_messages: (ticket.platform_messages || 0) + 1
+        };
+        let platformUpdateResult = await supabase.from('tickets').update(platformUpdate).eq('id', ticket.id);
+        if (platformUpdateResult.error && isMissingConversationTrackingColumns(platformUpdateResult.error)) {
+          conversationTrackingColumnsAvailable = false;
+          delete platformUpdate.handled_via;
+          delete platformUpdate.platform_messages;
+          platformUpdateResult = await supabase.from('tickets').update(platformUpdate).eq('id', ticket.id);
+        } else if (!platformUpdateResult.error) {
+          conversationTrackingColumnsAvailable = true;
+        }
+        assertSupabase(platformUpdateResult, 'Falha ao atualizar ticket');
+        Object.assign(ticket, platformUpdate);
 
         // 3. Emite WebSocket IMEDIATAMENTE para a interface
         if (io) {
@@ -1325,11 +1774,12 @@ ${rendered}`,
 
   async sendAgentMedia(ticketId, fileBuffer, metadata, currentUser, io, whatsappService) {
     if (!isSupabaseConfigured()) return { success: false, error: 'Supabase nao configurado' };
+    await ensureConversationTrackingColumns();
     if (!Buffer.isBuffer(fileBuffer) || fileBuffer.length === 0) return { success: false, error: 'Arquivo vazio ou inválido.' };
     try {
       const { data: ticket, error: ticketError } = await supabase
         .from('tickets')
-        .select('id, jid, raw_jid, phone, client_name, department, department_id, agent_name, status, channel')
+        .select('*')
         .eq('id', ticketId)
         .maybeSingle();
       if (ticketError) throw ticketError;
@@ -1354,7 +1804,7 @@ ${rendered}`,
       const mediaUrl = `/api/media/${storedName}`;
       const caption = String(metadata.caption || '').trim().slice(0, 4000);
       const agentName = currentUser.name || 'Atendente';
-      const targetJid = ticket.jid || ticket.raw_jid;
+      const targetJid = preferredWhatsAppJid(ticket.phone, ticket.jid || ticket.raw_jid);
       const accountId = ticket.channel?.startsWith('whatsapp:') ? ticket.channel.slice('whatsapp:'.length) : null;
 
       await fs.promises.mkdir(MEDIA_DIR, { recursive: true });
@@ -1372,7 +1822,11 @@ ${rendered}`,
       // O salvamento do histórico local e o upload ao WhatsApp são independentes.
       // Executá-los juntos reduz a espera, sobretudo em arquivos maiores.
       const [, sent] = await Promise.all([
-        fs.promises.writeFile(storedMediaPath, outgoingBuffer),
+        Promise.all([
+          fs.promises.writeFile(storedMediaPath, outgoingBuffer),
+          cloudStorage.uploadMedia(storedName, outgoingBuffer, mimeType)
+            .catch(error => console.warn(`Mídia enviada salva apenas localmente: ${error.message}`))
+        ]),
         sendPromise
       ]);
       if (!sent) {
@@ -1385,20 +1839,38 @@ ${rendered}`,
       const messagePromise = supabase.from('messages').insert({
         ticket_id: ticket.id,
         sender: 'agent',
+        ...(conversationTrackingColumnsAvailable === true ? {
+          sender_type: 'platform', sender_name: agentName, message_context: 'service'
+        } : {}),
         type: mediaType,
         text: formattedText,
         time: makeTimeStr(now),
         media_url: mediaUrl,
         media_type: mimeType,
-        file_name: displayName
+        file_name: displayName,
+        remote_message_id: sent?.key?.id || null,
+        whatsapp_account_id: accountId || null
       }).select().single();
       const preview = caption || ({ audio: '🎙️ Áudio', image: '📷 Imagem', video: '🎥 Vídeo', document: `📄 ${displayName}` }[mediaType]);
-      const updatePayload = { preview, time: makeTimeStr(now), updated_at: now.toISOString() };
-      const [messageResult, ticketUpdateResult] = await Promise.all([
-        messagePromise,
-        supabase.from('tickets').update(updatePayload).eq('id', ticket.id)
-      ]);
+      const updatePayload = {
+        preview,
+        time: makeTimeStr(now),
+        updated_at: now.toISOString(),
+        agent_name: agentName,
+        handled_via: mergeHandledVia(ticket.handled_via, 'platform'),
+        platform_messages: (ticket.platform_messages || 0) + 1
+      };
+      const messageResult = await messagePromise;
       const savedMessage = assertSupabase(messageResult, 'Falha ao salvar mídia enviada');
+      let ticketUpdateResult = await supabase.from('tickets').update(updatePayload).eq('id', ticket.id);
+      if (ticketUpdateResult.error && isMissingConversationTrackingColumns(ticketUpdateResult.error)) {
+        conversationTrackingColumnsAvailable = false;
+        delete updatePayload.handled_via;
+        delete updatePayload.platform_messages;
+        ticketUpdateResult = await supabase.from('tickets').update(updatePayload).eq('id', ticket.id);
+      } else if (!ticketUpdateResult.error) {
+        conversationTrackingColumnsAvailable = true;
+      }
       assertSupabase(ticketUpdateResult, 'Falha ao atualizar ticket');
       rememberMediaTicket(mediaUrl, ticket.id);
       Object.assign(ticket, updatePayload);
@@ -1416,23 +1888,78 @@ ${rendered}`,
     try {
       const { data: existingTicket, error: ticketError } = await supabase
         .from('tickets')
-        .select('id, agent_name, department_id, department, status, assumed')
+        .select('id, user_id, agent_name, department_id, department, status, assumed')
         .eq('id', ticketId)
         .maybeSingle();
       if (ticketError) throw ticketError;
       if (!existingTicket || !canUserAccessTicket(currentUser, existingTicket)) return { success: false, error: 'Ticket nao encontrado' };
+
+      // Se o chamado já está em atendimento e atribuído ao mesmo usuário, retorna com sucesso
+      if (existingTicket.status === 'em_atendimento' && (existingTicket.user_id === currentUser.id || existingTicket.agent_name === currentUser.name)) {
+        const fullTicket = await this.getFullTicket(ticketId);
+        return { success: true, ticket: fullTicket };
+      }
+
       const agentName = currentUser.name || 'Atendente';
       const nowISO = new Date().toISOString();
-      const claimResult = await supabase
-        .from('tickets')
-        .update({ status: 'em_atendimento', assumed: true, agent_name: agentName, assumed_at: nowISO, updated_at: nowISO })
-        .eq('id', ticketId)
-        .eq('status', 'aguardando')
-        .or('assumed.eq.false,assumed.is.null')
-        .select('id')
-        .maybeSingle();
+      const claimPayload = {
+        status: 'em_atendimento',
+        assumed: true,
+        user_id: uuidOrNull(currentUser.id),
+        agent_name: agentName,
+        assumed_at: nowISO,
+        updated_at: nowISO
+      };
+      if (ticketTimingColumnsAvailable !== false) {
+        claimPayload.first_response_at = nowISO;
+      }
+      let claimResult;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        claimResult = await supabase
+          .from('tickets')
+          .update(claimPayload)
+          .eq('id', ticketId)
+          .eq('status', 'aguardando')
+          .or('assumed.eq.false,assumed.is.null')
+          .select('id')
+          .maybeSingle();
+
+        if (!claimResult.error) {
+          if ('first_response_at' in claimPayload) ticketTimingColumnsAvailable = true;
+          break;
+        }
+        if (!isMissingTicketTimingColumns(claimResult.error)) break;
+
+        const errorMessage = String(claimResult.error.message || '');
+        let removedField = false;
+        for (const field of ['first_response_at', 'assumed_at']) {
+          if (field in claimPayload && errorMessage.includes(field)) {
+            delete claimPayload[field];
+            removedField = true;
+          }
+        }
+        if (!removedField) {
+          delete claimPayload.first_response_at;
+          delete claimPayload.assumed_at;
+        }
+        ticketTimingColumnsAvailable = false;
+      }
+
       if (claimResult.error) throw claimResult.error;
       if (!claimResult.data) {
+        // Duas requisições do mesmo atendente podem disputar o mesmo chamado
+        // antes de a interface terminar de atualizar. Nesse caso, assumir é
+        // idempotente: a segunda requisição confirma o resultado da primeira.
+        const { data: latestTicket, error: latestError } = await supabase
+          .from('tickets')
+          .select('id, user_id, agent_name, department_id, department, status, assumed')
+          .eq('id', ticketId)
+          .maybeSingle();
+        if (latestError) throw latestError;
+        if (latestTicket?.status === 'em_atendimento' && (latestTicket.user_id === currentUser.id || latestTicket.agent_name === currentUser.name)) {
+          const fullTicket = await this.getFullTicket(ticketId);
+          return { success: true, ticket: fullTicket };
+        }
         return { success: false, error: 'Este atendimento já foi assumido por outro atendente.' };
       }
 
@@ -1447,6 +1974,9 @@ ${rendered}`,
     if (!isSupabaseConfigured()) return { success: false, error: 'Supabase nao configurado' };
     try {
       const { departmentId, departmentName, targetUserId, targetUserName, note } = transferData;
+      if (isSupervisor(currentUser) && (!departmentId || !canAccessDepartment(currentUser, departmentId))) {
+        return { success: false, error: 'Supervisores só podem transferir atendimentos entre os departamentos sob sua supervisão.' };
+      }
       
       const { data: currentTicket } = await supabase
         .from('tickets')
@@ -1471,10 +2001,12 @@ ${rendered}`,
       }
 
       if (targetUserName) {
+        updatePayload.user_id = uuidOrNull(targetUserId);
         updatePayload.agent_name = targetUserName;
         updatePayload.assumed = true;
         updatePayload.status = 'em_atendimento';
       } else {
+        updatePayload.user_id = null;
         updatePayload.agent_name = null;
         updatePayload.assumed = false;
         updatePayload.status = 'aguardando';
@@ -1513,7 +2045,7 @@ ${rendered}`,
       // Notifica o cliente via WhatsApp sobre a transferência em background
       if (whatsappService) {
         const botConfig = await getBotConfig();
-        const targetJid = currentTicket.jid || currentTicket.raw_jid;
+        const targetJid = preferredWhatsAppJid(currentTicket.phone, currentTicket.jid || currentTicket.raw_jid);
         if (targetJid && botConfig.send_transfer_notice) {
           const clientNotice = renderBotMessage(botConfig.transfer_message, {
             nome: currentTicket.client_name || 'Cliente',
@@ -1579,7 +2111,7 @@ ${rendered}`,
       // Envia pesquisa de satisfação via WhatsApp em background (não atrasa a resposta)
       if (whatsappService && ticket) {
         const botConfig = await getBotConfig();
-        const targetJid = ticket.jid || ticket.raw_jid;
+        const targetJid = preferredWhatsAppJid(ticket.phone, ticket.jid || ticket.raw_jid);
         if (targetJid && botConfig.send_rating_request) {
           const ratingMsg = renderBotMessage(botConfig.rating_request_message, {
             nome: ticket.client_name || 'Cliente',
@@ -1723,7 +2255,7 @@ ${rendered}`,
       ticketId = message.ticket_id;
       rememberMediaTicket(`/api/media/${filename}`, ticketId);
     }
-    if (user?.role === 'Administrador') return true;
+    if (isAdmin(user)) return true;
 
     const { data: ticket, error: ticketError } = await supabase
       .from('tickets')
@@ -1735,4 +2267,7 @@ ${rendered}`,
   }
 }
 
-module.exports = new TicketService();
+const ticketService = new TicketService();
+ticketService._test = { mergeHandledVia, preferredWhatsAppJid };
+
+module.exports = ticketService;

@@ -4,6 +4,7 @@
 
 const ticketService = require('../services/ticket.service');
 const whatsappService = require('../services/whatsapp.service');
+const performanceService = require('../services/performance.service');
 
 class TicketController {
   async listTickets(req, res) {
@@ -181,6 +182,20 @@ class TicketController {
       const kpis = await ticketService.getKpis(req.user);
       return res.json({ success: true, kpis });
     } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
+  async getPerformance(req, res) {
+    try {
+      const performance = await performanceService.getPerformance(req.user, {
+        month: req.query.month,
+        departmentId: req.query.departmentId,
+        agentId: req.query.agentId
+      });
+      return res.json({ success: true, performance });
+    } catch (err) {
+      console.error('Erro ao buscar desempenho:', err);
       return res.status(500).json({ success: false, error: err.message });
     }
   }

@@ -37,6 +37,10 @@ npm install
 npm run dev
 ```
 
+## Publicação no Render
+
+O projeto inclui um Blueprint `render.yaml` e armazenamento privado de mídias e sessões do WhatsApp no Supabase. Siga o roteiro completo em `PRODUCAO_RENDER_SUPABASE.md`.
+
 ## Validação
 
 ```powershell

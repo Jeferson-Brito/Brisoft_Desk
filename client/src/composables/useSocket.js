@@ -140,6 +140,7 @@ function _isForMe(ticket) {
 
 function _notifyIfRelevant(ticket, message) {
   if (!_isForMe(ticket)) return
+  if (window.location.pathname.startsWith('/painel-tv')) return
   const ui = useUiStore()
   ui.showToast(message)
   _playTicketSound()

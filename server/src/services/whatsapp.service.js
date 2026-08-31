@@ -8,6 +8,7 @@ const { buildAudioPayload } = require('./media-payload.service');
 const ticketService = require('./ticket.service');
 const KeyedTaskQueue = require('./keyed-task-queue.service');
 const { supabase, isSupabaseConfigured } = require('../config/supabase');
+const cloudStorage = require('./cloud-storage.service');
 
 const SESSION_ROOT = path.join(__dirname, '../../session_auth');
 const ACCOUNTS_ROOT = path.join(SESSION_ROOT, 'accounts');
@@ -15,6 +16,46 @@ const SETTINGS_KEY = 'whatsapp_accounts';
 const MEDIA_DIR = path.join(__dirname, '../../public/media');
 const ROUTING_MODE_GENERAL = 'general';
 const ROUTING_MODE_DEPARTMENT = 'department';
+const EMIT_OWN_EVENTS = true;
+
+class ExpiringCache {
+  constructor({ ttlMs = 60 * 60 * 1000, maxEntries = 10000 } = {}) {
+    this.ttlMs = ttlMs;
+    this.maxEntries = maxEntries;
+    this.values = new Map();
+  }
+
+  get(key) {
+    const entry = this.values.get(key);
+    if (!entry) return undefined;
+    if (entry.expiresAt <= Date.now()) {
+      this.values.delete(key);
+      return undefined;
+    }
+    return entry.value;
+  }
+
+  set(key, value) {
+    if (!key) return;
+    this.values.delete(key);
+    this.values.set(key, { value, expiresAt: Date.now() + this.ttlMs });
+    while (this.values.size > this.maxEntries) {
+      this.values.delete(this.values.keys().next().value);
+    }
+  }
+
+  del(key) {
+    this.values.delete(key);
+  }
+
+  flushAll() {
+    this.values.clear();
+  }
+}
+
+function messageCacheKey(key = {}) {
+  return `${String(key.remoteJid || '').replace(/:\d+@/, '@')}:${key.id || ''}`;
+}
 
 function envInteger(name, fallback, minimum = 0) {
   const parsed = Number.parseInt(process.env[name], 10);
@@ -44,6 +85,23 @@ function normalizeAccountRouting(config = {}) {
     ? String(config.department_name || config.departmentName || '').trim().slice(0, 120) || null
     : null;
   return { routingMode, departmentId, departmentName };
+}
+
+async function applyAccountRoutingWithPersistence(account, routing, persist) {
+  const previousRouting = {
+    routingMode: account.routingMode,
+    departmentId: account.departmentId,
+    departmentName: account.departmentName
+  };
+  account.routingMode = routing.routingMode;
+  account.departmentId = routing.departmentId;
+  account.departmentName = routing.departmentName;
+  try {
+    await persist();
+  } catch (error) {
+    Object.assign(account, previousRouting);
+    throw error;
+  }
 }
 
 function loadLidMap(account) {
@@ -112,7 +170,11 @@ function recordLidPair(account, phoneOrJid, lidOrJid) {
 function getPhoneFromJid(jid, lidMap) {
   if (!jid) return '';
   const cleanJid = jid.replace(/:\d+@/, '@').replace(/:\d+$/, '');
-  const resolved = lidMap?.get(jid) || lidMap?.get(cleanJid) || cleanJid;
+  // Um JID telefônico já contém o número correto. O mapa é bidirecional e,
+  // se consultado nesse caso, devolveria o LID em vez do telefone.
+  const resolved = cleanJid.includes('@lid')
+    ? (lidMap?.get(jid) || lidMap?.get(cleanJid) || cleanJid)
+    : cleanJid;
   return resolved.replace('@lid', '').replace('@s.whatsapp.net', '').replace(/:\d+$/, '');
 }
 
@@ -155,10 +217,13 @@ class WhatsAppService {
       maxPending: envInteger('WHATSAPP_MAX_PENDING_MESSAGES', 10000, 1)
     });
     this.recentMessageIds = new Map();
+    this.platformMessageIds = new Map();
     this.maxMediaBytes = envInteger('WHATSAPP_MAX_MEDIA_MB', 25, 1) * 1024 * 1024;
     this.mediaRetentionDays = envInteger('WHATSAPP_MEDIA_RETENTION_DAYS', 30, 0);
     this.mediaCleanupHours = envInteger('WHATSAPP_MEDIA_CLEANUP_HOURS', 6, 1);
     this.mediaCleanupTimer = null;
+    this.externalTicketCleanupTimer = null;
+    this.externalTicketCleanupRunning = false;
   }
 
   setIO(ioInstance) {
@@ -170,6 +235,7 @@ class WhatsAppService {
     this.loaded = true;
     fs.mkdirSync(ACCOUNTS_ROOT, { recursive: true });
     this.startMediaCleanup();
+    this.startExternalTicketCleanup();
     this.migrateLegacySession();
 
     let configs = await this.loadConfigs();
@@ -183,6 +249,14 @@ class WhatsAppService {
     for (const account of this.accounts.values()) {
       if (account.active !== false) this.initialize(account.id).catch(error => console.error(`[WhatsApp:${account.name}]`, error.message));
     }
+  }
+
+  async backupAllSessions() {
+    const tasks = [...this.accounts.values()].map(account =>
+      cloudStorage.backupSession(account.id, path.join(ACCOUNTS_ROOT, account.id))
+        .catch(error => console.warn(`[WhatsApp:${account.name}] falha no backup final da sessão: ${error.message}`))
+    );
+    await Promise.all(tasks);
   }
 
   migrateLegacySession() {
@@ -207,8 +281,13 @@ class WhatsAppService {
     return Array.isArray(data?.value) ? data.value : [];
   }
 
-  async saveConfigs(configs = null) {
-    if (!isSupabaseConfigured()) return;
+  async saveConfigs(configs = null, { throwOnError = false } = {}) {
+    if (!isSupabaseConfigured()) {
+      const failure = new Error('Supabase não configurado; as contas do WhatsApp não podem ser persistidas.');
+      if (throwOnError) throw failure;
+      console.warn(failure.message);
+      return false;
+    }
     const value = configs || [...this.accounts.values()].map(account => ({
       id: account.id,
       name: account.name,
@@ -222,7 +301,13 @@ class WhatsAppService {
       last_connected_at: account.lastConnectedAt || null
     }));
     const { error } = await supabase.from('system_settings').upsert({ key: SETTINGS_KEY, value, updated_at: new Date() }, { onConflict: 'key' });
-    if (error) console.error('Falha ao salvar contas do WhatsApp:', error.message);
+    if (error) {
+      const failure = new Error(`Falha ao salvar contas do WhatsApp: ${error.message}`);
+      if (throwOnError) throw failure;
+      console.error(failure.message);
+      return false;
+    }
+    return true;
   }
 
   ensureAccount(config) {
@@ -247,7 +332,11 @@ class WhatsAppService {
         initializing: false,
         reconnectTimer: null,
         manualDisconnect: false,
-        lidMap: new Map()
+        lidMap: new Map(),
+        messageCache: new ExpiringCache({ ttlMs: 60 * 60 * 1000, maxEntries: 10000 }),
+        msgRetryCounterCache: new ExpiringCache({ ttlMs: 60 * 60 * 1000, maxEntries: 10000 }),
+        placeholderResendCache: new ExpiringCache({ ttlMs: 10 * 60 * 1000, maxEntries: 10000 }),
+        userDevicesCache: new ExpiringCache({ ttlMs: 5 * 60 * 1000, maxEntries: 5000 })
       });
       loadLidMap(this.accounts.get(id));
     }
@@ -267,44 +356,27 @@ class WhatsAppService {
   async updateAccountRouting(accountId, value = {}) {
     const account = this.accounts.get(safeAccountId(accountId));
     if (!account) throw new Error('Conta do WhatsApp não encontrada.');
+    if (!isSupabaseConfigured()) throw new Error('O Supabase precisa estar configurado para salvar o roteamento do WhatsApp.');
 
     const routing = normalizeAccountRouting(value);
     if (routing.routingMode === ROUTING_MODE_DEPARTMENT) {
       if (!routing.departmentId) throw new Error('Selecione o departamento vinculado a este WhatsApp.');
-      let department = null;
-      if (isSupabaseConfigured()) {
-        try {
-          const { data, error } = await supabase
-            .from('departments')
-            .select('id, name')
-            .eq('id', routing.departmentId)
-            .maybeSingle();
-          if (!error && data) department = data;
-        } catch (_) {}
-      }
-      if (!department) {
-        const defaultDepts = [
-          { id: '1', name: 'B3 Eletrônica' },
-          { id: '2', name: 'Comercial' },
-          { id: '3', name: 'Comercial eletrônica' },
-          { id: '4', name: 'Financeiro' },
-          { id: '5', name: 'Operacional' },
-          { id: '6', name: 'Recursos Humanos' },
-          { id: '7', name: 'Suporte Técnico' },
-          { id: '8', name: 'Suprimentos' }
-        ];
-        const match = defaultDepts.find(d => String(d.id) === String(routing.departmentId) || d.name.toLowerCase() === (routing.departmentName || '').toLowerCase());
-        if (match) department = match;
-      }
+      const { data: department, error } = await supabase
+        .from('departments')
+        .select('id, name')
+        .eq('id', routing.departmentId)
+        .maybeSingle();
+      if (error) throw new Error(`Não foi possível validar o departamento: ${error.message}`);
       if (!department) throw new Error('O departamento selecionado não foi encontrado.');
       routing.departmentId = department.id;
       routing.departmentName = department.name;
     }
 
-    account.routingMode = routing.routingMode;
-    account.departmentId = routing.departmentId;
-    account.departmentName = routing.departmentName;
-    await this.saveConfigs();
+    await applyAccountRoutingWithPersistence(
+      account,
+      routing,
+      () => this.saveConfigs(null, { throwOnError: true })
+    );
     this.emitAccounts();
     return this.publicAccount(account, true);
   }
@@ -320,6 +392,14 @@ class WhatsAppService {
 
     const authDir = path.join(ACCOUNTS_ROOT, account.id);
     fs.mkdirSync(authDir, { recursive: true });
+    if (!fs.existsSync(path.join(authDir, 'creds.json'))) {
+      try {
+        const restored = await cloudStorage.restoreSession(account.id, authDir);
+        if (restored) console.log(`[WhatsApp:${account.name}] sessão restaurada do armazenamento seguro.`);
+      } catch (error) {
+        console.warn(`[WhatsApp:${account.name}] não foi possível restaurar a sessão: ${error.message}`);
+      }
+    }
 
     try {
       const baileys = await import('@whiskeysockets/baileys');
@@ -328,9 +408,13 @@ class WhatsAppService {
         try { account.sock.ev.removeAllListeners(); account.sock.end(); } catch {}
       }
 
+      const socketLogger = pino({ level: 'silent' });
       const sock = baileys.default({
-        auth: state,
-        logger: pino({ level: 'silent' }),
+        auth: {
+          creds: state.creds,
+          keys: baileys.makeCacheableSignalKeyStore(state.keys, socketLogger)
+        },
+        logger: socketLogger,
         browser: ['Brisoft Desk', 'Chrome', '1.0.0'],
         markOnlineOnConnect: true,
         connectTimeoutMs: 30000,
@@ -338,10 +422,25 @@ class WhatsAppService {
         keepAliveIntervalMs: 10000,
         generateHighQualityLinkPreview: false,
         syncFullHistory: false,
-        emitOwnEvents: false
+        msgRetryCounterCache: account.msgRetryCounterCache,
+        placeholderResendCache: account.placeholderResendCache,
+        userDevicesCache: account.userDevicesCache,
+        maxMsgRetryCount: 5,
+        getMessage: async key => account.messageCache.get(messageCacheKey(key)),
+        // Necessário para receber mensagens enviadas pelo celular ou por outro
+        // dispositivo vinculado à mesma conta e registrá-las no atendimento.
+        emitOwnEvents: EMIT_OWN_EVENTS
       });
       account.sock = sock;
-      sock.ev.on('creds.update', saveCreds);
+      sock.ev.on('creds.update', async () => {
+        await saveCreds();
+        clearTimeout(account.sessionBackupTimer);
+        account.sessionBackupTimer = setTimeout(() => {
+          cloudStorage.backupSession(account.id, authDir)
+            .catch(error => console.warn(`[WhatsApp:${account.name}] falha ao salvar sessão na nuvem: ${error.message}`));
+        }, 1500);
+        account.sessionBackupTimer.unref?.();
+      });
       this.bindContacts(account);
       this.bindConnection(account, baileys.DisconnectReason);
       this.bindMessages(account, baileys.downloadMediaMessage, baileys.downloadContentFromMessage);
@@ -472,23 +571,51 @@ class WhatsAppService {
 
   bindMessages(account, downloadMediaMessage, downloadContentFromMessage) {
     account.sock.ev.on('messages.upsert', event => {
-      if (event.type !== 'notify') return;
       for (const msg of event.messages || []) {
-        if (msg.key.fromMe || !msg.message) continue;
+        if (!msg.message) continue;
+        if (msg.key?.id) account.messageCache.set(messageCacheKey(msg.key), msg.message);
+        if (event.type !== 'notify' && !msg.key.fromMe) continue;
         const rawJid = msg.key.remoteJid;
         if (!rawJid || rawJid.includes('@g.us') || rawJid.includes('@newsletter') || rawJid.includes('status@broadcast')) continue;
         const messageKey = `${account.id}:${msg.key.id || `${rawJid}:${msg.messageTimestamp}`}`;
+        if (msg.key.fromMe && this.platformMessageIds.has(messageKey)) {
+          this.platformMessageIds.delete(messageKey);
+          continue;
+        }
         if (this.recentMessageIds.has(messageKey)) continue;
         this.rememberMessageId(messageKey);
 
-        this.messageQueue.enqueue(`${account.id}:${rawJid}`, () => (
-          this.processIncomingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage)
-        )).catch(error => {
+        this.messageQueue.enqueue(`${account.id}:${rawJid}`, async () => {
+          if (!msg.key.fromMe) {
+            return this.processIncomingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage);
+          }
+          // O evento de sincronização pode chegar alguns milissegundos antes de
+          // sendMessage devolver o ID. Esta pequena janela impede que um envio
+          // feito pela plataforma seja confundido com uma resposta pelo celular.
+          await new Promise(resolve => setTimeout(resolve, 350));
+          if (this.platformMessageIds.has(messageKey)) {
+            this.platformMessageIds.delete(messageKey);
+            return { type: 'platform_echo_ignored' };
+          }
+          return this.processExternalOutgoingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage);
+        }).catch(error => {
           this.recentMessageIds.delete(messageKey);
           console.error(`[WhatsApp:${account.name}] falha ao processar mensagem: ${error.message}`);
         });
       }
     });
+  }
+
+  rememberPlatformMessage(accountId, messageId) {
+    if (!accountId || !messageId) return;
+    const now = Date.now();
+    this.platformMessageIds.set(`${accountId}:${messageId}`, now);
+    if (this.platformMessageIds.size <= 10000) return;
+    const expiration = now - (60 * 60 * 1000);
+    for (const [key, timestamp] of this.platformMessageIds) {
+      if (timestamp < expiration || this.platformMessageIds.size > 9000) this.platformMessageIds.delete(key);
+      if (this.platformMessageIds.size <= 9000) break;
+    }
   }
 
   rememberMessageId(messageKey) {
@@ -536,6 +663,41 @@ class WhatsAppService {
     if (media.type && !media.url && result?.ticket?.id) {
       this.retryMissingMedia(account, msg, downloadMediaMessage, downloadContentFromMessage, result.ticket.id).catch(error => {
         console.warn(`[WhatsApp:${account.name}] mídia permaneceu indisponível após novas tentativas: ${error.message}`);
+      });
+    }
+    return result;
+  }
+
+  async processExternalOutgoingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage) {
+    const rawJid = msg.key.remoteJid;
+    const phone = this.extractPhone(account, rawJid, msg);
+    const content = unwrapMessageContent(msg.message);
+    const media = await this.downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage);
+    const text = content.conversation || content.extendedTextMessage?.text ||
+      content.imageMessage?.caption || content.videoMessage?.caption ||
+      content.documentMessage?.caption || media.fallbackText || '';
+    if (!text && !media.type) return { type: 'ignored_outgoing_protocol_message' };
+
+    console.log(`[WhatsApp:${account.name}] resposta enviada diretamente pelo WhatsApp para ${phone}.`);
+    const result = await ticketService.processExternalWhatsAppMessage({
+      from: rawJid,
+      rawJid,
+      phone,
+      text,
+      mediaType: media.type,
+      mediaUrl: media.url,
+      fileName: media.fileName,
+      timestamp: msg.messageTimestamp,
+      messageId: msg.key.id,
+      whatsappAccountId: account.id,
+      whatsappAccountName: account.name,
+      whatsappRoutingMode: account.routingMode,
+      whatsappDepartmentId: account.departmentId,
+      whatsappDepartmentName: account.departmentName
+    }, this.io, this);
+    if (media.type && !media.url && result?.ticket?.id) {
+      this.retryMissingMedia(account, msg, downloadMediaMessage, downloadContentFromMessage, result.ticket.id).catch(error => {
+        console.warn(`[WhatsApp:${account.name}] mídia enviada pelo dispositivo permaneceu indisponível: ${error.message}`);
       });
     }
     return result;
@@ -635,7 +797,11 @@ class WhatsAppService {
         return { type, fileName, url: null, fallbackText: `⚠️ [Mídia acima do limite de ${limitMb} MB]` };
       }
       await fs.promises.mkdir(MEDIA_DIR, { recursive: true });
-      await fs.promises.writeFile(path.join(MEDIA_DIR, fileName), buffer);
+      await Promise.all([
+        fs.promises.writeFile(path.join(MEDIA_DIR, fileName), buffer),
+        cloudStorage.uploadMedia(fileName, buffer, mediaMessage?.mimetype || 'application/octet-stream')
+          .catch(error => console.warn(`[WhatsApp:${account.name}] mídia salva apenas localmente: ${error.message}`))
+      ]);
       return { type, fileName, url: `/api/media/${fileName}`, fallbackText };
     } catch (error) {
       console.warn(`[WhatsApp:${account.name}] falha ao baixar mídia: ${error.message}`);
@@ -652,13 +818,32 @@ class WhatsAppService {
     this.mediaCleanupTimer.unref?.();
   }
 
+  startExternalTicketCleanup() {
+    if (this.externalTicketCleanupTimer) return;
+    const runCleanup = async () => {
+      if (this.externalTicketCleanupRunning) return;
+      this.externalTicketCleanupRunning = true;
+      try {
+        const closed = await ticketService.closeInactiveExternalTickets(this.io, this);
+        if (closed > 0) console.log(`🕒 ${closed} atendimento(s) pelo WhatsApp encerrado(s) por inatividade.`);
+      } catch (error) {
+        console.warn(`Falha na rotina de encerramento por inatividade: ${error.message}`);
+      } finally {
+        this.externalTicketCleanupRunning = false;
+      }
+    };
+    this.externalTicketCleanupTimer = setInterval(runCleanup, 60 * 1000);
+    this.externalTicketCleanupTimer.unref?.();
+    setTimeout(runCleanup, 5000).unref?.();
+  }
+
   async cleanupExpiredMedia() {
-    let entries;
+    let entries = [];
     try {
       entries = await fs.promises.readdir(MEDIA_DIR, { withFileTypes: true });
     } catch (error) {
-      if (error.code === 'ENOENT') return 0;
-      throw error;
+      if (error.code === 'ENOENT') entries = [];
+      else throw error;
     }
     const cutoff = Date.now() - (this.mediaRetentionDays * 24 * 60 * 60 * 1000);
     let removed = 0;
@@ -670,6 +855,10 @@ class WhatsAppService {
       await fs.promises.unlink(absolutePath);
       removed += 1;
     }
+    removed += await cloudStorage.cleanupMediaOlderThan(cutoff).catch(error => {
+      console.warn(`Falha ao limpar mídias no Supabase Storage: ${error.message}`);
+      return 0;
+    });
     if (removed > 0) console.log(`🧹 ${removed} mídia(s) expirada(s) removida(s).`);
     return removed;
   }
@@ -689,9 +878,11 @@ class WhatsAppService {
     if (!jid.includes('@')) jid = `${target.replace(/\D/g, '')}@s.whatsapp.net`;
     jid = resolveJid(jid, account);
     try {
-      await account.sock.sendMessage(jid, { text });
-      console.log(`[WhatsApp:${account.name}] mensagem enviada para ${getPhoneFromJid(jid, account.lidMap)}.`);
-      return true;
+      const result = await account.sock.sendMessage(jid, { text });
+      if (result?.key?.id && result?.message) account.messageCache.set(messageCacheKey(result.key), result.message);
+      this.rememberPlatformMessage(account.id, result?.key?.id);
+      console.log(`[WhatsApp:${account.name}] mensagem enviada para ${getPhoneFromJid(jid, account.lidMap)} (${jid}).`);
+      return result || true;
     } catch (error) {
       console.error(`[WhatsApp:${account.name}] falha no envio: ${error.message}`);
       return false;
@@ -702,6 +893,7 @@ class WhatsAppService {
     const account = this.selectAccount(accountId);
     if (!account?.sock || account.status !== 'connected') return false;
     let jid = target.includes('@') ? target : `${target.replace(/\D/g, '')}@s.whatsapp.net`;
+    jid = resolveJid(jid, account);
     const payloads = {
       image: { image: fileBuffer, caption: caption || '' },
       audio: buildAudioPayload(fileBuffer, mimeType, voiceNote),
@@ -710,10 +902,12 @@ class WhatsAppService {
     };
     try {
       const result = await account.sock.sendMessage(jid, payloads[mediaType]);
+      if (result?.key?.id && result?.message) account.messageCache.set(messageCacheKey(result.key), result.message);
+      this.rememberPlatformMessage(account.id, result?.key?.id);
       if (mediaType === 'audio') {
         console.log(`[WhatsApp:${account.name}] áudio enviado (${payloads.audio.mimetype}, ptt=${payloads.audio.ptt}, id=${result?.key?.id || 'n/d'}).`);
       }
-      return true;
+      return result || true;
     }
     catch (error) { console.error(`[WhatsApp:${account.name}] falha ao enviar mídia: ${error.message}`); return false; }
   }
@@ -731,6 +925,7 @@ class WhatsAppService {
     account.phone = null;
     account.displayName = null;
     fs.rmSync(path.join(ACCOUNTS_ROOT, account.id), { recursive: true, force: true });
+    await cloudStorage.deleteSession(account.id).catch(error => console.warn(`[WhatsApp:${account.name}] falha ao remover sessão da nuvem: ${error.message}`));
     await this.saveConfigs();
     this.emitAccounts();
   }
@@ -780,6 +975,15 @@ class WhatsAppService {
 }
 
 const whatsappService = new WhatsAppService();
-whatsappService._test = { unwrapMessageContent, safeFileToken, normalizeAccountRouting };
+whatsappService._test = {
+  unwrapMessageContent,
+  safeFileToken,
+  normalizeAccountRouting,
+  applyAccountRoutingWithPersistence,
+  getPhoneFromJid,
+  ExpiringCache,
+  messageCacheKey,
+  EMIT_OWN_EVENTS
+};
 
 module.exports = whatsappService;

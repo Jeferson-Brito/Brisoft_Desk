@@ -1,4 +1,5 @@
 import http from '@/api/http'
+import { getMediaSource } from '@/utils/media-message'
 
 const MAX_CACHED_MEDIA = 100
 const mediaCache = new Map()
@@ -45,4 +46,17 @@ export function clearProtectedMediaCache() {
     if (entry.objectUrl) URL.revokeObjectURL(entry.objectUrl)
   }
   mediaCache.clear()
+}
+
+export async function preloadTicketMedia(messages = [], concurrency = 3) {
+  const sources = [...new Set(messages.map(getMediaSource).filter(source => source?.startsWith('/api/media/') || source?.startsWith('/media/')))]
+  let cursor = 0
+  async function worker() {
+    while (cursor < sources.length) {
+      const source = sources[cursor++]
+      await loadProtectedMedia(source).catch(() => null)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, sources.length) }, worker))
+  return sources.length
 }

@@ -5,7 +5,7 @@
       active: ticket.id === ticketStore.activeTicketId,
       unread: ticket.unreadCount > 0
     }"
-    @click="ticketStore.selectTicket(ticket.id)"
+    @click="handleClick"
   >
     <!-- Avatar com Badge de Canal WhatsApp -->
     <div class="avatar-wrapper">
@@ -81,7 +81,13 @@ const props = defineProps({
   }
 })
 
+const emit = defineEmits(['select'])
 const ticketStore = useTicketStore()
+
+function handleClick() {
+  ticketStore.selectTicket(props.ticket.id)
+  emit('select', props.ticket.id)
+}
 
 const deptName = computed(() => props.ticket.department || props.ticket.deptInitial || 'Geral')
 const deptColor = computed(() => props.ticket.departmentColor || '#2563eb')

@@ -16,7 +16,10 @@ const usersController = require('../controllers/users.controller');
 const systemController = require('../controllers/system.controller');
 const contactsController = require('../controllers/contacts.controller');
 const quickMessageController = require('../controllers/quick-message.controller');
-const { requireAuth, requireAdmin, loginRateLimit } = require('../middleware/auth.middleware');
+const wallboardController = require('../controllers/wallboard.controller');
+const cloudStorage = require('../services/cloud-storage.service');
+const fs = require('fs');
+const { requireAuth, requireAdmin, requireSupervisorOrAdmin, loginRateLimit } = require('../middleware/auth.middleware');
 
 // ==========================================================================
 // ROTAS PÚBLICAS (sem autenticação)
@@ -42,15 +45,18 @@ router.get('/media/:filename', requireAuth, async (req, res) => {
     return res.status(404).json({ success: false, error: 'Mídia não encontrada.' });
   }
   res.setHeader('Cache-Control', 'private, max-age=86400, immutable');
-  return res.sendFile(path.join(__dirname, '../../public/media', filename), (error) => {
-    if (error && !res.headersSent) res.status(error.statusCode || 404).json({ success: false, error: 'Mídia não encontrada.' });
-  });
+  const localPath = path.join(__dirname, '../../public/media', filename);
+  if (fs.existsSync(localPath)) return res.sendFile(localPath);
+  const stored = await cloudStorage.downloadMedia(filename);
+  if (!stored) return res.status(404).json({ success: false, error: 'Mídia não encontrada.' });
+  res.type(stored.contentType);
+  return res.send(stored.buffer);
 });
 
 // Rotas de Usuários (apenas administradores)
-router.get('/users', requireAuth, requireAdmin, (req, res) => usersController.listUsers(req, res));
+router.get('/users', requireAuth, requireSupervisorOrAdmin, (req, res) => usersController.listUsers(req, res));
 router.post('/users', requireAuth, requireAdmin, (req, res) => usersController.createUser(req, res));
-router.put('/users/:id', requireAuth, requireAdmin, (req, res) => usersController.updateUser(req, res));
+router.put('/users/:id', requireAuth, requireSupervisorOrAdmin, (req, res) => usersController.updateUser(req, res));
 router.delete('/users/:id', requireAuth, requireAdmin, (req, res) => usersController.deleteUser(req, res));
 
 // Rotas de Tickets / Atendimentos
@@ -70,12 +76,15 @@ router.post('/tickets/transfer', requireAuth, (req, res) => ticketController.tra
 router.post('/tickets/close', requireAuth, (req, res) => ticketController.closeTicket(req, res));
 router.post('/tickets/read', requireAuth, (req, res) => ticketController.markAsRead(req, res));
 router.get('/dashboard/kpis', requireAuth, (req, res) => ticketController.getKpis(req, res));
+router.get('/performance', requireAuth, (req, res) => ticketController.getPerformance(req, res));
+router.get('/wallboard', requireAuth, (req, res) => wallboardController.getData(req, res));
+router.put('/wallboard/config', requireAuth, requireAdmin, (req, res) => wallboardController.saveConfig(req, res));
 
 // Mensagens rápidas: atendentes consultam; administradores gerenciam.
 router.get('/quick-messages', requireAuth, (req, res) => quickMessageController.list(req, res));
-router.post('/quick-messages', requireAuth, requireAdmin, (req, res) => quickMessageController.create(req, res));
-router.put('/quick-messages/:id', requireAuth, requireAdmin, (req, res) => quickMessageController.update(req, res));
-router.delete('/quick-messages/:id', requireAuth, requireAdmin, (req, res) => quickMessageController.remove(req, res));
+router.post('/quick-messages', requireAuth, requireSupervisorOrAdmin, (req, res) => quickMessageController.create(req, res));
+router.put('/quick-messages/:id', requireAuth, requireSupervisorOrAdmin, (req, res) => quickMessageController.update(req, res));
+router.delete('/quick-messages/:id', requireAuth, requireSupervisorOrAdmin, (req, res) => quickMessageController.remove(req, res));
 
 // Rotas de Departamentos
 router.get('/departments', requireAuth, (req, res) => departmentController.listDepartments(req, res));

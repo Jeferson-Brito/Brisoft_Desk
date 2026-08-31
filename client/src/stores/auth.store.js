@@ -13,6 +13,8 @@ export const useAuthStore = defineStore('auth', () => {
   // ─── Getters ─────────────────────────────────────────────────────────────────
   const isAuthenticated = computed(() => !!token.value)
   const isAdmin         = computed(() => user.value?.role === 'Administrador')
+  const isSupervisor    = computed(() => user.value?.role === 'Supervisor')
+  const canManageTeam   = computed(() => isAdmin.value || isSupervisor.value)
   const isTemporary     = computed(() => user.value?.is_temporary === true)
   const departmentId    = computed(() => user.value?.department_id ?? null)
   const departmentName  = computed(() => user.value?.department_name ?? null)
@@ -70,7 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
     // state
     token, user, initialized,
     // getters
-    isAuthenticated, isAdmin, isTemporary, departmentId, departmentName,
+    isAuthenticated, isAdmin, isSupervisor, canManageTeam, isTemporary, departmentId, departmentName,
     // actions
     login, logout, initAuth, setSession, clearSession
   }

@@ -8,6 +8,7 @@ export const useTicketStore = defineStore('tickets', () => {
   const queue          = ref([])      // todos os tickets ativos (aguardando + em_atendimento)
   const activeTicketId = ref(null)    // ticket selecionado no painel direito
   const loading        = ref(false)
+  const assumeRequests = new Map()
 
   // ─── Getters ─────────────────────────────────────────────────────────────────
 
@@ -71,6 +72,10 @@ export const useTicketStore = defineStore('tickets', () => {
 
   // Recebe ticket via WebSocket e insere/atualiza na fila
   function receiveTicket(ticket) {
+    if (ticket?.status === 'finalizado') {
+      removeTicket(ticket.id)
+      return
+    }
     const idx = queue.value.findIndex(t => t.id === ticket.id)
     if (idx !== -1) {
       const existing = queue.value[idx]
@@ -155,6 +160,20 @@ export const useTicketStore = defineStore('tickets', () => {
   }
 
   async function assume(ticketId) {
+    // Um clique duplo ou dois componentes reagindo ao mesmo evento compartilham
+    // a mesma requisição. Isso evita que a segunda tentativa reverta a primeira.
+    if (assumeRequests.has(ticketId)) return assumeRequests.get(ticketId)
+
+    const request = performAssume(ticketId)
+    assumeRequests.set(ticketId, request)
+    try {
+      return await request
+    } finally {
+      assumeRequests.delete(ticketId)
+    }
+  }
+
+  async function performAssume(ticketId) {
     const auth   = useAuthStore()
     const ticket = queue.value.find(t => t.id === ticketId)
     if (!ticket) return { success: false, error: 'Ticket não encontrado' }
@@ -175,7 +194,9 @@ export const useTicketStore = defineStore('tickets', () => {
       return { success: false, error: data.error || 'Erro ao assumir' }
     } catch (e) {
       Object.assign(ticket, snapshot)
-      return { success: false, error: 'Sem conexão com o servidor' }
+      const serverError = e.response?.data?.error
+      const error = serverError || (e.request ? 'Sem conexão com o servidor' : 'Não foi possível assumir o atendimento')
+      return { success: false, error }
     }
   }
 

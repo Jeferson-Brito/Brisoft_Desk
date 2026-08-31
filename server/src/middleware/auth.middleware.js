@@ -5,6 +5,7 @@
 
 const jwt = require('jsonwebtoken');
 const { supabase, isSupabaseConfigured } = require('../config/supabase');
+const { enrichUserAccess, isAdmin, isSupervisor } = require('../services/access-control.service');
 const JWT_SECRET = process.env.JWT_SECRET;
 
 const loginAttempts = new Map();
@@ -45,13 +46,14 @@ async function resolveAuthenticatedUser(token) {
     department_name: user.departments?.name || null,
     is_temporary: !!user.is_temporary
   };
-  authenticatedUsers.set(cacheKey, { user: resolvedUser, expiresAt: Date.now() + AUTH_USER_CACHE_MS });
+  const userWithAccess = await enrichUserAccess(resolvedUser);
+  authenticatedUsers.set(cacheKey, { user: userWithAccess, expiresAt: Date.now() + AUTH_USER_CACHE_MS });
   if (authenticatedUsers.size > 1000) {
     for (const [key, entry] of authenticatedUsers) {
       if (entry.expiresAt <= Date.now()) authenticatedUsers.delete(key);
     }
   }
-  return resolvedUser;
+  return userWithAccess;
 }
 
 /**
@@ -100,10 +102,17 @@ function clearLoginAttempts(req) {
  * Deve ser usado APÓS requireAuth.
  */
 function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'Administrador') {
+  if (!isAdmin(req.user)) {
     return res.status(403).json({ success: false, error: 'Acesso restrito a administradores.' });
   }
   next();
 }
 
-module.exports = { requireAuth, requireAdmin, resolveAuthenticatedUser, loginRateLimit, clearLoginAttempts };
+function requireSupervisorOrAdmin(req, res, next) {
+  if (!isAdmin(req.user) && !isSupervisor(req.user)) {
+    return res.status(403).json({ success: false, error: 'Acesso restrito a supervisores e administradores.' });
+  }
+  next();
+}
+
+module.exports = { requireAuth, requireAdmin, requireSupervisorOrAdmin, resolveAuthenticatedUser, loginRateLimit, clearLoginAttempts };

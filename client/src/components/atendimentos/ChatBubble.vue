@@ -76,6 +76,9 @@
     <div class="chat-bubble outgoing">
       <div v-if="agentName" style="font-weight:700;font-size:11px;color:#1d4ed8;margin-bottom:3px;">
         {{ agentName }}
+        <span v-if="isDirectWhatsapp" class="direct-whatsapp-label">
+          <i class="fa-brands fa-whatsapp"></i> enviado pelo celular
+        </span>
       </div>
 
       <div v-if="hasMedia && mediaLoading" class="media-status-card">
@@ -275,6 +278,9 @@ const agentMatch = computed(() => {
 })
 
 const agentName = computed(() => agentMatch.value ? agentMatch.value[1] : null)
+const isDirectWhatsapp = computed(() => props.msg?.sender_type === 'whatsapp_device'
+  || String(props.msg?.sender_name || '').startsWith('WhatsApp (')
+  || String(agentName.value || '').startsWith('WhatsApp ('))
 
 const displayText = computed(() => {
   let raw = agentMatch.value ? agentMatch.value[2] : props.msg?.text || ''
@@ -283,6 +289,19 @@ const displayText = computed(() => {
 </script>
 
 <style scoped>
+.direct-whatsapp-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 5px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 9px;
+  font-weight: 700;
+}
+
 .media-status-card {
   display: flex;
   align-items: center;

@@ -10,6 +10,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { supabase, isSupabaseConfigured } = require('../config/supabase');
+const { enrichUserAccess } = require('../services/access-control.service');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES = '8h';
@@ -124,6 +125,7 @@ class AuthController {
       const department_name = user.departments ? user.departments.name : null;
       const department_color = user.departments ? user.departments.color : null;
 
+      const userWithAccess = await enrichUserAccess({ ...user, department_name, department_color });
       const token = jwt.sign(
         { id: user.id, email: user.email, name: user.name, role: user.role, is_temporary: !!user.is_temporary, department_id: user.department_id, department_name },
         JWT_SECRET,
@@ -132,8 +134,7 @@ class AuthController {
 
       // Retorna os dados do usuário sem o hash da senha
       const { password_hash, ...userPublic } = user;
-      userPublic.department_name = department_name;
-      userPublic.department_color = department_color;
+      Object.assign(userPublic, userWithAccess, { department_name, department_color });
       const { clearLoginAttempts } = require('../middleware/auth.middleware');
       clearLoginAttempts(req);
       return res.json({ success: true, token, user: userPublic });
@@ -182,7 +183,7 @@ class AuthController {
         data.department_name = data.departments.name;
         data.department_color = data.departments.color;
       }
-      return res.json({ success: true, user: data });
+      return res.json({ success: true, user: await enrichUserAccess(data) });
     } catch (err) {
       console.error('Erro ao buscar usuário:', err.message);
       return res.status(401).json({ success: false, error: 'Não foi possível validar a sessão.' });

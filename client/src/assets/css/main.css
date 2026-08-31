@@ -28,3 +28,6 @@
 @import "views/avaliacoes.css";
 @import "views/configuracoes.css";
 @import "views/login.css";
+
+/* 5. Responsive Breakpoints (last — overrides desktop defaults) */
+@import "base/responsive.css";

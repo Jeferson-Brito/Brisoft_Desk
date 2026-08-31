@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test --test-isolation=none"
+    "test": "node --test --test-isolation=none",
+    "security:test": "node scripts/security-smoke.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
@@ -20,7 +21,8 @@
     "pino": "^9.4.0",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.7.5",
+    "ws": "^8.21.3"
   },
   "author": "Brisoft Tecnologia",
   "license": "ISC"

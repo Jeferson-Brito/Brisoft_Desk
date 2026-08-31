@@ -12,6 +12,8 @@ test('normalizeBotConfig aplica limites e preserva valores válidos', () => {
     collect_customer_name: false,
     require_customer_last_name: true,
     customer_name_attempt_limit: 99,
+    rapid_message_grace_seconds: 99,
+    external_service_idle_minutes: 9999,
     greeting_message: 'Olá, {nome}'
   });
   assert.equal(config.enabled, false);
@@ -21,7 +23,13 @@ test('normalizeBotConfig aplica limites e preserva valores válidos', () => {
   assert.equal(config.collect_customer_name, false);
   assert.equal(config.require_customer_last_name, true);
   assert.equal(config.customer_name_attempt_limit, 5);
+  assert.equal(config.rapid_message_grace_seconds, 15);
+  assert.equal(config.external_service_idle_minutes, 1440);
   assert.equal(config.greeting_message, 'Olá, {nome}');
+});
+
+test('permite desativar a proteção de mensagens rápidas com zero', () => {
+  assert.equal(normalizeBotConfig({ rapid_message_grace_seconds: 0 }).rapid_message_grace_seconds, 0);
 });
 
 test('renderBotMessage substitui apenas variáveis conhecidas', () => {

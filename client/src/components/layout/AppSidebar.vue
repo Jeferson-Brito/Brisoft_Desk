@@ -1,6 +1,9 @@
 <template>
-  <aside class="sidebar" id="mainSidebar" :class="{ collapsed }">
-
+  <aside
+    class="sidebar"
+    id="mainSidebar"
+    :class="{ collapsed, 'mobile-open': mobileOpen }"
+  >
     <!-- Brand Logo Header -->
     <div class="sidebar-header">
       <RouterLink to="/" class="brand-logo-container" title="Brisoft Desk">
@@ -44,17 +47,21 @@
         <span class="nav-label">Relatórios</span>
         <span class="development-badge">Em breve</span>
       </div>
-      <RouterLink class="nav-item" to="/avaliacoes" active-class="active" title="Avaliações">
-        <i class="fa-regular fa-star"></i>
-        <span class="nav-label">Avaliações</span>
+      <RouterLink class="nav-item" to="/desempenho" active-class="active" title="Desempenho">
+        <i class="fa-solid fa-chart-line"></i>
+        <span class="nav-label">Desempenho</span>
       </RouterLink>
-      <RouterLink v-if="auth.isAdmin" class="nav-item" to="/configuracoes" active-class="active" id="settingsNavUsuarios" title="Configurações">
-        <i class="fa-solid fa-gear"></i>
-        <span class="nav-label">Configurações</span>
+      <RouterLink class="nav-item" to="/painel-tv" active-class="active" title="Painel TV">
+        <i class="fa-solid fa-tv"></i>
+        <span class="nav-label">Painel TV</span>
+      </RouterLink>
+      <RouterLink v-if="auth.canManageTeam" class="nav-item" to="/configuracoes" active-class="active" id="settingsNavUsuarios" :title="auth.isAdmin ? 'Configurações' : 'Equipe do setor'">
+        <i :class="auth.isAdmin ? 'fa-solid fa-gear' : 'fa-solid fa-users-gear'"></i>
+        <span class="nav-label">{{ auth.isAdmin ? 'Configurações' : 'Equipe' }}</span>
       </RouterLink>
     </nav>
 
-    <!-- Sidebar Bottom Action -->
+    <!-- Sidebar Bottom Action (desktop only) -->
     <div class="sidebar-bottom">
       <button class="collapse-sidebar-btn" @click="collapsed = !collapsed" title="Recolher menu lateral">
         <i class="fa-solid fa-chevron-left" :class="{ 'fa-rotate-180': collapsed }"></i>
@@ -62,28 +69,44 @@
       </button>
     </div>
   </aside>
+
+  <!-- Overlay mobile — aparece atrás do drawer -->
+  <div
+    class="sidebar-overlay"
+    :class="{ visible: mobileOpen }"
+    @click="closeMobile"
+    aria-hidden="true"
+  ></div>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useAuthStore }   from '@/stores/auth.store'
-import { useTicketStore } from '@/stores/tickets.store'
+import { useRoute }          from 'vue-router'
+import { useAuthStore }      from '@/stores/auth.store'
+import { useTicketStore }    from '@/stores/tickets.store'
+import { useSidebarStore }   from '@/stores/sidebar.store'
 import logoUrl from '@/assets/img/logo.png'
 import iconUrl from '@/assets/img/icon.png'
 
 const auth    = useAuthStore()
 const tickets = useTicketStore()
+const route   = useRoute()
+const sidebar = useSidebarStore()
 
-// Recupera o estado salvo no localStorage
+// Desktop collapse state — persisted
 const savedState = localStorage.getItem('sidebar_collapsed') === 'true'
-const collapsed = ref(savedState)
+const collapsed  = ref(savedState)
 
-// Persiste qualquer alteração no localStorage
 watch(collapsed, (val) => {
-  try {
-    localStorage.setItem('sidebar_collapsed', String(val))
-  } catch (e) {}
+  try { localStorage.setItem('sidebar_collapsed', String(val)) } catch (e) {}
 })
+
+// Mobile drawer state — driven by shared Pinia store
+const mobileOpen = computed(() => sidebar.mobileOpen)
+function closeMobile() { sidebar.close() }
+
+// Fecha o drawer quando muda de rota (mobile)
+watch(() => route.path, () => { sidebar.close() })
 
 const waitingCount = computed(() => tickets.waitingTickets.length)
 </script>

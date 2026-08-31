@@ -181,6 +181,7 @@
           v-for="t in filteredTickets"
           :key="t.id"
           :ticket="t"
+          @select="emit('ticket-selected', t.id)"
         />
         <button
           v-if="hasMoreTickets"
@@ -207,10 +208,12 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { useTicketStore } from '@/stores/tickets.store'
+import { useTicketStore }   from '@/stores/tickets.store'
 import { useSettingsStore } from '@/stores/settings.store'
-import { useUiStore } from '@/stores/ui.store'
+import { useUiStore }       from '@/stores/ui.store'
 import QueueItem from './QueueItem.vue'
+
+const emit = defineEmits(['ticket-selected'])
 
 const ticketStore = useTicketStore()
 const settingsStore = useSettingsStore()

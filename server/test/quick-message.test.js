@@ -16,7 +16,12 @@ test('normaliza mensagem rápida e limita o atalho a caracteres seguros', () => 
     category: 'Atendimento',
     content: 'Aguarde um momento.',
     shortcut: 'aguardeagora',
-    is_active: true
+    is_active: true,
+    created_by_id: null,
+    created_by_name: 'Sistema',
+    created_at: null,
+    updated_by_name: null,
+    updated_at: null
   });
 });
 

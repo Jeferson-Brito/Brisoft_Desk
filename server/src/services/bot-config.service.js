@@ -14,6 +14,9 @@ const DEFAULT_BOT_CONFIG = Object.freeze({
   resume_window_hours: 24,
   rating_window_minutes: 45,
   invalid_attempt_limit: 3,
+  rapid_message_grace_seconds: 3,
+  auto_close_external_service: true,
+  external_service_idle_minutes: 60,
   auto_route_after_invalid: true,
   send_queue_confirmation: true,
   send_transfer_notice: true,
@@ -27,6 +30,7 @@ const DEFAULT_BOT_CONFIG = Object.freeze({
   menu_keywords: 'oi,olá,ola,bom dia,boa tarde,boa noite,menu,início,inicio,ajuda',
   human_handoff_keywords: 'atendente,humano,pessoa,falar com alguém,falar com alguem',
   cancel_keywords: 'cancelar,encerrar,sair,parar,desistir,finalizar,0,0️⃣,cancelar atendimento,encerrar atendimento,nao quero mais,não quero mais',
+  restart_service_keywords: 'menu,novo atendimento,outro departamento,mudar departamento,falar com outro setor,falar com outro departamento',
   greeting_message: 'Olá, *{nome}*! 👋\n\nBem-vindo ao atendimento do *Grupo Combate*.\n\n🏢 *Com qual departamento deseja falar?*\n\n{opcoes}\n\n_Responda com o número ou o nome do departamento._',
   disabled_routing_message: 'Olá, *{nome}*! 👋\n\n📩 Recebemos sua mensagem e encaminhamos seu atendimento para *{departamento}*.\n\n_Aguarde um momento. Um de nossos atendentes responderá em breve._',
   fallback_routing_message: '🔄 *Atendimento encaminhado*\n\n{nome}, para agilizar seu atendimento, direcionamos sua conversa para *{departamento}*.\n\n_Um atendente responderá em breve._',
@@ -90,7 +94,8 @@ const BOOLEAN_FIELDS = [
   'enabled', 'show_department_menu', 'accept_department_name', 'resume_recent_enabled',
   'auto_route_after_invalid', 'send_queue_confirmation', 'send_transfer_notice',
   'send_rating_request', 'accept_media_during_routing', 'human_handoff_enabled',
-  'allow_customer_cancel', 'collect_customer_name', 'require_customer_last_name'
+  'allow_customer_cancel', 'collect_customer_name', 'require_customer_last_name',
+  'auto_close_external_service'
 ];
 
 const MESSAGE_FIELDS = [
@@ -115,7 +120,7 @@ function normalizeBotConfig(value = {}) {
       config[field] = isKnownLegacyMessage ? DEFAULT_BOT_CONFIG[field] : savedMessage;
     }
   }
-  for (const field of ['menu_keywords', 'human_handoff_keywords', 'cancel_keywords']) {
+  for (const field of ['menu_keywords', 'human_handoff_keywords', 'cancel_keywords', 'restart_service_keywords']) {
     if (typeof source[field] === 'string') config[field] = source[field].slice(0, 1000);
   }
 
@@ -125,6 +130,9 @@ function normalizeBotConfig(value = {}) {
   config.resume_window_hours = Math.min(168, Math.max(1, Number.parseInt(source.resume_window_hours, 10) || 24));
   config.rating_window_minutes = Math.min(1440, Math.max(5, Number.parseInt(source.rating_window_minutes, 10) || 45));
   config.invalid_attempt_limit = Math.min(10, Math.max(1, Number.parseInt(source.invalid_attempt_limit, 10) || 3));
+  const rapidGrace = Number.parseInt(source.rapid_message_grace_seconds, 10);
+  config.rapid_message_grace_seconds = Number.isFinite(rapidGrace) ? Math.min(15, Math.max(0, rapidGrace)) : 3;
+  config.external_service_idle_minutes = Math.min(1440, Math.max(5, Number.parseInt(source.external_service_idle_minutes, 10) || 60));
   config.customer_name_attempt_limit = Math.min(5, Math.max(1, Number.parseInt(source.customer_name_attempt_limit, 10) || 3));
   return config;
 }

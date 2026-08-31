@@ -15,7 +15,12 @@ function normalizeMessage(value = {}) {
     category: String(value.category || 'Geral').trim().slice(0, 80),
     content: String(value.content || '').trim().slice(0, 4000),
     shortcut: String(value.shortcut || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 50),
-    is_active: value.is_active !== false
+    is_active: value.is_active !== false,
+    created_by_id: value.created_by_id || null,
+    created_by_name: String(value.created_by_name || 'Sistema').trim().slice(0, 255),
+    created_at: value.created_at || null,
+    updated_by_name: value.updated_by_name ? String(value.updated_by_name).trim().slice(0, 255) : null,
+    updated_at: value.updated_at || null
   };
 }
 
@@ -39,8 +44,13 @@ async function list(activeOnly = true) {
   return activeOnly ? messages.filter(item => item.is_active) : messages;
 }
 
-async function create(input) {
-  const item = normalizeMessage(input);
+async function create(input, user) {
+  const item = normalizeMessage({
+    ...input,
+    created_by_id: user?.id || null,
+    created_by_name: user?.name || 'Sistema',
+    created_at: new Date().toISOString()
+  });
   if (!item.title || !item.content) throw new Error('Título e mensagem são obrigatórios.');
   const messages = await loadAll();
   messages.push(item);
@@ -48,21 +58,28 @@ async function create(input) {
   return item;
 }
 
-async function update(id, input) {
+async function update(id, input, user) {
   const messages = await loadAll();
   const index = messages.findIndex(item => item.id === id);
   if (index < 0) throw new Error('Mensagem rápida não encontrada.');
-  const item = normalizeMessage({ ...messages[index], ...input, id });
+  if (user?.role === 'Supervisor' && String(messages[index].created_by_id || '') !== String(user.id || '')) {
+    throw new Error('Supervisores só podem alterar mensagens criadas por eles.');
+  }
+  const item = normalizeMessage({ ...messages[index], ...input, id, updated_by_name: user?.name || null, updated_at: new Date().toISOString() });
   if (!item.title || !item.content) throw new Error('Título e mensagem são obrigatórios.');
   messages[index] = item;
   await saveAll(messages);
   return item;
 }
 
-async function remove(id) {
+async function remove(id, user) {
   const messages = await loadAll();
   const filtered = messages.filter(item => item.id !== id);
   if (filtered.length === messages.length) throw new Error('Mensagem rápida não encontrada.');
+  const existing = messages.find(item => item.id === id);
+  if (user?.role === 'Supervisor' && String(existing?.created_by_id || '') !== String(user.id || '')) {
+    throw new Error('Supervisores só podem excluir mensagens criadas por eles.');
+  }
   await saveAll(filtered);
 }
 

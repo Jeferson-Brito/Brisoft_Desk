@@ -16,10 +16,16 @@ const apiRoutes = require('./routes/api');
 const whatsappService = require('./services/whatsapp.service');
 const { initTempAdmin } = require('./controllers/auth.controller');
 const { resolveAuthenticatedUser } = require('./middleware/auth.middleware');
+const { supabase, isSupabaseConfigured } = require('./config/supabase');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
   throw new Error('JWT_SECRET é obrigatório e deve ter pelo menos 32 caracteres. Configure server/.env.');
+}
+if (process.env.NODE_ENV === 'production') {
+  for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
+    if (!process.env[key]) throw new Error(`${key} é obrigatório em produção.`);
+  }
 }
 
 process.on('uncaughtException', (err) => {
@@ -35,9 +41,11 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
+app.disable('x-powered-by');
+if (process.env.NODE_ENV === 'production') app.set('trust proxy', 1);
 
 // Configuração do CORS e Socket.io
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || `http://localhost:${process.env.PORT || 3000}`)
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.RENDER_EXTERNAL_URL || `http://localhost:${process.env.PORT || 3000}`)
   .split(',').map(origin => origin.trim()).filter(Boolean);
 const corsOptions = { origin: allowedOrigins, methods: ['GET', 'POST', 'PUT', 'DELETE'] };
 
@@ -49,6 +57,31 @@ const io = new Server(server, {
 });
 
 app.use(cors(corsOptions));
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), geolocation=(), payment=(), microphone=(self)');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com data:; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
+  if (process.env.NODE_ENV === 'production') res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  next();
+});
+
+const apiRateLimits = new Map();
+app.use('/api', (req, res, next) => {
+  if (req.path === '/health') return next();
+  const now = Date.now();
+  const key = req.ip || req.socket?.remoteAddress || 'unknown';
+  const current = apiRateLimits.get(key);
+  const entry = !current || now - current.startedAt >= 5 * 60 * 1000 ? { startedAt: now, count: 0 } : current;
+  entry.count += 1;
+  apiRateLimits.set(key, entry);
+  res.setHeader('RateLimit-Limit', '600');
+  res.setHeader('RateLimit-Remaining', String(Math.max(0, 600 - entry.count)));
+  if (entry.count > 600) return res.status(429).json({ success: false, error: 'Muitas requisições. Aguarde alguns minutos.' });
+  if (apiRateLimits.size > 5000) for (const [entryKey, value] of apiRateLimits) if (now - value.startedAt >= 5 * 60 * 1000) apiRateLimits.delete(entryKey);
+  return next();
+});
 app.use(express.json({ limit: '1mb' }));
 // Cria pasta para armazenar mídias do WhatsApp se não existir
 const fs = require('fs');
@@ -68,7 +101,14 @@ whatsappService.setIO(io);
 // Rotas da API
 app.use('/api', apiRoutes);
 
-app.get('/api/health', (req, res) => res.json({ app: 'Brisoft Desk', status: 'online' }));
+app.get('/api/health', async (req, res) => {
+  let database = 'not_configured';
+  if (isSupabaseConfigured()) {
+    const { error } = await supabase.from('system_settings').select('key', { head: true, count: 'exact' }).limit(1);
+    database = error ? 'degraded' : 'online';
+  }
+  return res.status(database === 'degraded' ? 503 : 200).json({ app: 'Brisoft Desk', status: database === 'degraded' ? 'degraded' : 'online', database });
+});
 
 // SPA Fallback para Vue Router (HTML5 History Mode)
 app.get('*', (req, res, next) => {
@@ -102,7 +142,8 @@ io.on('connection', (socket) => {
   console.log(`🔌 Cliente conectado via WebSocket: ${socket.id}`);
 
   socket.join(`user:${socket.user.id}`);
-  if (socket.user.department_id) socket.join(`department:${socket.user.department_id}`);
+  const socketDepartments = [...new Set([...(socket.user.department_ids || []), socket.user.department_id].filter(Boolean))];
+  socketDepartments.forEach(departmentId => socket.join(`department:${departmentId}`));
   if (socket.user.role === 'Administrador') socket.join('admins');
 
   // Envia status atual do WhatsApp assim que o cliente conecta
@@ -137,3 +178,13 @@ startServer().catch((error) => {
   console.error('❌ Falha ao iniciar servidor:', error);
   process.exit(1);
 });
+
+async function gracefulShutdown(signal) {
+  console.log(`Encerramento solicitado (${signal}). Salvando sessões...`);
+  await whatsappService.backupAllSessions().catch(() => {});
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(1), 10000).unref();
+}
+
+process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.once('SIGINT', () => gracefulShutdown('SIGINT'));

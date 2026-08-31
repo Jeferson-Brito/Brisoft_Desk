@@ -72,6 +72,16 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_temporary BOOLEAN DEFAULT false;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(30);
 
+CREATE TABLE IF NOT EXISTS supervisor_departments (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    department_id UUID NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    PRIMARY KEY (user_id, department_id)
+);
+
+CREATE INDEX IF NOT EXISTS supervisor_departments_department_idx
+    ON supervisor_departments(department_id, user_id);
+
 
 -- 6. Tabela de Atendimentos / Chamados (Tickets)
 CREATE TABLE IF NOT EXISTS tickets (
@@ -97,6 +107,9 @@ CREATE TABLE IF NOT EXISTS tickets (
     encerrado_em VARCHAR(20),
     encerrado_por VARCHAR(255),
     channel VARCHAR(30) DEFAULT 'whatsapp',
+    handled_via VARCHAR(30) DEFAULT 'pending',
+    direct_whatsapp_messages INT DEFAULT 0,
+    platform_messages INT DEFAULT 0,
     
     -- Métricas de SLA
     started_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
@@ -114,6 +127,8 @@ CREATE TABLE IF NOT EXISTS messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     ticket_id UUID REFERENCES tickets(id) ON DELETE CASCADE NOT NULL,
     sender_type VARCHAR(20),
+    sender_name VARCHAR(255),
+    message_context VARCHAR(30),
     sender VARCHAR(20) NOT NULL, -- 'client', 'agent', 'system'
     type VARCHAR(30),
     time VARCHAR(20),
@@ -148,6 +163,20 @@ CREATE TABLE IF NOT EXISTS ratings (
     jid TEXT,
     comment TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Histórico consolidado de desempenho mensal
+CREATE TABLE IF NOT EXISTS performance_monthly_snapshots (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    month_start DATE NOT NULL,
+    scope_type VARCHAR(20) NOT NULL CHECK (scope_type IN ('company', 'department', 'agent')),
+    scope_id TEXT NOT NULL,
+    scope_name TEXT,
+    department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+    metrics JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE (month_start, scope_type, scope_id)
 );
 
 -- 10. Tabela de Mensagens Rápidas
@@ -228,3 +257,13 @@ ALTER TABLE contact_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ratings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quick_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE supervisor_departments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE performance_monthly_snapshots ENABLE ROW LEVEL SECURITY;
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit)
+VALUES ('chat-media', 'chat-media', false, 26214400)
+ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = EXCLUDED.file_size_limit;
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit)
+VALUES ('whatsapp-sessions', 'whatsapp-sessions', false, 10485760)
+ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = EXCLUDED.file_size_limit;

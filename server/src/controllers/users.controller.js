@@ -6,6 +6,7 @@
 const bcrypt = require('bcryptjs');
 const { supabase, isSupabaseConfigured } = require('../config/supabase');
 const { destroyTempAdmin, TEMP_ADMIN_ID } = require('./auth.controller');
+const { isAdmin, isSupervisor, departmentIds, replaceSupervisorDepartments } = require('../services/access-control.service');
 
 // Usuários em memória (fallback quando Supabase não está configurado)
 let _memoryUsers = [];
@@ -19,16 +20,31 @@ class UsersController {
   async listUsers(req, res) {
     try {
       if (isSupabaseConfigured()) {
-        const { data, error } = await supabase
+        let query = supabase
           .from('users')
           .select('id, name, email, role, department_id, avatar_url, status, is_active, is_temporary, phone, created_at, departments(id, name, color)')
           .order('created_at', { ascending: true });
+        if (isSupervisor(req.user)) {
+          const allowed = departmentIds(req.user);
+          query = allowed.length ? query.eq('role', 'Analista').in('department_id', allowed) : query.is('id', null);
+        }
+        const { data, error } = await query;
 
         if (error) throw error;
+        const { data: assignments, error: assignmentError } = isAdmin(req.user)
+          ? await supabase.from('supervisor_departments').select('user_id, department_id, departments(id, name, color)')
+          : { data: [], error: null };
+        if (assignmentError && !/supervisor_departments|schema cache|does not exist/i.test(assignmentError.message || '')) throw assignmentError;
         const users = (data || []).map(u => ({
           ...u,
           department_name: u.departments ? u.departments.name : null,
-          department_color: u.departments ? u.departments.color : null
+          department_color: u.departments ? u.departments.color : null,
+          department_ids: u.role === 'Supervisor'
+            ? [...new Set([u.department_id, ...(assignments || []).filter(item => String(item.user_id) === String(u.id)).map(item => item.department_id)].filter(Boolean))]
+            : [u.department_id].filter(Boolean),
+          supervised_departments: u.role === 'Supervisor'
+            ? (assignments || []).filter(item => String(item.user_id) === String(u.id)).map(item => item.departments).filter(Boolean)
+            : []
         }));
         return res.json({ success: true, users });
       }
@@ -48,7 +64,7 @@ class UsersController {
    * Body: { name, email, password, role, department_id, phone, avatar_url }
    */
   async createUser(req, res) {
-    const { name, email, password, role, department_id, phone, avatar_url } = req.body;
+    const { name, email, password, role, department_id, department_ids, phone, avatar_url } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, error: 'Nome, e-mail e senha são obrigatórios.' });
@@ -57,9 +73,9 @@ class UsersController {
       return res.status(400).json({ success: false, error: 'A senha deve ter pelo menos 8 caracteres.' });
     }
 
-    const validRoles = ['Administrador', 'Analista'];
+    const validRoles = ['Administrador', 'Supervisor', 'Analista'];
     if (role && !validRoles.includes(role)) {
-      return res.status(400).json({ success: false, error: 'Perfil inválido. Use: Administrador ou Analista.' });
+      return res.status(400).json({ success: false, error: 'Perfil inválido. Use: Administrador, Supervisor ou Analista.' });
     }
 
     try {
@@ -95,6 +111,10 @@ class UsersController {
           .single();
 
         if (error) throw error;
+        if ((role || 'Analista') === 'Supervisor') {
+          await replaceSupervisorDepartments(data.id, department_ids?.length ? department_ids : [department_id].filter(Boolean));
+          data.department_ids = department_ids?.length ? department_ids : [department_id].filter(Boolean);
+        }
         return res.json({ success: true, user: data, message: 'Usuário criado com sucesso.' });
       }
 
@@ -135,14 +155,14 @@ class UsersController {
    */
   async updateUser(req, res) {
     const { id } = req.params;
-    const { name, role, department_id, phone, avatar_url, is_active, password } = req.body;
+    const { name, email, role, department_id, department_ids, phone, avatar_url, is_active, password } = req.body;
 
     // Impedir edição do admin temporário em memória
     if (id === TEMP_ADMIN_ID) {
       return res.status(400).json({ success: false, error: 'O administrador temporário não pode ser editado. Crie seu perfil definitivo e exclua este.' });
     }
 
-    const validRoles = ['Administrador', 'Analista'];
+    const validRoles = ['Administrador', 'Supervisor', 'Analista'];
     if (role && !validRoles.includes(role)) {
       return res.status(400).json({ success: false, error: 'Perfil inválido.' });
     }
@@ -151,9 +171,22 @@ class UsersController {
     }
 
     try {
+      if (isSupervisor(req.user)) {
+        const allowed = departmentIds(req.user);
+        const { data: target, error: targetError } = await supabase.from('users').select('id, role, department_id').eq('id', id).maybeSingle();
+        if (targetError) throw targetError;
+        if (!target || target.role !== 'Analista' || !allowed.includes(String(target.department_id || ''))) {
+          return res.status(403).json({ success: false, error: 'Você só pode alterar atendentes dos departamentos sob sua supervisão.' });
+        }
+        if (department_id !== undefined && !allowed.includes(String(department_id || ''))) {
+          return res.status(403).json({ success: false, error: 'Departamento fora do seu escopo de supervisão.' });
+        }
+        if (role && role !== 'Analista') return res.status(403).json({ success: false, error: 'Supervisores não podem alterar perfis de acesso.' });
+      }
       const updatePayload = {};
       if (name !== undefined) updatePayload.name = name;
-      if (role !== undefined) updatePayload.role = role;
+      if (email !== undefined) updatePayload.email = String(email).trim().toLowerCase();
+      if (role !== undefined && isAdmin(req.user)) updatePayload.role = role;
       if (department_id !== undefined) updatePayload.department_id = department_id;
       if (phone !== undefined) updatePayload.phone = phone;
       if (avatar_url !== undefined) updatePayload.avatar_url = avatar_url;
@@ -185,6 +218,10 @@ class UsersController {
           .single();
 
         if (error) throw error;
+        if (isAdmin(req.user)) {
+          if (role === 'Supervisor') await replaceSupervisorDepartments(id, department_ids?.length ? department_ids : [department_id].filter(Boolean));
+          else if (role && role !== 'Supervisor') await replaceSupervisorDepartments(id, []);
+        }
         if (is_active === false || password || role || department_id !== undefined) {
           req.app.get('io')?.in(`user:${id}`).disconnectSockets(true);
         }

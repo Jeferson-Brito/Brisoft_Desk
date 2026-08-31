@@ -21,5 +21,8 @@ export const ticketsApi = {
     }
   }),
   markAsRead:    (ticketId)                        => http.post('/tickets/read',             { ticketId }),
-  kpis:          ()                                => http.get('/dashboard/kpis')
+  kpis:          ()                                => http.get('/dashboard/kpis'),
+  performance:   (params = {})                     => http.get('/performance', { params }),
+  wallboard:     (params = {})                     => http.get('/wallboard', { params }),
+  saveWallboardConfig: (departmentId, config)      => http.put('/wallboard/config', { departmentId, config })
 }

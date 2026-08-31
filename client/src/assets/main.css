@@ -29,5 +29,9 @@
 @import './css/views/clientes.css';
 @import './css/views/configuracoes.css';
 @import './css/views/mensagens_rapidas.css';
+@import './css/views/painel-tv.css';
+
+/* Responsive Overrides (must be last) */
+@import './css/base/responsive.css';
 
 /* Font Awesome via CDN — carregado no index.html */

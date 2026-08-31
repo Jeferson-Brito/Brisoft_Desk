@@ -6,13 +6,24 @@ alter table if exists public.messages
   add column if not exists media_type text,
   add column if not exists remote_message_id text,
   add column if not exists whatsapp_account_id text,
-  add column if not exists file_name text;
+  add column if not exists file_name text,
+  add column if not exists sender_type text,
+  add column if not exists sender_name text,
+  add column if not exists message_context text;
 
 alter table if exists public.tickets
   add column if not exists user_id uuid references public.users(id) on delete set null,
   add column if not exists assumed_at timestamptz,
+  add column if not exists started_at timestamptz,
+  add column if not exists first_response_at timestamptz,
+  add column if not exists finished_at timestamptz,
+  add column if not exists sla_minutes_target integer not null default 15,
+  add column if not exists sla_met boolean not null default true,
   add column if not exists closed_at timestamptz,
-  add column if not exists awaiting_rating boolean not null default false;
+  add column if not exists awaiting_rating boolean not null default false,
+  add column if not exists handled_via text not null default 'pending',
+  add column if not exists direct_whatsapp_messages integer not null default 0,
+  add column if not exists platform_messages integer not null default 0;
 
 -- O projeto legado usa tickets.id como TEXT, enquanto instalações novas usam UUID.
 -- Descobre o tipo existente e cria a FK com exatamente o mesmo tipo.
@@ -55,6 +66,20 @@ create table if not exists public.system_settings (
   updated_at timestamptz not null default now()
 );
 
+-- Supervisores podem acompanhar um ou mais departamentos. O departamento
+-- principal permanece em users.department_id para compatibilidade.
+create table if not exists public.supervisor_departments (
+  user_id uuid not null references public.users(id) on delete cascade,
+  department_id uuid not null references public.departments(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, department_id)
+);
+
+create index if not exists supervisor_departments_department_idx
+  on public.supervisor_departments(department_id, user_id);
+
+alter table public.supervisor_departments enable row level security;
+
 create index if not exists tickets_department_status_idx
   on public.tickets(department_id, status);
 create index if not exists tickets_user_status_idx
@@ -68,6 +93,38 @@ create index if not exists messages_ticket_created_idx
 create unique index if not exists messages_whatsapp_remote_unique_idx
   on public.messages(whatsapp_account_id, remote_message_id)
   where whatsapp_account_id is not null and remote_message_id is not null;
+
+-- Fechamentos consolidados mantêm o histórico dos indicadores mensais mesmo
+-- que a política de retenção dos atendimentos seja alterada futuramente.
+create table if not exists public.performance_monthly_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  month_start date not null,
+  scope_type text not null check (scope_type in ('company', 'department', 'agent')),
+  scope_id text not null,
+  scope_name text,
+  department_id uuid references public.departments(id) on delete set null,
+  metrics jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (month_start, scope_type, scope_id)
+);
+
+create index if not exists tickets_created_at_idx on public.tickets(created_at);
+create index if not exists tickets_closed_at_idx on public.tickets(closed_at) where closed_at is not null;
+create index if not exists ratings_created_at_idx on public.ratings(created_at);
+create index if not exists performance_monthly_scope_idx
+  on public.performance_monthly_snapshots(month_start desc, scope_type, scope_id);
+
+alter table public.performance_monthly_snapshots enable row level security;
+
+-- Buckets privados usados no Render, cujo disco local é temporário.
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('chat-media', 'chat-media', false, 26214400)
+on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit;
+
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('whatsapp-sessions', 'whatsapp-sessions', false, 10485760)
+on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit;
 
 do $$
 begin

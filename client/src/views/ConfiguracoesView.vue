@@ -3,6 +3,7 @@
     <!-- Coluna 1: Menu de Navegação das Configurações -->
     <div class="settings-nav-sidebar">
       <div
+        v-if="authStore.isAdmin"
         class="settings-nav-item"
         :class="{ active: activeTab === 'conexoes' }"
         @click="activeTab = 'conexoes'"
@@ -15,6 +16,7 @@
       </div>
 
       <div
+        v-if="authStore.isAdmin"
         class="settings-nav-item"
         :class="{ active: activeTab === 'geral' }"
         @click="activeTab = 'geral'"
@@ -27,6 +29,7 @@
       </div>
 
       <div
+        v-if="authStore.isAdmin"
         class="settings-nav-item"
         :class="{ active: activeTab === 'departamentos' }"
         @click="activeTab = 'departamentos'"
@@ -39,6 +42,7 @@
       </div>
 
       <div
+        v-if="authStore.isAdmin"
         class="settings-nav-item"
         :class="{ active: activeTab === 'bot' }"
         @click="activeTab = 'bot'"
@@ -58,7 +62,7 @@
         <i class="fa-solid fa-users-gear"></i>
         <div class="settings-nav-meta">
           <span class="settings-nav-title">Usuários & Acesso</span>
-          <span class="settings-nav-desc">Atendentes, administradores e senhas</span>
+          <span class="settings-nav-desc">{{ authStore.isAdmin ? 'Atendentes, supervisores, administradores e senhas' : 'Atendentes dos setores supervisionados' }}</span>
         </div>
       </div>
     </div>
@@ -190,9 +194,21 @@
             </div>
           </div>
 
-          <div v-if="botConfig.auto_route_after_invalid" style="max-width:260px;">
-            <label class="bot-field-label">Tentativas inválidas antes de encaminhar</label>
-            <input v-model.number="botConfig.invalid_attempt_limit" class="bot-field-control" type="number" min="1" max="10" />
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,260px));gap:12px;">
+            <div v-if="botConfig.auto_route_after_invalid">
+              <label class="bot-field-label">Tentativas inválidas antes de encaminhar</label>
+              <input v-model.number="botConfig.invalid_attempt_limit" class="bot-field-control" type="number" min="1" max="10" />
+            </div>
+            <div>
+              <label class="bot-field-label">Proteção para mensagens rápidas (seg.)</label>
+              <input v-model.number="botConfig.rapid_message_grace_seconds" class="bot-field-control" type="number" min="0" max="15" />
+              <span class="bot-field-help">Evita considerar como erro uma mensagem enviada antes de o menu aparecer. Use 0 para desativar.</span>
+            </div>
+            <div v-if="botConfig.auto_close_external_service">
+              <label class="bot-field-label">Encerrar atendimento pelo WhatsApp após (min.)</label>
+              <input v-model.number="botConfig.external_service_idle_minutes" class="bot-field-control" type="number" min="5" max="1440" />
+              <span class="bot-field-help">Após esse período sem mensagens, encerra o atendimento e libera o bot para um novo contato.</span>
+            </div>
           </div>
 
           <div v-if="botConfig.collect_customer_name" style="max-width:260px;">
@@ -216,6 +232,11 @@
               <label class="bot-field-label">Palavras para cancelar atendimento</label>
               <input v-model="botConfig.cancel_keywords" class="bot-field-control" type="text" :disabled="!botConfig.allow_customer_cancel" />
               <span class="bot-field-help">Encerra o chamado no bot. Ex: cancelar, sair, 0.</span>
+            </div>
+            <div>
+              <label class="bot-field-label">Palavras para iniciar outro atendimento</label>
+              <input v-model="botConfig.restart_service_keywords" class="bot-field-control" type="text" />
+              <span class="bot-field-help">Durante atendimento pelo celular, encerra a conversa atual e reabre o menu do bot.</span>
             </div>
           </div>
 
@@ -243,7 +264,7 @@
       <div v-else-if="activeTab === 'usuarios'" class="settings-section-card">
         <div class="settings-section-header">
           <span class="settings-section-heading">Usuários & Atendentes</span>
-          <button class="btn-primary" @click="openNewUserModal">
+          <button v-if="authStore.isAdmin" class="btn-primary" @click="openNewUserModal">
             <i class="fa-solid fa-user-plus"></i> Novo Usuário
           </button>
         </div>
@@ -294,7 +315,7 @@
                 </span>
               </td>
               <td style="font-size:12px;color:#64748b;">
-                {{ u.departments ? u.departments.name : (u.department_name || '—') }}
+                {{ userDepartmentLabel(u) }}
               </td>
               <td>
                 <span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;">
@@ -306,7 +327,7 @@
                 <button class="btn-icon" style="color:#2563eb;margin-right:4px;" title="Editar" @click="editUser(u)">
                   <i class="fa-solid fa-pen"></i>
                 </button>
-                <button class="btn-icon" style="color:#ef4444;" title="Excluir" @click="deleteUser(u)">
+                <button v-if="authStore.isAdmin" class="btn-icon" style="color:#ef4444;" title="Excluir" @click="deleteUser(u)">
                   <i class="fa-solid fa-trash"></i>
                 </button>
               </td>
@@ -346,7 +367,7 @@ const settingsStore = useSettingsStore()
 const authStore = useAuthStore()
 const ui = useUiStore()
 
-const activeTab = ref('geral')
+const activeTab = ref(authStore.isAdmin ? 'geral' : 'usuarios')
 const usersList = ref([])
 const savingBot = ref(false)
 
@@ -388,6 +409,9 @@ const botConfig = ref({
   resume_window_hours: 24,
   rating_window_minutes: 45,
   invalid_attempt_limit: 3,
+  rapid_message_grace_seconds: 3,
+  auto_close_external_service: true,
+  external_service_idle_minutes: 60,
   auto_route_after_invalid: true,
   send_queue_confirmation: true,
   send_transfer_notice: true,
@@ -401,6 +425,7 @@ const botConfig = ref({
   menu_keywords: 'oi,olá,ola,bom dia,boa tarde,boa noite,menu,início,inicio,ajuda',
   human_handoff_keywords: 'atendente,humano,pessoa,falar com alguém,falar com alguem',
   cancel_keywords: 'cancelar,encerrar,sair,parar,desistir,finalizar,0,cancelar atendimento,encerrar atendimento',
+  restart_service_keywords: 'menu,novo atendimento,outro departamento,mudar departamento,falar com outro setor,falar com outro departamento',
   ...defaultBotMessages
 })
 
@@ -416,7 +441,8 @@ const botBehaviorOptions = [
   { key: 'require_customer_last_name', label: 'Exigir nome e sobrenome', help: 'Reduz cadastros imprecisos exigindo pelo menos duas palavras.' },
   { key: 'send_queue_confirmation', label: 'Confirmar entrada na fila', help: 'Envia uma mensagem após escolher o departamento.' },
   { key: 'send_transfer_notice', label: 'Avisar sobre transferências', help: 'Notifica o cliente quando o setor for alterado.' },
-  { key: 'send_rating_request', label: 'Solicitar avaliação', help: 'Envia a pesquisa ao encerrar o atendimento.' }
+  { key: 'send_rating_request', label: 'Solicitar avaliação', help: 'Envia a pesquisa ao encerrar o atendimento.' },
+  { key: 'auto_close_external_service', label: 'Encerrar atendimento pelo WhatsApp por inatividade', help: 'Finaliza automaticamente atendimentos feitos pelo celular após o tempo configurado.' }
 ]
 
 const botMessageFields = [
@@ -441,6 +467,11 @@ const botMessageFields = [
 
 function getUserInitials(name) {
   return (name || 'U').split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
+}
+
+function userDepartmentLabel(user) {
+  if (user.role === 'Supervisor' && user.supervised_departments?.length) return user.supervised_departments.map(item => item.name).join(', ')
+  return user.departments?.name || user.department_name || '—'
 }
 
 async function loadUsers() {
@@ -481,11 +512,15 @@ async function deleteUser(u) {
 
 async function deleteDept(d) {
   if (!confirm(`Deseja realmente excluir o departamento ${d.name}?`)) return
-  const res = await settingsStore.deleteDepartment(d.id)
-  if (res.success) {
-    ui.showToast('Departamento excluído com sucesso!')
-  } else {
-    ui.showToast(`⚠️ ${res.error}`, 'error')
+  try {
+    const res = await settingsStore.deleteDepartment(d.id)
+    if (res.success) {
+      ui.showToast('Departamento excluído com sucesso!')
+    } else {
+      ui.showToast(`⚠️ ${res.error}`, 'error')
+    }
+  } catch (error) {
+    ui.showToast(error.response?.data?.error || 'Erro ao excluir departamento.', 'error')
   }
 }
 
@@ -533,7 +568,9 @@ function restoreBotDefaults() {
 }
 
 onMounted(async () => {
-  await Promise.all([settingsStore.fetchDepartments(), loadUsers(), loadSavedSettings()])
+  const tasks = [settingsStore.fetchDepartments(), loadUsers()]
+  if (authStore.isAdmin) tasks.push(loadSavedSettings())
+  await Promise.all(tasks)
 })
 </script>
 

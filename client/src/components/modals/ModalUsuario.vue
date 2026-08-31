@@ -49,8 +49,9 @@
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
               <div class="form-group">
                 <label>Papel / Perfil *</label>
-                <select v-model="formData.role" required class="form-control">
+                <select v-model="formData.role" required class="form-control" :disabled="!auth.isAdmin">
                   <option value="Administrador">Administrador (acesso total)</option>
+                  <option value="Supervisor">Supervisor de departamento</option>
                   <option value="Analista">Analista / Atendente</option>
                 </select>
               </div>
@@ -63,6 +64,16 @@
                   </option>
                 </select>
               </div>
+            </div>
+
+            <div v-if="formData.role === 'Supervisor'" class="form-group">
+              <label>Departamentos supervisionados *</label>
+              <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:10px;border:1px solid #cbd5e1;border-radius:7px;">
+                <label v-for="d in settingsStore.departments" :key="d.id" style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;">
+                  <input v-model="formData.department_ids" type="checkbox" :value="d.id" /> {{ d.name }}
+                </label>
+              </div>
+              <small style="display:block;margin-top:5px;color:#64748b;">O supervisor verá e administrará somente os setores selecionados.</small>
             </div>
 
             <!-- Telefone + Status -->
@@ -99,6 +110,7 @@ import { ref, computed } from 'vue'
 import { useSettingsStore } from '@/stores/settings.store'
 import { usersApi } from '@/api/users.api'
 import { useUiStore } from '@/stores/ui.store'
+import { useAuthStore } from '@/stores/auth.store'
 
 const props = defineProps({
   editingUser: {
@@ -111,6 +123,7 @@ const emit = defineEmits(['close', 'saved'])
 
 const settingsStore = useSettingsStore()
 const ui = useUiStore()
+const auth = useAuthStore()
 const loading = ref(false)
 
 const formData = ref({
@@ -119,6 +132,7 @@ const formData = ref({
   password: '',
   role: props.editingUser?.role || 'Analista',
   department_id: props.editingUser?.department_id || null,
+  department_ids: props.editingUser?.department_ids || [props.editingUser?.department_id].filter(Boolean),
   phone: props.editingUser?.phone || '',
   avatar_url: props.editingUser?.avatar_url || '',
   is_active: props.editingUser ? props.editingUser.is_active !== false : true
@@ -133,6 +147,12 @@ async function handleSubmit() {
   loading.value = true
   try {
     const payload = { ...formData.value }
+    if (payload.role === 'Supervisor') {
+      if (!payload.department_ids.length) return ui.showToast('Selecione ao menos um departamento para o supervisor.', 'error')
+      payload.department_id = payload.department_ids[0]
+    } else {
+      payload.department_ids = []
+    }
     if (!payload.password) delete payload.password
 
     let res

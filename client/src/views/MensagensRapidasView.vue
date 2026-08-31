@@ -11,7 +11,7 @@
         <div class="qm-stat"><strong>{{ activeCount }}</strong><span>Ativas</span></div>
         <div class="qm-stat"><strong>{{ categories.length }}</strong><span>Categorias</span></div>
       </div>
-      <button v-if="auth.isAdmin" class="btn-primary qm-create-btn" @click="openCreate">
+      <button v-if="auth.canManageTeam" class="btn-primary qm-create-btn" @click="openCreate">
         <i class="fa-solid fa-plus"></i> Nova mensagem
       </button>
     </section>
@@ -24,7 +24,7 @@
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
-      <select v-if="auth.isAdmin" v-model="statusFilter" class="form-control qm-select" aria-label="Filtrar por status">
+      <select v-if="auth.canManageTeam" v-model="statusFilter" class="form-control qm-select" aria-label="Filtrar por status">
         <option value="all">Todas</option>
         <option value="active">Ativas</option>
         <option value="inactive">Inativas</option>
@@ -79,6 +79,7 @@
         </div>
 
         <p class="qm-card-content">{{ msg.content }}</p>
+        <p class="qm-author"><i class="fa-regular fa-user"></i> {{ authorLabel(msg) }}</p>
 
         <div class="qm-card-bottom">
           <button v-if="msg.shortcut" type="button" class="qm-shortcut" title="Copiar atalho" @click="copyText(`/${msg.shortcut}`, 'Atalho copiado!')">
@@ -89,10 +90,10 @@
             <button type="button" class="btn-icon" title="Copiar mensagem" @click="copyText(msg.content, 'Mensagem copiada!')">
               <i class="fa-regular fa-copy"></i>
             </button>
-            <button v-if="auth.isAdmin" type="button" class="btn-icon" title="Editar" @click="openEdit(msg)">
+            <button v-if="canManageMessage(msg)" type="button" class="btn-icon" title="Editar" @click="openEdit(msg)">
               <i class="fa-solid fa-pen"></i>
             </button>
-            <button v-if="auth.isAdmin" type="button" class="btn-icon btn-icon-danger" title="Excluir" @click="removeMessage(msg)">
+            <button v-if="canManageMessage(msg)" type="button" class="btn-icon btn-icon-danger" title="Excluir" @click="removeMessage(msg)">
               <i class="fa-solid fa-trash"></i>
             </button>
           </div>
@@ -226,6 +227,12 @@ async function loadMessages() {
 }
 
 function categoryCount(category) { return messages.value.filter(item => (item.category || 'Geral') === category).length }
+function canManageMessage(message) { return auth.isAdmin || (auth.isSupervisor && String(message.created_by_id || '') === String(auth.user?.id || '')) }
+function authorLabel(message) {
+  const author = message.created_by_name || 'Sistema'
+  if (!message.created_at) return `Mensagem rápida criada por ${author}`
+  return `Mensagem rápida criada por ${author} em ${new Date(message.created_at).toLocaleDateString('pt-BR')}`
+}
 function categoryStyle(category = 'Geral') {
   const palettes = [
     ['#eff6ff', '#2563eb'], ['#f5f3ff', '#7c3aed'], ['#ecfdf5', '#059669'],
@@ -293,6 +300,7 @@ onMounted(loadMessages)
 .qm-card-top { display:flex; align-items:center; gap:9px; }.qm-card-icon { width:34px; height:34px; border-radius:9px; display:grid; place-items:center; flex:none; }.qm-card-heading { min-width:0; display:flex; flex-direction:column; }.qm-card-heading strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#0f172a; font-size:13.5px; }.qm-card-heading span { color:#64748b; font-size:10.5px; }
 .qm-status { margin-left:auto; display:inline-flex; align-items:center; gap:4px; font-size:9.5px; font-weight:700; }.qm-status i { font-size:5px; }.qm-status.active { color:#16a34a; }.qm-status.inactive { color:#94a3b8; }
 .qm-card-content { flex:1; margin:15px 0; color:#475569; font-size:12.5px; line-height:1.55; white-space:pre-wrap; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:4; overflow:hidden; }
+.qm-author { margin:0 0 9px; color:#94a3b8; font-size:9.5px; }
 .qm-card-bottom { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:11px; border-top:1px solid #f1f5f9; }.qm-shortcut { display:inline-flex; align-items:center; gap:7px; padding:5px 8px; border:1px solid #dbeafe; border-radius:6px; background:#eff6ff; color:#1d4ed8; font:600 10.5px monospace; cursor:pointer; }.qm-no-shortcut { color:#94a3b8; font-size:10.5px; }.qm-actions { display:flex; gap:4px; }.btn-icon-danger { color:#ef4444; }.btn-icon-danger:hover { background:#fef2f2; }
 .qm-empty { min-height:280px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px; border:1px dashed #cbd5e1; border-radius:14px; background:#fff; text-align:center; }.qm-empty-icon { width:54px; height:54px; display:grid; place-items:center; margin-bottom:12px; border-radius:50%; background:#eff6ff; color:#2563eb; font-size:22px; }.qm-empty strong { color:#1e293b; font-size:14px; }.qm-empty p { margin:5px 0 14px; color:#64748b; font-size:12px; }.qm-skeleton { height:190px; border-radius:12px; background:linear-gradient(90deg,#f1f5f9 25%,#f8fafc 50%,#f1f5f9 75%); background-size:200% 100%; animation:qm-shimmer 1.2s infinite; }
 .qm-modal { max-width:820px; }.qm-modal-subtitle { margin:3px 0 0; color:#64748b; font-size:11px; }.qm-modal-body { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(230px,.8fr); gap:22px; }.qm-form-fields { min-width:0; }.qm-two-columns { display:grid; grid-template-columns:1fr 1fr; gap:12px; }.form-group label span,.qm-label-row label span { color:#ef4444; }.qm-label-row { display:flex; justify-content:space-between; align-items:center; }.qm-label-row small { color:#94a3b8; font-size:10.5px; }.qm-textarea { resize:vertical; min-height:150px; line-height:1.5; }.qm-shortcut-input { position:relative; }.qm-shortcut-input>span { position:absolute; z-index:1; left:11px; top:50%; transform:translateY(-50%); color:#64748b; font-weight:700; }.qm-shortcut-input input { padding-left:23px; }

@@ -2,6 +2,15 @@
   <div class="chat-column">
     <!-- Header do Chat -->
     <div v-if="ticket" class="chat-header">
+      <!-- Botão Voltar (mobile) -->
+      <button
+        class="chat-back-btn"
+        style="display:none;"
+        title="Voltar para fila"
+        @click="$emit('go-back')"
+      >
+        <i class="fa-solid fa-chevron-left"></i>
+      </button>
       <div
         class="chat-header-left"
         style="cursor:pointer;"
@@ -23,6 +32,10 @@
             style="font-size:11px;color:#94a3b8;transition:transform 0.2s ease;"
           ></i>
         </div>
+        <span v-if="handlingChannel.label" class="handling-channel-badge" :class="handlingChannel.kind">
+          <i :class="handlingChannel.icon"></i>
+          {{ handlingChannel.label }}
+        </span>
       </div>
 
       <div class="chat-header-actions">
@@ -31,11 +44,13 @@
           v-if="canAssume"
           type="button"
           class="btn-primary"
+          :disabled="isAssuming"
           id="btnAssumirChat"
           style="padding:5px 12px;font-size:11.5px;display:inline-flex;align-items:center;gap:6px;"
           @click="handleAssume"
         >
-          <i class="fa-solid fa-hand-pointer"></i> Assumir
+          <i class="fa-solid" :class="isAssuming ? 'fa-spinner fa-spin' : 'fa-hand-pointer'"></i>
+          {{ isAssuming ? 'Assumindo...' : 'Assumir' }}
         </button>
 
         <!-- Menu Suspenso de Ações -->
@@ -72,6 +87,15 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div v-if="ticket && botInteractionCount > 0" class="bot-history-toolbar">
+      <button type="button" class="bot-history-toggle" @click="showBotInteractions = !showBotInteractions">
+        <i class="fa-solid fa-robot"></i>
+        <span>{{ showBotInteractions ? 'Ocultar interação com o bot' : 'Mostrar interação com o bot' }}</span>
+        <span class="bot-history-count">{{ botInteractionCount }}</span>
+        <i class="fa-solid" :class="showBotInteractions ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+      </button>
     </div>
 
     <!-- Mensagens do Chat -->
@@ -261,6 +285,8 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { ticketsApi } from '@/api/tickets.api'
 import { quickMessagesApi } from '@/api/quick-messages.api'
+import { classifyBotInteractions } from '@/utils/chat-message-visibility'
+import { preloadTicketMedia } from '@/utils/protected-media-cache'
 import ChatBubble from './ChatBubble.vue'
 import ModalTransferir from '@/components/modals/ModalTransferir.vue'
 
@@ -275,7 +301,7 @@ const props = defineProps({
   }
 })
 
-defineEmits(['toggle-details'])
+defineEmits(['toggle-details', 'go-back'])
 
 const ticketStore = useTicketStore()
 const authStore = useAuthStore()
@@ -289,11 +315,13 @@ const chatInputRef = ref(null)
 const fileInputRef = ref(null)
 const showScrollBottom = ref(false)
 const showQuickMessages = ref(false)
+const showBotInteractions = ref(false)
 const showEmojiPicker = ref(false)
 const quickMessages = ref([])
 const quickMessagesLoading = ref(false)
 const quickSearch = ref('')
 const sendingMedia = ref(false)
+const isAssuming = ref(false)
 const pendingUploads = ref([])
 const isRecording = ref(false)
 const recordingSeconds = ref(0)
@@ -341,6 +369,21 @@ const whatsappAccountLabel = computed(() => {
   return account?.name || 'WhatsApp'
 })
 
+const handlingChannel = computed(() => {
+  let source = props.ticket?.handled_via || 'pending'
+  if (source === 'pending' && String(props.ticket?.agent_name || '').startsWith('WhatsApp (')) source = 'whatsapp_device'
+  if (source === 'whatsapp_device') return { label: 'Atendido pelo WhatsApp', kind: 'device', icon: 'fa-brands fa-whatsapp' }
+  if (source === 'mixed') return { label: 'Atendimento misto', kind: 'mixed', icon: 'fa-solid fa-shuffle' }
+  if (source === 'platform') return { label: 'Atendido pela plataforma', kind: 'platform', icon: 'fa-solid fa-desktop' }
+  return { label: '', kind: '', icon: '' }
+})
+
+const classifiedMessages = computed(() => classifyBotInteractions(props.ticket?.messages || []))
+const botInteractionCount = computed(() => classifiedMessages.value.filter(item => item.isBotInteraction).length)
+const visibleMessages = computed(() => classifiedMessages.value
+  .filter(item => showBotInteractions.value || !item.isBotInteraction)
+  .map(item => item.message))
+
 function parseValidDate(val) {
   if (!val) return null
   const d = new Date(val)
@@ -377,7 +420,7 @@ function formatMessageDateLabel(dateObj) {
 }
 
 const messageGroups = computed(() => {
-  const msgs = props.ticket?.messages || []
+  const msgs = visibleMessages.value
   if (msgs.length === 0) return []
 
   const groups = []
@@ -466,6 +509,7 @@ onUnmounted(() => {
 })
 
 watch(() => props.ticket?.id, () => {
+  showBotInteractions.value = false
   scrollToBottom()
   focusInput()
 })
@@ -492,13 +536,23 @@ watch(() => props.ticket?.messages?.length, () => {
 })
 
 async function handleAssume() {
-  if (!props.ticket) return
-  const res = await ticketStore.assume(props.ticket.id)
-  if (res.success) {
-    ui.showToast('✅ Atendimento assumido com sucesso!')
-    focusInput()
-  } else {
-    ui.showToast(`⚠️ ${res.error}`, 'error')
+  if (!props.ticket || isAssuming.value) return
+  isAssuming.value = true
+  try {
+    const res = await ticketStore.assume(props.ticket.id)
+    if (res.success) {
+      ui.showToast('✅ Atendimento assumido com sucesso!')
+      ticketsApi.get(props.ticket.id).then(({ data }) => {
+        if (!data.success || !data.ticket?.messages) return
+        props.ticket.messages = data.ticket.messages
+        preloadTicketMedia(data.ticket.messages).catch(() => {})
+      }).catch(() => {})
+      focusInput()
+    } else {
+      ui.showToast(`⚠️ ${res.error}`, 'error')
+    }
+  } finally {
+    isAssuming.value = false
   }
 }
 
@@ -666,6 +720,56 @@ async function sendMessage() {
 </script>
 
 <style scoped>
+.handling-channel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 3px 8px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.handling-channel-badge.device { border-color: #a7f3d0; background: #ecfdf5; color: #047857; }
+.handling-channel-badge.mixed { border-color: #ddd6fe; background: #f5f3ff; color: #6d28d9; }
+
+.bot-history-toolbar {
+  display: flex;
+  justify-content: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.bot-history-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bot-history-toggle:hover { border-color: #93c5fd; color: #1d4ed8; }
+.bot-history-count {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  text-align: center;
+}
+
 .chat-footer {
   position: relative;
 }
@@ -995,5 +1099,28 @@ async function sendMessage() {
 .actions-menu-item.danger:hover {
   background: #fef2f2;
   color: #b91c1c;
+}
+
+/* Botão voltar (mobile) — oculto no desktop, visível via responsive.css */
+.chat-back-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: #f1f5f9;
+  border: none;
+  border-radius: 8px;
+  color: #475569;
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-right: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.chat-back-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
 }
 </style>

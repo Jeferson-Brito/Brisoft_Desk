@@ -11,10 +11,12 @@ const AvaliacoesView        = () => import('@/views/AvaliacoesView.vue')
 const ClientesView          = () => import('@/views/ClientesView.vue')
 const MensagensRapidasView  = () => import('@/views/MensagensRapidasView.vue')
 const ConfiguracoesView     = () => import('@/views/ConfiguracoesView.vue')
+const PainelTvView          = () => import('@/views/PainelTvView.vue')
 
 const routes = [
   // Rota pública
   { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
+  { path: '/painel-tv', name: 'painel_tv', component: PainelTvView, meta: { requiresAuth: true } },
 
   // Rotas autenticadas — envolvidas pelo AppLayout (Sidebar + Topbar)
   {
@@ -25,14 +27,15 @@ const routes = [
       { path: '',                  name: 'dashboard',         component: DashboardView        },
       { path: 'atendimentos',      name: 'atendimentos',      component: AtendimentosView      },
       { path: 'historico',         name: 'historico',         component: HistoricoView         },
-      { path: 'avaliacoes',        name: 'avaliacoes',        component: AvaliacoesView        },
+      { path: 'desempenho',        name: 'desempenho',        component: AvaliacoesView        },
+      { path: 'avaliacoes',        redirect: { name: 'desempenho' } },
       { path: 'clientes',          name: 'clientes',          component: ClientesView          },
       { path: 'mensagens-rapidas', name: 'mensagens_rapidas', component: MensagensRapidasView  },
       {
         path: 'configuracoes',
         name: 'configuracoes',
         component: ConfiguracoesView,
-        meta: { requiresAdmin: true }
+        meta: { requiresManager: true }
       }
     ]
   },
@@ -59,6 +62,10 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.requiresAdmin && !auth.isAdmin) {
+    return { name: 'dashboard' }
+  }
+
+  if (to.meta.requiresManager && !auth.canManageTeam) {
     return { name: 'dashboard' }
   }
 

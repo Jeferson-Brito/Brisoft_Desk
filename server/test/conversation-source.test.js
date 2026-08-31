@@ -1,0 +1,21 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const ticketService = require('../src/services/ticket.service');
+
+test('classifica a origem do atendimento sem perder atendimentos mistos', () => {
+  const { mergeHandledVia } = ticketService._test;
+  assert.equal(mergeHandledVia('pending', 'platform'), 'platform');
+  assert.equal(mergeHandledVia('pending', 'whatsapp_device'), 'whatsapp_device');
+  assert.equal(mergeHandledVia('platform', 'whatsapp_device'), 'mixed');
+  assert.equal(mergeHandledVia('whatsapp_device', 'platform'), 'mixed');
+  assert.equal(mergeHandledVia('mixed', 'platform'), 'mixed');
+});
+
+test('usa o JID telefônico para enviar mensagens e mantém o LID apenas como fallback', () => {
+  const { preferredWhatsAppJid } = ticketService._test;
+  assert.equal(
+    preferredWhatsAppJid('55 (83) 93858-515', '25117639839856@lid'),
+    '558393858515@s.whatsapp.net'
+  );
+  assert.equal(preferredWhatsAppJid('', '25117639839856@lid'), '25117639839856@lid');
+});
