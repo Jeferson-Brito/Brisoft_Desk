@@ -3,10 +3,22 @@
     <!-- Header da Fila -->
     <div class="queue-header-row">
       <div class="queue-header-left">
-        <i class="fa-solid fa-bars queue-menu-icon"></i>
         <span class="queue-title-bold">Fila de Atendimento</span>
       </div>
       <div class="queue-header-right">
+        <!-- Botão Filtros -->
+        <button
+          type="button"
+          class="queue-filter-btn"
+          :class="{ active: showFilterPopover || selectedDepartment || onlyMine }"
+          title="Filtros"
+          @click="showFilterPopover = !showFilterPopover"
+        >
+          <i class="fa-solid fa-sliders"></i>
+          <span v-if="selectedDepartment || onlyMine" class="filter-dot"></span>
+        </button>
+
+        <!-- Botão Nova Conversa -->
         <button
           type="button"
           class="queue-new-btn"
@@ -17,6 +29,37 @@
         </button>
       </div>
     </div>
+
+    <!-- Painel de Filtros Popover -->
+    <Transition name="filter-slide">
+      <div v-if="showFilterPopover" class="queue-filter-panel">
+        <div class="filter-group">
+          <label class="filter-label">Departamento</label>
+          <select v-model="selectedDepartment" class="filter-select">
+            <option value="">Todos os Departamentos</option>
+            <option v-for="d in settingsStore.departments" :key="d.id" :value="d.name">
+              {{ d.name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-checkbox-label">
+            <input v-model="onlyMine" type="checkbox" />
+            <span>Apenas meus atendimentos</span>
+          </label>
+        </div>
+
+        <div class="filter-panel-footer">
+          <button v-if="selectedDepartment || onlyMine" type="button" class="filter-reset-btn" @click="resetFilters">
+            <i class="fa-solid fa-xmark"></i> Limpar filtros
+          </button>
+          <button type="button" class="filter-close-btn" @click="showFilterPopover = false">
+            Concluído
+          </button>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Abas da Fila: Aguardando vs Em atendimento -->
     <div class="queue-tabs-row">
@@ -46,6 +89,18 @@
           {{ inProgressCount }}
         </span>
       </button>
+    </div>
+
+    <!-- Chip de Filtro Ativo -->
+    <div v-if="selectedDepartment || onlyMine" class="queue-active-chip-bar">
+      <span v-if="selectedDepartment" class="active-filter-chip">
+        Setor: <strong>{{ selectedDepartment }}</strong>
+        <i class="fa-solid fa-xmark" @click="selectedDepartment = ''"></i>
+      </span>
+      <span v-if="onlyMine" class="active-filter-chip">
+        Apenas Meus
+        <i class="fa-solid fa-xmark" @click="onlyMine = false"></i>
+      </span>
     </div>
 
     <!-- Barra de Busca compacta -->
@@ -100,21 +155,53 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useTicketStore } from '@/stores/tickets.store'
+import { useSettingsStore } from '@/stores/settings.store'
+import { useAuthStore } from '@/stores/auth.store'
 import QueueItem from '@/components/atendimentos/QueueItem.vue'
 import NewConversationModal from '@/components/atendimentos/NewConversationModal.vue'
 
 const emit = defineEmits(['ticket-selected'])
 
 const ticketStore = useTicketStore()
+const settingsStore = useSettingsStore()
+const authStore = useAuthStore()
+
 const currentTab = ref('aguardando')
 const searchTerm = ref('')
+const selectedDepartment = ref('')
+const onlyMine = ref(false)
+const showFilterPopover = ref(false)
 const showNewConversation = ref(false)
 
-const waitingCount = computed(() => (ticketStore.waitingTickets || []).length)
-const inProgressCount = computed(() => (ticketStore.inProgressTickets || []).length)
+const waitingCount = computed(() => {
+  return (ticketStore.waitingTickets || []).filter(t => {
+    if (selectedDepartment.value && (t.department || t.deptInitial) !== selectedDepartment.value) return false
+    if (onlyMine.value) {
+      const myId = authStore.user?.id
+      if (t.agent_id !== myId && t.user_id !== myId) return false
+    }
+    return true
+  }).length
+})
+
+const inProgressCount = computed(() => {
+  return (ticketStore.inProgressTickets || []).filter(t => {
+    if (selectedDepartment.value && (t.department || t.deptInitial) !== selectedDepartment.value) return false
+    if (onlyMine.value) {
+      const myId = authStore.user?.id
+      if (t.agent_id !== myId && t.user_id !== myId) return false
+    }
+    return true
+  }).length
+})
 
 function onTicketClick(ticketId) {
   emit('ticket-selected', ticketId)
+}
+
+function resetFilters() {
+  selectedDepartment.value = ''
+  onlyMine.value = false
 }
 
 const filteredTickets = computed(() => {
@@ -124,6 +211,15 @@ const filteredTickets = computed(() => {
     list = list.filter(t => t.status === 'aguardando' || !t.assumed)
   } else if (currentTab.value === 'em_atendimento') {
     list = list.filter(t => t.assumed || t.status === 'em_atendimento' || t.status === 'chatbot')
+  }
+
+  if (selectedDepartment.value) {
+    list = list.filter(t => (t.department || t.deptInitial) === selectedDepartment.value)
+  }
+
+  if (onlyMine.value) {
+    const myId = authStore.user?.id
+    list = list.filter(t => t.agent_id === myId || t.user_id === myId)
   }
 
   if (searchTerm.value.trim()) {
@@ -153,6 +249,7 @@ const filteredTickets = computed(() => {
   height: 100vh;
   box-sizing: border-box;
   overflow: hidden;
+  position: relative;
 }
 
 .queue-header-row {
@@ -171,17 +268,19 @@ const filteredTickets = computed(() => {
   gap: 8px;
 }
 
-.queue-menu-icon {
-  font-size: 13px;
-  color: #64748b;
-}
-
 .queue-title-bold {
   font-size: 14px;
   font-weight: 700;
   color: #0f172a;
 }
 
+.queue-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.queue-filter-btn,
 .queue-new-btn {
   width: 28px;
   height: 28px;
@@ -194,13 +293,112 @@ const filteredTickets = computed(() => {
   justify-content: center;
   font-size: 12px;
   cursor: pointer;
+  position: relative;
   transition: all 0.15s ease;
 }
 
+.queue-filter-btn:hover,
 .queue-new-btn:hover {
   color: #1f62d0;
   border-color: #bfdbfe;
   background: #eff6ff;
+}
+
+.queue-filter-btn.active {
+  color: #1f62d0;
+  border-color: #1f62d0;
+  background: #eff6ff;
+}
+
+.filter-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #1f62d0;
+}
+
+/* Painel de Filtros */
+.queue-filter-panel {
+  padding: 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: slideDown 0.15s ease;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filter-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.filter-select {
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 5px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 12px;
+  color: #0f172a;
+  outline: none;
+}
+
+.filter-select:focus {
+  border-color: #1f62d0;
+}
+
+.filter-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #334155;
+  cursor: pointer;
+}
+
+.filter-panel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 4px;
+}
+
+.filter-reset-btn {
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.filter-close-btn {
+  background: #1f62d0;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: auto;
 }
 
 /* Abas Aguardando vs Em atendimento */
@@ -256,6 +454,31 @@ const filteredTickets = computed(() => {
 .badge-alert {
   background: #fee2e2 !important;
   color: #ef4444 !important;
+}
+
+/* Chip Bar */
+.queue-active-chip-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 10px 0;
+}
+
+.active-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #1f62d0;
+}
+
+.active-filter-chip i {
+  cursor: pointer;
+  font-size: 10px;
 }
 
 .queue-search-container {

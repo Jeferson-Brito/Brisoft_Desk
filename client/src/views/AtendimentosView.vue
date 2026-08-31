@@ -24,6 +24,7 @@
       <ContactDrawer
         v-if="isDetailsOpen && ticketStore.activeTicket"
         :ticket="ticketStore.activeTicket"
+        @close="isDetailsOpen = false"
       />
     </div>
 
@@ -58,7 +59,7 @@ const ticketStore = useTicketStore()
 const ui          = useUiStore()
 const auth        = useAuthStore()
 
-const isDetailsOpen = ref(true)
+const isDetailsOpen = ref(false)
 const showNewConversation = ref(false)
 const mobilePanel = ref('queue')
 

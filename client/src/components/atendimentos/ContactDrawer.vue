@@ -3,13 +3,18 @@
     <!-- Header: Conversation Details -->
     <div class="details-header">
       <span class="details-header-title">Detalhes do Atendimento</span>
-      <button type="button" class="details-gear-btn" title="Configurar detalhes" @click="showEditModal = true">
-        <i class="fa-solid fa-gear"></i>
-      </button>
+      <div class="details-header-actions">
+        <button type="button" class="details-gear-btn" title="Editar contato" @click="showEditModal = true">
+          <i class="fa-solid fa-pen"></i>
+        </button>
+        <button type="button" class="details-gear-btn" title="Fechar detalhes" @click="$emit('close')">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
     </div>
 
     <div class="details-body">
-      <!-- Metadados do Atendimento (Key-Value Table estilo Image 2) -->
+      <!-- Metadados do Atendimento -->
       <div class="metadata-table">
         <div class="metadata-row">
           <span class="metadata-key">Departamento</span>
@@ -23,7 +28,7 @@
         </div>
         <div class="metadata-row">
           <span class="metadata-key">Status</span>
-          <span class="metadata-val">{{ ticket?.status || 'Aberto' }}</span>
+          <span class="metadata-val">{{ statusLabel }}</span>
         </div>
         <div class="metadata-row">
           <span class="metadata-key">Tempo de Espera</span>
@@ -137,6 +142,8 @@ const props = defineProps({
   }
 })
 
+defineEmits(['close'])
+
 const ui = useUiStore()
 const showEditModal = ref(false)
 
@@ -145,6 +152,15 @@ const contact = computed(() => props.ticket?.contact || {})
 const displayPhone = computed(() => {
   const p = contact.value?.phone || props.ticket?.phone
   return formatPhone(p)
+})
+
+const statusLabel = computed(() => {
+  const s = props.ticket?.status
+  if (s === 'aguardando') return 'Aguardando'
+  if (s === 'em_atendimento') return 'Em atendimento'
+  if (s === 'chatbot') return 'Bot'
+  if (s === 'finalizado') return 'Finalizado'
+  return s || 'Aberto'
 })
 
 const whatsappAccountLabel = computed(() => {
@@ -158,7 +174,7 @@ const waitTimeStr = computed(() => {
   if (props.ticket?.status === 'em_atendimento' || props.ticket?.assumed) {
     return 'Em atendimento'
   }
-  return 'Na fila (00:04:12)'
+  return 'Na fila'
 })
 </script>
 

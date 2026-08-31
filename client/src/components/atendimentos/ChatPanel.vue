@@ -12,25 +12,54 @@
         <i class="fa-solid fa-chevron-left"></i>
       </button>
 
-      <!-- Título: Nome do Cliente -->
-      <div class="chat-header-title-box">
+      <!-- Título: Nome do Cliente (clique para abrir detalhes) -->
+      <div
+        class="chat-header-title-box"
+        style="cursor: pointer;"
+        title="Clique para ver os detalhes do contato"
+        @click="$emit('toggle-details')"
+      >
         <h2 class="chat-contact-title">
           {{ ticket?.clientName || ticket?.client_name || 'Cliente' }}
         </h2>
+        <i
+          class="fa-solid"
+          :class="isDetailsOpen ? 'fa-chevron-up' : 'fa-chevron-down'"
+          style="font-size: 11px; color: #94a3b8; margin-left: 2px;"
+        ></i>
         <span v-if="ticket?.is_employee" class="employee-contact-badge" title="Funcionário da empresa">
           <i class="fa-solid fa-id-badge"></i> Funcionário
         </span>
       </div>
 
-      <!-- Ações à Direita estilo Image 2 -->
+      <!-- Ações à Direita -->
       <div class="chat-header-tools">
-        <!-- SLA Pill -->
-        <span class="sla-timer-pill" title="Tempo de resposta">
-          <i class="fa-regular fa-clock"></i> Responder em 14m
+        <!-- Conexão WhatsApp / Atendente Responsável -->
+        <span v-if="handlingChannel?.label" class="handling-channel-badge" :class="handlingChannel.kind" style="padding: 4px 8px; font-size: 11.5px; border-radius: 6px;">
+          <i :class="handlingChannel.icon"></i>
+          {{ handlingChannel.label }}
         </span>
 
-        <!-- 3 Pontinhos Dropdown -->
-        <div class="actions-dropdown-wrapper" ref="actionsDropdownRef">
+        <div v-if="ticket?.agent_name || ticket?.agentName" class="assignee-pill" title="Atendente responsável">
+          <span class="assignee-avatar">
+            {{ (ticket?.agent_name || ticket?.agentName || 'A').slice(0, 1).toUpperCase() }}
+          </span>
+          <span>{{ ticket?.agent_name || ticket?.agentName }}</span>
+        </div>
+        <button
+          v-else-if="canAssume"
+          type="button"
+          class="assignee-assume-btn"
+          :disabled="isAssuming"
+          id="btnAssumirChat"
+          @click="handleAssume"
+        >
+          <i class="fa-solid" :class="isAssuming ? 'fa-spinner fa-spin' : 'fa-hand-pointer'"></i>
+          <span>{{ isAssuming ? 'Assumindo...' : 'Assumir' }}</span>
+        </button>
+
+        <!-- 3 Pontinhos Dropdown (Menu de Ações) -->
+        <div v-if="ticket" class="actions-dropdown-wrapper" ref="actionsDropdownRef">
           <button
             type="button"
             class="header-tool-btn"
@@ -61,57 +90,6 @@
             </button>
           </div>
         </div>
-
-        <!-- Assignee Pill / Botão Assumir -->
-        <div v-if="ticket?.agent_name || ticket?.agentName" class="assignee-pill" title="Atendente responsável">
-          <span class="assignee-avatar">
-            {{ (ticket?.agent_name || ticket?.agentName || 'A').slice(0, 1).toUpperCase() }}
-          </span>
-          <span>{{ ticket?.agent_name || ticket?.agentName }}</span>
-        </div>
-        <button
-          v-else-if="canAssume"
-          type="button"
-          class="assignee-assume-btn"
-          :disabled="isAssuming"
-          id="btnAssumirChat"
-          @click="handleAssume"
-        >
-          <i class="fa-solid" :class="isAssuming ? 'fa-spinner fa-spin' : 'fa-hand-pointer'"></i>
-          <span>{{ isAssuming ? 'Assumindo...' : 'Assumir' }}</span>
-        </button>
-
-        <!-- Star Icon -->
-        <button type="button" class="header-tool-btn" title="Favoritar">
-          <i class="fa-regular fa-star"></i>
-        </button>
-
-        <!-- Snooze Icon -->
-        <button type="button" class="header-tool-btn" title="Adiar / Lembrete">
-          <i class="fa-regular fa-clock"></i>
-        </button>
-
-        <!-- Resolve / Encerrar Button (Checkmark) -->
-        <button
-          v-if="canClose"
-          type="button"
-          class="header-resolve-btn"
-          title="Encerrar atendimento"
-          @click="openClose"
-        >
-          <i class="fa-solid fa-check"></i>
-        </button>
-
-        <!-- Toggle Detalhes -->
-        <button
-          type="button"
-          class="header-tool-btn"
-          :class="{ active: isDetailsOpen }"
-          title="Detalhes do contato"
-          @click="$emit('toggle-details')"
-        >
-          <i class="fa-solid fa-gear"></i>
-        </button>
       </div>
     </div>
 

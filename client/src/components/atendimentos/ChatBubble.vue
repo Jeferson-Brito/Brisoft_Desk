@@ -224,12 +224,23 @@ const isSystemMessage = computed(() => {
   const t = props.msg?.text || ''
   return (
     props.msg?.type === 'divider' ||
+    props.msg?.type === 'system' ||
     props.msg?.sender === 'system' ||
     t.startsWith('[Chatbot]') ||
+    t.startsWith('🤖') ||
     t.startsWith('Atendimento assumido') ||
-    t.startsWith('✅ Atendimento encerrado') ||
-    t.startsWith('🔄 Atendimento transferido') ||
-    t.startsWith('📌 NOTA INTERNA')
+    t.startsWith('✅') ||
+    t.startsWith('⭐') ||
+    t.startsWith('📜') ||
+    t.startsWith('⚡') ||
+    t.startsWith('🔄') ||
+    t.startsWith('📌 NOTA INTERNA') ||
+    t.includes('Atendimento finalizado') ||
+    t.includes('Atendimento encerrado') ||
+    t.includes('Atendimento assumido') ||
+    t.includes('Histórico anterior') ||
+    t.includes('Atendimento Atual') ||
+    t.includes('Avaliação do cliente')
   )
 })
 
@@ -426,5 +437,29 @@ const displayText = computed(() => {
 .reaction-emoji {
   font-size: 22px;
   line-height: 1;
+}
+
+.chat-divider-row {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0;
+  width: 100%;
+}
+
+.chat-divider-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: 6px;
+  max-width: 90%;
+  line-height: 1.4;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 </style>
