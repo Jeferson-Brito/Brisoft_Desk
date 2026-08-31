@@ -394,13 +394,13 @@ onMounted(loadContacts)
 .clientes-error {
   padding: 40px;
   text-align: center;
-  color: #64748b;
-  font-size: 14px;
+  color: var(--text-muted);
+  font-size: 13px;
 }
-.clientes-error { color: #f87171; }
+.clientes-error { color: #d92d20; }
 
 .clientes-modal {
-  max-width: 600px;
+  max-width: 580px;
   width: 100%;
 }
 
@@ -412,8 +412,8 @@ onMounted(loadContacts)
 }
 
 .contacts-tabs-bar {
-  padding: 0 20px;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--border-color);
   background: #ffffff;
 }
 
@@ -421,31 +421,50 @@ onMounted(loadContacts)
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 11px 4px 9px;
+  padding: 10px 4px 8px;
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 700;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.contacts-tabs-bar button.active { color: #2563eb; border-bottom-color: #2563eb; }
-.contacts-tabs-bar button span { padding: 1px 6px; border-radius: 999px; background: #f1f5f9; font-size: 10px; }
-.contacts-tabs-bar button.active span { background: #dbeafe; }
-.contacts-tabs-bar small { margin-left: auto; color: #047857; font-size: 11px; }
+.contacts-tabs-bar button.active {
+  color: var(--brand-primary);
+  border-bottom-color: var(--brand-primary);
+}
+
+.contacts-tabs-bar button span {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  font-size: 10px;
+}
+
+.contacts-tabs-bar button.active span {
+  background: #eff6ff;
+  color: var(--brand-primary);
+}
+
+.contacts-tabs-bar small {
+  margin-left: auto;
+  color: #168a52;
+  font-size: 11px;
+}
 
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 12px;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .form-group-full {
@@ -453,86 +472,86 @@ onMounted(loadContacts)
 }
 
 .form-group label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #475569;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
 }
 
 .form-group input,
 .form-group select,
 .form-group textarea {
   background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 9px 12px;
-  color: #0f172a;
-  font-size: 14px;
+  border: 1px solid #d7dce2;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--text-main);
+  font-size: 13px;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.15s;
   resize: vertical;
 }
 
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
-  border-color: #2563eb;
+  border-color: var(--brand-primary);
 }
 
 .form-error-msg {
-  margin-top: 12px;
-  padding: 10px 14px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 8px;
-  color: #f87171;
-  font-size: 13px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  color: #d92d20;
+  font-size: 12px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .btn-icon-danger {
-  color: #f87171 !important;
+  color: #d92d20 !important;
 }
 .btn-icon-danger:hover {
-  background: rgba(239, 68, 68, 0.1) !important;
+  background: #fef2f2 !important;
 }
 
 .btn-danger {
-  background: #dc2626;
-  color: #fff;
+  background: #d92d20;
+  color: #ffffff;
   border: none;
-  border-radius: 8px;
-  padding: 9px 18px;
-  font-size: 13px;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
-  transition: background 0.2s;
+  gap: 6px;
+  transition: background 0.15s;
 }
 .btn-danger:hover:not(:disabled) { background: #b91c1c; }
 .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .badge-inativo {
-  background: rgba(100, 116, 139, 0.15);
-  color: #94a3b8;
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 .contact-type-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 650;
 }
-.contact-type-badge.customer { color: #2563eb; background: #dbeafe; }
-.contact-type-badge.employee { color: #047857; background: #d1fae5; }
+.contact-type-badge.customer { color: var(--brand-primary); background: #eff6ff; }
+.contact-type-badge.employee { color: #047857; background: #ecfdf5; }
 
 .contact-type-options {
   display: grid;
@@ -542,29 +561,29 @@ onMounted(loadContacts)
 .form-group .contact-type-options label {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 9px;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d7dce2;
+  border-radius: 6px;
   cursor: pointer;
-  color: #334155;
+  color: var(--text-main);
   text-transform: none;
   letter-spacing: normal;
 }
 .form-group .contact-type-options label.selected {
-  border-color: #2563eb;
-  background: rgba(37, 99, 235, 0.1);
+  border-color: var(--brand-primary);
+  background: #f0f7ff;
 }
 .contact-type-options input { width: auto; padding: 0; }
-.contact-type-options i { font-size: 17px; color: #60a5fa; }
+.contact-type-options i { font-size: 16px; color: var(--brand-primary); }
 .contact-type-options span { display: flex; flex-direction: column; gap: 2px; }
-.contact-type-options strong { font-size: 13px; color: #0f172a; }
-.contact-type-options small { font-size: 10px; color: #64748b; font-weight: 400; }
+.contact-type-options strong { font-size: 12.5px; color: var(--text-main); }
+.contact-type-options small { font-size: 10px; color: var(--text-muted); font-weight: 400; }
 
 @media (max-width: 640px) {
   .contact-type-options { grid-template-columns: 1fr; }
-  .contacts-toolbar-actions .btn-secondary { width: 36px; padding: 8px; font-size: 0; }
-  .contacts-toolbar-actions .btn-secondary i { font-size: 13px; }
+  .contacts-toolbar-actions .btn-secondary { width: 34px; padding: 6px; font-size: 0; }
+  .contacts-toolbar-actions .btn-secondary i { font-size: 12px; }
   .contacts-toolbar-actions .model-button { display: none; }
   .contacts-tabs-bar small { display: none; }
 }

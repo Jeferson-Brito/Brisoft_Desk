@@ -1,37 +1,37 @@
 /* ==========================================================================
-   GRUPO COMBATE - DESIGN TOKENS & VARIABLES
+   BRISOFT DESK - DESIGN TOKENS & VARIABLES
    ========================================================================== */
 
 :root {
   /* Brand Identity */
-  --brand-primary: #2563eb;
-  --brand-primary-hover: #1d4ed8;
+  --brand-primary: #1f62d0;
+  --brand-primary-hover: #174ea6;
   --brand-red: #e11d48;
-  --brand-dark: #0f172a;
+  --brand-dark: #172033;
   
   /* Layout & Backgrounds */
-  --bg-app: #f1f5f9;
-  --bg-sidebar: #0f172a;
-  --bg-sidebar-active: #2563eb;
+  --bg-app: #f6f7f9;
+  --bg-sidebar: #f1f2f4;
+  --bg-sidebar-active: #ffffff;
   --bg-topbar: #ffffff;
   --bg-card: #ffffff;
   --bg-chat-bubble-in: #ffffff;
-  --bg-chat-bubble-out: #dcfce7;
+  --bg-chat-bubble-out: #e6f5eb;
   
   /* Text Colors */
-  --text-main: #0f172a;
-  --text-muted: #64748b;
-  --text-light: #94a3b8;
-  --text-sidebar: #94a3b8;
-  --text-sidebar-active: #ffffff;
+  --text-main: #172033;
+  --text-muted: #667085;
+  --text-light: #98a2b3;
+  --text-sidebar: #667085;
+  --text-sidebar-active: #1f62d0;
   
   /* Borders & Dividers */
-  --border-color: #e2e8f0;
-  --border-subtle: #f1f5f9;
+  --border-color: #e3e6ea;
+  --border-subtle: #eef0f3;
   
   /* Departments Badge Colors */
   --dept-financeiro-bg: #eff6ff;
-  --dept-financeiro-text: #2563eb;
+  --dept-financeiro-text: #1f62d0;
   --dept-comercial-bg: #f5f3ff;
   --dept-comercial-text: #7c3aed;
   --dept-operacional-bg: #ecfdf5;
@@ -41,36 +41,41 @@
   
   /* Status Colors */
   --status-active-bg: #ecfdf5;
-  --status-active-text: #16a34a;
+  --status-active-text: #168a52;
   --status-inactive-bg: #f1f5f9;
   --status-inactive-text: #64748b;
   --status-finished-bg: #eff6ff;
-  --status-finished-text: #2563eb;
+  --status-finished-text: #1f62d0;
   
   /* Customer Segment Badges */
   --seg-corp-bg: #eff6ff;
-  --seg-corp-text: #1d4ed8;
+  --seg-corp-text: #1f62d0;
   --seg-peq-bg: #f8fafc;
   --seg-peq-text: #475569;
   --seg-med-bg: #fefce8;
   --seg-med-text: #854d0e;
 
+  /* Semantic Alerts */
+  --success: #168a52;
+  --warning: #b7791f;
+  --danger: #d92d20;
+
   /* Dimensions & Spacings */
-  --sidebar-width: 250px;
-  --sidebar-width-collapsed: 72px;
-  --topbar-height: 60px;
+  --sidebar-width: 66px;
+  --sidebar-width-collapsed: 66px;
+  --topbar-height: 58px;
   
   /* Shapes & Shadows */
   --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-md: 7px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
   --radius-full: 9999px;
   
-  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.07), 0 1px 2px -1px rgba(0, 0, 0, 0.07);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.07);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.08);
+  --shadow-xs: 0 1px 2px 0 rgba(16, 24, 40, 0.05);
+  --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 4px 12px rgba(16, 24, 40, 0.07);
+  --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.12);
 
-  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }

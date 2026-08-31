@@ -1,16 +1,16 @@
 <template>
   <Teleport to="body">
     <div class="modal-overlay active" style="z-index:9999;" @click.self="$emit('close')">
-      <div class="modal" style="max-width:480px;width:100%;border-radius:12px;overflow:hidden;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);">
+      <div class="modal-container" style="max-width:480px;width:100%;">
         <!-- Modal Header -->
-        <div class="modal-header" style="background:#ffffff;border-bottom:1px solid #e2e8f0;padding:16px 20px;">
+        <div class="modal-header">
           <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:36px;height:36px;border-radius:8px;background:#eff6ff;color:#2563eb;display:flex;align-items:center;justify-content:center;font-size:16px;">
+            <div style="width:32px;height:32px;border-radius:6px;background:#eff6ff;color:var(--brand-primary);display:flex;align-items:center;justify-content:center;font-size:14px;">
               <i class="fa-solid fa-arrow-right-arrow-left"></i>
             </div>
             <div>
-              <h3 style="margin:0;font-size:15px;font-weight:700;color:#0f172a;">Transferir Atendimento</h3>
-              <span style="font-size:12px;color:#64748b;">
+              <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--text-main);">Transferir Atendimento</h3>
+              <span style="font-size:11.5px;color:var(--text-muted);">
                 Cliente: <strong>{{ ticket?.clientName || ticket?.client_name || 'Cliente' }}</strong>
               </span>
             </div>

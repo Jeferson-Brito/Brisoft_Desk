@@ -29,5 +29,8 @@
 @import "views/configuracoes.css";
 @import "views/login.css";
 
-/* 5. Responsive Breakpoints (last — overrides desktop defaults) */
+/* 5. Unified clean product theme */
+@import "theme-clean.css";
+
+/* 6. Responsive Breakpoints (last — overrides desktop defaults) */
 @import "base/responsive.css";

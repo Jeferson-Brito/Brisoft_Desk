@@ -1,17 +1,11 @@
 <template>
   <div class="details-column" id="contactDetailsCol">
     <!-- Abas de Navegação do Painel Lateral -->
-    <div style="display:flex;gap:4px;padding:2px;background:#f1f5f9;border-radius:8px;margin-bottom:12px;">
+    <div class="details-nav-tabs">
       <button
         type="button"
-        class="tab-btn"
+        class="details-tab-btn"
         :class="{ active: activeTab === 'contato' }"
-        style="flex:1;padding:6px 8px;font-size:11.5px;font-weight:600;border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:all 0.2s ease;"
-        :style="{
-          background: activeTab === 'contato' ? '#ffffff' : 'transparent',
-          color: activeTab === 'contato' ? '#0f172a' : '#64748b',
-          boxShadow: activeTab === 'contato' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
-        }"
         @click="activeTab = 'contato'"
       >
         <i class="fa-solid fa-user"></i> Contato
@@ -19,14 +13,8 @@
 
       <button
         type="button"
-        class="tab-btn"
+        class="details-tab-btn"
         :class="{ active: activeTab === 'timeline' }"
-        style="flex:1;padding:6px 8px;font-size:11.5px;font-weight:600;border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:all 0.2s ease;"
-        :style="{
-          background: activeTab === 'timeline' ? '#ffffff' : 'transparent',
-          color: activeTab === 'timeline' ? '#0f172a' : '#64748b',
-          boxShadow: activeTab === 'timeline' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
-        }"
         @click="activeTab = 'timeline'"
       >
         <i class="fa-solid fa-timeline"></i> Metadados & Timeline
@@ -34,25 +22,25 @@
     </div>
 
     <!-- ==================== ABA 1: PERFIL E CONTATO ==================== -->
-    <div v-show="activeTab === 'contato'" style="display:flex;flex-direction:column;gap:14px;">
+    <div v-show="activeTab === 'contato'" class="details-content-wrap">
       <!-- Card do Perfil do Contato -->
       <div class="contact-profile-card">
         <div class="contact-profile-info">
           <div
             class="initial-avatar"
-            style="width:38px;height:38px;font-size:14px;flex-shrink:0;"
-            :style="{ backgroundColor: ticket?.avatarColor || '#2563eb' }"
+            style="width:36px;height:36px;font-size:13px;flex-shrink:0;"
+            :style="{ backgroundColor: ticket?.avatarColor || '#1f62d0' }"
           >
             {{ ticket?.initials || 'CL' }}
           </div>
-          <div style="display:flex;flex-direction:column;overflow:hidden;">
+          <div style="display:flex;flex-direction:column;min-width:0;">
             <span class="contact-profile-name">
               {{ ticket?.clientName || ticket?.client_name || 'Cliente' }}
-              <i class="fa-brands fa-whatsapp" style="color:#22c55e;font-size:12px;"></i>
+              <i class="fa-brands fa-whatsapp" style="color:#168a52;font-size:12px;"></i>
             </span>
-            <span style="font-size:11px;color:#64748b;">{{ displayPhone }}</span>
-            <span v-if="ticket?.is_employee" style="margin-top:3px;font-size:10px;font-weight:700;color:#047857;">
-              <i class="fa-solid fa-id-badge"></i> Funcionário da empresa • fora dos KPIs de clientes
+            <span style="font-size:11px;color:var(--text-muted);">{{ displayPhone }}</span>
+            <span v-if="ticket?.is_employee" class="employee-detail-badge">
+              <i class="fa-solid fa-id-badge"></i> Funcionário da empresa
             </span>
           </div>
         </div>
@@ -62,28 +50,28 @@
       </div>
 
       <!-- Seção de Ações Rápidas -->
-      <div style="display:flex;gap:8px;justify-content:space-between;">
-        <button class="btn-secondary" style="flex:1;font-size:11.5px;padding:6px 8px;justify-content:center;" @click="ui.showToast('Iniciando chamada...')">
+      <div class="quick-action-row">
+        <button class="btn-secondary" @click="ui.showToast('Iniciando chamada...')">
           <i class="fa-solid fa-phone"></i> Ligar
         </button>
-        <button class="btn-secondary" style="flex:1;font-size:11.5px;padding:6px 8px;justify-content:center;" @click="ui.showToast('Abrindo e-mail...')">
+        <button class="btn-secondary" @click="ui.showToast('Abrindo e-mail...')">
           <i class="fa-solid fa-envelope"></i> E-mail
         </button>
-        <button class="btn-secondary" style="font-size:11.5px;padding:6px 10px;" title="Editar Dados" @click="showEditModal = true">
+        <button class="btn-secondary btn-icon-only" title="Editar Dados" @click="showEditModal = true">
           <i class="fa-solid fa-user-pen"></i>
         </button>
       </div>
 
       <!-- Informações do Contato -->
-      <div>
-        <div class="details-section-title" style="margin-bottom:8px;">
+      <div class="details-section">
+        <div class="details-section-title">
           <span>Informações de contato</span>
           <a href="#" class="details-link" @click.prevent="showEditModal = true">Editar</a>
         </div>
 
         <div class="contact-info-list">
           <div class="contact-info-item">
-            <i class="fa-brands fa-whatsapp" style="color:#22c55e;"></i>
+            <i class="fa-brands fa-whatsapp" style="color:#168a52;"></i>
             <span>Conexão: <strong>{{ whatsappAccountLabel }}</strong></span>
           </div>
           <div class="contact-info-item">
@@ -92,7 +80,7 @@
           </div>
           <div class="contact-info-item">
             <i class="fa-regular fa-id-card"></i>
-            <span>{{ contact.cnpj ? `CNPJ: ${formatCnpjCpf(contact.cnpj)}` : 'CNPJ: Não informado' }}</span>
+            <span>{{ contact.cnpj ? `Documento: ${formatCnpjCpf(contact.cnpj)}` : 'Documento: Não informado' }}</span>
           </div>
           <div class="contact-info-item">
             <i class="fa-regular fa-building"></i>
@@ -106,8 +94,8 @@
       </div>
 
       <!-- Histórico de Atendimentos Anteriores -->
-      <div>
-        <div class="details-section-title" style="margin-bottom:8px;">
+      <div class="details-section">
+        <div class="details-section-title">
           <span>Conversas anteriores</span>
           <RouterLink to="/historico" class="details-link">Ver todos</RouterLink>
         </div>
@@ -117,33 +105,33 @@
             <div v-for="(h, idx) in contact.history" :key="idx" class="history-mini-item">
               <div class="history-mini-top">
                 <span class="history-mini-date">{{ h.date }}</span>
-                <span class="badge badge-finalizado" style="font-size:9.5px;padding:1px 6px;">{{ h.status }}</span>
+                <span class="badge badge-finalizado" style="font-size:9.5px;padding:1px 5px;">{{ h.status }}</span>
               </div>
               <span class="history-mini-subject">{{ h.subject }}</span>
             </div>
           </div>
-          <div v-else style="font-size:11px;color:#94a3b8;padding:4px 0;">
+          <div v-else style="font-size:11.5px;color:var(--text-muted);padding:4px 0;">
             Nenhum atendimento anterior registrado.
           </div>
         </div>
       </div>
 
       <!-- Notas do Cliente -->
-      <div>
-        <div class="details-section-title" style="margin-bottom:8px;">
+      <div class="details-section">
+        <div class="details-section-title">
           <span>Notas do cliente</span>
           <a href="#" class="details-link" @click.prevent="showEditModal = true">Editar</a>
         </div>
 
-        <div class="note-card-yellow">
+        <div class="note-card-clean">
           <p>{{ latestNoteText }}</p>
           <span class="note-card-footer">{{ latestNoteAuthor }}</span>
         </div>
       </div>
 
       <!-- Tags -->
-      <div>
-        <div class="details-section-title" style="margin-bottom:8px;">
+      <div class="details-section">
+        <div class="details-section-title">
           <span>Tags</span>
           <a href="#" class="details-link" @click.prevent="ui.showToast('Editar tags...')">Editar</a>
         </div>
@@ -153,7 +141,7 @@
             v-for="(tag, idx) in (contact.tags || ['WhatsApp', 'Atendimento'])"
             :key="idx"
             class="tag-pill"
-            :class="idx % 2 === 0 ? 'tag-blue' : 'tag-purple'"
+            :class="idx % 2 === 0 ? 'tag-blue' : 'tag-neutral'"
           >
             {{ tag }}
           </span>
@@ -162,141 +150,130 @@
     </div>
 
     <!-- ==================== ABA 2: LINHA DO TEMPO & METADADOS ==================== -->
-    <div v-show="activeTab === 'timeline'" style="display:flex;flex-direction:column;gap:14px;">
+    <div v-show="activeTab === 'timeline'" class="details-content-wrap">
       <!-- Card de Resumo Operacional -->
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;">
-        <span style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">
+      <div class="operational-summary-box">
+        <span class="summary-box-title">
           Resumo do Atendimento
         </span>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11.5px;">
-          <div style="background:#ffffff;padding:8px;border-radius:6px;border:1px solid #e2e8f0;">
-            <span style="color:#64748b;display:block;font-size:10.5px;">Departamento:</span>
-            <strong style="color:#2563eb;">{{ ticket?.department || ticket?.deptInitial || 'Geral' }}</strong>
+        <div class="summary-grid">
+          <div class="summary-grid-item">
+            <span class="summary-label">Departamento:</span>
+            <strong style="color:var(--brand-primary);">{{ ticket?.department || ticket?.deptInitial || 'Geral' }}</strong>
           </div>
-          <div style="background:#ffffff;padding:8px;border-radius:6px;border:1px solid #e2e8f0;">
-            <span style="color:#64748b;display:block;font-size:10.5px;">Atendente:</span>
-            <strong style="color:#334155;">{{ ticket?.agent_name || (ticket?.assumed ? 'Atendente' : 'Na Fila') }}</strong>
+          <div class="summary-grid-item">
+            <span class="summary-label">Atendente:</span>
+            <strong style="color:var(--text-main);">{{ ticket?.agent_name || (ticket?.assumed ? 'Atendente' : 'Na Fila') }}</strong>
           </div>
-          <div style="background:#ffffff;padding:8px;border-radius:6px;border:1px solid #e2e8f0;grid-column:span 2;">
-            <span style="color:#64748b;display:block;font-size:10.5px;">Conexão WhatsApp:</span>
-            <strong style="color:#16a34a;display:inline-flex;align-items:center;gap:6px;">
+          <div class="summary-grid-item summary-grid-full">
+            <span class="summary-label">Conexão WhatsApp:</span>
+            <strong style="color:#168a52;display:inline-flex;align-items:center;gap:5px;">
               <i class="fa-brands fa-whatsapp"></i> {{ whatsappAccountLabel }}
             </strong>
           </div>
         </div>
 
-        <div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px;padding-top:4px;border-top:1px dashed #e2e8f0;">
-          <span style="color:#64748b;">Tempo de Espera (TME):</span>
-          <strong style="color:#0f172a;">{{ waitTimeStr }}</strong>
+        <div class="summary-footer">
+          <span>Tempo de Espera (TME):</span>
+          <strong>{{ waitTimeStr }}</strong>
         </div>
       </div>
 
       <!-- Linha do Tempo Visual dos Eventos -->
-      <div>
-        <span class="details-section-title" style="margin-bottom:10px;display:block;">
+      <div class="details-section">
+        <span class="details-section-title" style="margin-bottom:10px;">
           Linha do Tempo dos Eventos
         </span>
 
-        <div class="timeline-container" style="display:flex;flex-direction:column;gap:12px;position:relative;padding-left:18px;">
-          <!-- Linha vertical guia -->
-          <div style="position:absolute;left:6px;top:6px;bottom:6px;width:2px;background:#e2e8f0;"></div>
+        <div class="timeline-container">
+          <div class="timeline-line"></div>
 
           <!-- 1. Primeira mensagem do cliente -->
-          <div class="timeline-item" style="position:relative;display:flex;flex-direction:column;gap:2px;">
-            <div style="position:absolute;left:-18px;top:2px;width:14px;height:14px;border-radius:50%;background:#22c55e;border:2px solid #ffffff;box-shadow:0 0 0 1px #22c55e;"></div>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <strong style="font-size:11.5px;color:#0f172a;">1ª Mensagem do Cliente</strong>
-              <span style="font-size:10.5px;color:#64748b;">{{ timelineEvents.clientFirstTime || '--' }}</span>
+          <div class="timeline-item">
+            <div class="timeline-dot dot-green"></div>
+            <div class="timeline-header">
+              <strong>1ª Mensagem do Cliente</strong>
+              <span>{{ timelineEvents.clientFirstTime || '--' }}</span>
             </div>
-            <span style="font-size:11px;color:#64748b;line-height:1.35;">
-              Cliente iniciou contato via WhatsApp
-            </span>
+            <span class="timeline-desc">Cliente iniciou contato via WhatsApp</span>
           </div>
 
           <!-- 2. Resposta do Bot -->
-          <div class="timeline-item" style="position:relative;display:flex;flex-direction:column;gap:2px;">
-            <div style="position:absolute;left:-18px;top:2px;width:14px;height:14px;border-radius:50%;background:#3b82f6;border:2px solid #ffffff;box-shadow:0 0 0 1px #3b82f6;"></div>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <strong style="font-size:11.5px;color:#0f172a;">Resposta do Chatbot</strong>
-              <span style="font-size:10.5px;color:#64748b;">{{ timelineEvents.botGreetingTime || '--' }}</span>
+          <div class="timeline-item">
+            <div class="timeline-dot dot-blue"></div>
+            <div class="timeline-header">
+              <strong>Resposta do Chatbot</strong>
+              <span>{{ timelineEvents.botGreetingTime || '--' }}</span>
             </div>
-            <span style="font-size:11px;color:#64748b;line-height:1.35;">
-              Menu de autoatendimento enviado
-            </span>
+            <span class="timeline-desc">Menu de autoatendimento enviado</span>
           </div>
 
-          <!-- 3. Entrada na Fila (Escolha do Departamento) -->
-          <div class="timeline-item" style="position:relative;display:flex;flex-direction:column;gap:2px;">
-            <div style="position:absolute;left:-18px;top:2px;width:14px;height:14px;border-radius:50%;background:#f59e0b;border:2px solid #ffffff;box-shadow:0 0 0 1px #f59e0b;"></div>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <strong style="font-size:11.5px;color:#0f172a;">Entrada na Fila</strong>
-              <span style="font-size:10.5px;color:#64748b;">{{ timelineEvents.queueEntryTime || '--' }}</span>
+          <!-- 3. Entrada na Fila -->
+          <div class="timeline-item">
+            <div class="timeline-dot dot-yellow"></div>
+            <div class="timeline-header">
+              <strong>Entrada na Fila</strong>
+              <span>{{ timelineEvents.queueEntryTime || '--' }}</span>
             </div>
-            <span style="font-size:11px;color:#64748b;line-height:1.35;">
-              Direcionado para <strong>{{ ticket?.department || 'Departamento' }}</strong>
-            </span>
+            <span class="timeline-desc">Direcionado para <strong>{{ ticket?.department || 'Departamento' }}</strong></span>
           </div>
 
           <!-- 4. Atendimento Assumido -->
-          <div v-if="timelineEvents.assumedTime" class="timeline-item" style="position:relative;display:flex;flex-direction:column;gap:2px;">
-            <div style="position:absolute;left:-18px;top:2px;width:14px;height:14px;border-radius:50%;background:#8b5cf6;border:2px solid #ffffff;box-shadow:0 0 0 1px #8b5cf6;"></div>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <strong style="font-size:11.5px;color:#0f172a;">Atendimento Assumido</strong>
-              <span style="font-size:10.5px;color:#64748b;">{{ timelineEvents.assumedTime }}</span>
+          <div v-if="timelineEvents.assumedTime" class="timeline-item">
+            <div class="timeline-dot dot-purple"></div>
+            <div class="timeline-header">
+              <strong>Atendimento Assumido</strong>
+              <span>{{ timelineEvents.assumedTime }}</span>
             </div>
-            <span style="font-size:11px;color:#64748b;line-height:1.35;">
-              Assumido por <strong>{{ ticket?.agent_name || 'Atendente' }}</strong>
-            </span>
+            <span class="timeline-desc">Assumido por <strong>{{ ticket?.agent_name || 'Atendente' }}</strong></span>
           </div>
 
           <!-- 5. 1ª Resposta do Atendente -->
-          <div v-if="timelineEvents.agentFirstTime" class="timeline-item" style="position:relative;display:flex;flex-direction:column;gap:2px;">
-            <div style="position:absolute;left:-18px;top:2px;width:14px;height:14px;border-radius:50%;background:#06b6d4;border:2px solid #ffffff;box-shadow:0 0 0 1px #06b6d4;"></div>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <strong style="font-size:11.5px;color:#0f172a;">1ª Resposta do Atendente</strong>
-              <span style="font-size:10.5px;color:#64748b;">{{ timelineEvents.agentFirstTime }}</span>
+          <div v-if="timelineEvents.agentFirstTime" class="timeline-item">
+            <div class="timeline-dot dot-cyan"></div>
+            <div class="timeline-header">
+              <strong>1ª Resposta do Atendente</strong>
+              <span>{{ timelineEvents.agentFirstTime }}</span>
             </div>
-            <span style="font-size:11px;color:#64748b;line-height:1.35;">
-              Primeira mensagem enviada pelo atendente
-            </span>
+            <span class="timeline-desc">Primeira mensagem enviada pelo atendente</span>
           </div>
         </div>
       </div>
 
       <!-- Histórico de Transferências -->
-      <div>
-        <span class="details-section-title" style="margin-bottom:8px;display:block;">
+      <div class="details-section">
+        <span class="details-section-title" style="margin-bottom:8px;">
           Histórico de Transferências
         </span>
 
-        <div v-if="transferEvents.length > 0" style="display:flex;flex-direction:column;gap:8px;">
+        <div v-if="transferEvents.length > 0" style="display:flex;flex-direction:column;gap:6px;">
           <div
             v-for="(tr, idx) in transferEvents"
             :key="idx"
-            style="background:#f8fafc;border:1px solid #e2e8f0;border-left:3px solid #6366f1;border-radius:6px;padding:8px 10px;font-size:11.5px;"
+            class="transfer-event-card"
           >
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
-              <strong style="color:#4338ca;">Transferência #{{ idx + 1 }}</strong>
-              <span style="color:#94a3b8;font-size:10.5px;">{{ tr.time || '--' }}</span>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+              <strong style="color:var(--brand-primary);font-size:11.5px;">Transferência #{{ idx + 1 }}</strong>
+              <span style="color:var(--text-muted);font-size:10.5px;">{{ tr.time || '--' }}</span>
             </div>
-            <p style="margin:0;color:#334155;line-height:1.35;">{{ tr.text }}</p>
+            <p style="margin:0;color:var(--text-main);font-size:11.5px;line-height:1.35;">{{ tr.text }}</p>
           </div>
         </div>
-        <div v-else style="font-size:11px;color:#94a3b8;padding:4px 0;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:6px;text-align:center;">
+        <div v-else style="font-size:11px;color:var(--text-muted);padding:8px;background:#ffffff;border:1px dashed var(--border-color);border-radius:6px;text-align:center;">
           Nenhuma transferência realizada neste atendimento.
         </div>
       </div>
 
       <!-- Metadados Técnicos -->
-      <div style="font-size:11px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px;">
+      <div class="tech-metadata-box">
         <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
           <span>ID do Chamado:</span>
-          <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;">{{ ticket?.id ? ticket.id.substring(0, 8) : '--' }}</code>
+          <code>{{ ticket?.id ? ticket.id.substring(0, 8) : '--' }}</code>
         </div>
         <div style="display:flex;justify-content:space-between;">
           <span>Status:</span>
-          <strong style="color:#0f172a;text-transform:capitalize;">{{ ticket?.status || 'Aguardando' }}</strong>
+          <strong style="color:var(--text-main);text-transform:capitalize;">{{ ticket?.status || 'Aguardando' }}</strong>
         </div>
       </div>
     </div>
@@ -353,19 +330,13 @@ const latestNoteAuthor = computed(() => {
   return 'Registrado automaticamente pelo sistema'
 })
 
-// Computa os eventos da linha do tempo com base nas mensagens do ticket
 const timelineEvents = computed(() => {
   const msgs = props.ticket?.messages || []
   
-  // 1ª mensagem do cliente
   const clientFirst = msgs.find(m => m.sender === 'client' && !m.text?.includes('[Chatbot]'))
-  // Resposta do bot
   const botGreeting = msgs.find(m => m.sender === 'system' && (m.text?.includes('Bem-vindo') || m.text?.includes('central de atendimento')))
-  // Escolha do departamento / entrada na fila
   const queueEntry = msgs.find(m => m.text?.includes('[Chatbot] Cliente escolheu:') || m.text?.includes('Você selecionou'))
-  // Atendimento assumido
   const assumed = msgs.find(m => m.text?.includes('Atendimento assumido por'))
-  // 1ª resposta humana do atendente
   const agentFirst = msgs.find(m => m.sender === 'agent')
 
   return {
@@ -377,7 +348,6 @@ const timelineEvents = computed(() => {
   }
 })
 
-// Lista de transferências ocorridas no ticket
 const transferEvents = computed(() => {
   const msgs = props.ticket?.messages || []
   return msgs
@@ -388,7 +358,6 @@ const transferEvents = computed(() => {
     }))
 })
 
-// Tempo de espera na fila (TME)
 const waitTimeStr = computed(() => {
   if (props.ticket?.status === 'em_atendimento' || props.ticket?.assumed) {
     return 'Atendimento iniciado'
@@ -396,3 +365,375 @@ const waitTimeStr = computed(() => {
   return 'Em espera na fila'
 })
 </script>
+
+<style scoped>
+.details-column {
+  background-color: #fafbfc;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left: 1px solid var(--border-color);
+  box-sizing: border-box;
+}
+
+.details-nav-tabs {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  background: #edf0f3;
+  border-radius: 6px;
+}
+
+.details-tab-btn {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.details-tab-btn.active {
+  background: #ffffff;
+  color: var(--text-main);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+}
+
+.details-content-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.contact-profile-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background-color: #ffffff;
+  border-radius: 7px;
+  border: 1px solid var(--border-color);
+}
+
+.contact-profile-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.contact-profile-name {
+  font-weight: 650;
+  font-size: 13px;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.employee-detail-badge {
+  margin-top: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #047857;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.quick-action-row {
+  display: flex;
+  gap: 6px;
+}
+
+.quick-action-row .btn-secondary {
+  flex: 1;
+  font-size: 11.5px;
+  padding: 5px 8px;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.quick-action-row .btn-icon-only {
+  flex: 0 0 32px;
+  padding: 5px;
+}
+
+.details-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid #edf0f3;
+  padding-top: 10px;
+}
+
+.details-section-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.details-link {
+  font-size: 11px;
+  color: var(--brand-primary);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.details-link:hover {
+  text-decoration: underline;
+}
+
+.contact-info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-main);
+}
+
+.contact-info-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.contact-info-item i {
+  color: var(--text-light);
+  width: 14px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.history-mini-item {
+  padding: 6px 0;
+  border-bottom: 1px solid #edf0f3;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.history-mini-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10.5px;
+}
+
+.history-mini-date {
+  color: var(--text-muted);
+}
+
+.history-mini-subject {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.note-card-clean {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11.5px;
+  color: var(--text-main);
+}
+
+.note-card-clean p {
+  margin: 0 0 4px;
+  line-height: 1.4;
+}
+
+.note-card-footer {
+  font-size: 10px;
+  color: var(--text-muted);
+  display: block;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.tag-pill {
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.tag-blue {
+  background: #eff6ff;
+  color: var(--brand-primary);
+  border: 1px solid #dbeafe;
+}
+
+.tag-neutral {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+/* Timeline & Summary */
+.operational-summary-box {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.summary-box-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  font-size: 11.5px;
+}
+
+.summary-grid-item {
+  background: #f8fafc;
+  padding: 6px 8px;
+  border-radius: 5px;
+  border: 1px solid #edf0f3;
+}
+
+.summary-grid-full {
+  grid-column: span 2;
+}
+
+.summary-label {
+  color: var(--text-muted);
+  display: block;
+  font-size: 10px;
+  margin-bottom: 1px;
+}
+
+.summary-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  padding-top: 6px;
+  border-top: 1px solid #edf0f3;
+  color: var(--text-muted);
+}
+
+.summary-footer strong {
+  color: var(--text-main);
+}
+
+.timeline-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  padding-left: 18px;
+}
+
+.timeline-line {
+  position: absolute;
+  left: 5px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: #e2e8f0;
+}
+
+.timeline-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: -18px;
+  top: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+}
+
+.dot-green { background: #168a52; box-shadow: 0 0 0 1px #168a52; }
+.dot-blue { background: #1f62d0; box-shadow: 0 0 0 1px #1f62d0; }
+.dot-yellow { background: #b7791f; box-shadow: 0 0 0 1px #b7791f; }
+.dot-purple { background: #7c3aed; box-shadow: 0 0 0 1px #7c3aed; }
+.dot-cyan { background: #0891b2; box-shadow: 0 0 0 1px #0891b2; }
+
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.timeline-header strong {
+  font-size: 11.5px;
+  color: var(--text-main);
+}
+
+.timeline-header span {
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.timeline-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.transfer-event-card {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-left: 3px solid #6366f1;
+  border-radius: 5px;
+  padding: 6px 9px;
+  font-size: 11.5px;
+}
+
+.tech-metadata-box {
+  font-size: 11px;
+  color: var(--text-muted);
+  border-top: 1px solid #edf0f3;
+  padding-top: 8px;
+}
+
+.tech-metadata-box code {
+  background: #f1f5f9;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10.5px;
+}
+</style>

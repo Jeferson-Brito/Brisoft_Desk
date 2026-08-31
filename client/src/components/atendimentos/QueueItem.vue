@@ -11,7 +11,7 @@
     <div class="avatar-wrapper">
       <div
         class="queue-avatar"
-        :style="{ backgroundColor: ticket.avatarColor || '#2563eb' }"
+        :style="{ backgroundColor: ticket.avatarColor || '#1f62d0' }"
       >
         {{ ticket.initials || 'CL' }}
       </div>
@@ -48,9 +48,9 @@
           <span
             class="dept-pill"
             :style="{
-              background: `${deptColor}18`,
+              background: `${deptColor}14`,
               color: deptColor,
-              borderColor: `${deptColor}35`
+              borderColor: `${deptColor}30`
             }"
           >
             <span class="dept-dot" :style="{ backgroundColor: deptColor }"></span>
@@ -95,7 +95,7 @@ function handleClick() {
 }
 
 const deptName = computed(() => props.ticket.department || props.ticket.deptInitial || 'Geral')
-const deptColor = computed(() => props.ticket.departmentColor || '#2563eb')
+const deptColor = computed(() => props.ticket.departmentColor || '#1f62d0')
 
 function firstName(fullName) {
   if (!fullName) return ''
@@ -122,15 +122,16 @@ function formatTime(timeStr) {
 
 <style scoped>
 .queue-card {
-  padding: 12px 14px;
+  padding: 10px 14px;
   display: flex;
-  gap: 12px;
-  border-bottom: 1px solid #f1f5f9;
+  gap: 10px;
+  border-bottom: 1px solid #edf0f3;
   cursor: pointer;
   background: #ffffff;
   position: relative;
-  transition: all 0.15s ease;
+  transition: background 0.12s ease;
   user-select: none;
+  box-sizing: border-box;
 }
 
 .queue-card:hover {
@@ -138,8 +139,8 @@ function formatTime(timeStr) {
 }
 
 .queue-card.active {
-  background-color: #eff6ff;
-  border-left: 3.5px solid #2563eb;
+  background-color: #f0f7ff;
+  border-left: 3px solid var(--brand-primary);
 }
 
 .queue-card.unread {
@@ -150,39 +151,37 @@ function formatTime(timeStr) {
 .avatar-wrapper {
   position: relative;
   flex-shrink: 0;
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
 }
 
 .queue-avatar {
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   color: #ffffff;
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
 }
 
 .avatar-channel-badge {
   position: absolute;
-  bottom: -2px;
-  right: -2px;
-  width: 16px;
-  height: 16px;
-  background: #22c55e;
+  bottom: -1px;
+  right: -1px;
+  width: 15px;
+  height: 15px;
+  background: #168a52;
   color: #ffffff;
   border-radius: 50%;
-  font-size: 9px;
+  font-size: 8.5px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 1.5px solid #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 /* ─── Conteúdo ───────────────────────────────────────── */
@@ -191,7 +190,7 @@ function formatTime(timeStr) {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   justify-content: center;
 }
 
@@ -204,9 +203,9 @@ function formatTime(timeStr) {
 
 .queue-card-name {
   min-width: 0;
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #0f172a;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -224,9 +223,9 @@ function formatTime(timeStr) {
   align-items: center;
   gap: 3px;
   flex-shrink: 0;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: #d1fae5;
+  padding: 1.5px 5px;
+  border-radius: 4px;
+  background: #ecfdf5;
   color: #047857;
   font-size: 9px;
   font-weight: 700;
@@ -234,20 +233,20 @@ function formatTime(timeStr) {
 
 .queue-card-time {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--text-muted);
   flex-shrink: 0;
   font-weight: 500;
 }
 
 .queue-card.active .queue-card-time {
-  color: #3b82f6;
+  color: var(--brand-primary);
   font-weight: 600;
 }
 
 /* ─── Preview ────────────────────────────────────────── */
 .queue-card-preview {
   font-size: 12px;
-  color: #64748b;
+  color: #667085;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -258,14 +257,14 @@ function formatTime(timeStr) {
 }
 
 .preview-unread {
-  color: #1e293b;
+  color: #172033;
   font-weight: 600;
 }
 
 .unread-dot {
   width: 6px;
   height: 6px;
-  background: #2563eb;
+  background: var(--brand-primary);
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -281,13 +280,13 @@ function formatTime(timeStr) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .queue-card-tags {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   overflow: hidden;
 }
 
@@ -297,8 +296,8 @@ function formatTime(timeStr) {
   gap: 4px;
   font-size: 10.5px;
   font-weight: 600;
-  padding: 1.5px 7px;
-  border-radius: 12px;
+  padding: 1px 6px;
+  border-radius: 4px;
   border: 1px solid transparent;
   white-space: nowrap;
   max-width: 140px;
@@ -307,8 +306,8 @@ function formatTime(timeStr) {
 }
 
 .dept-dot {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -317,13 +316,13 @@ function formatTime(timeStr) {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  background: #f3e8ff;
-  color: #9333ea;
-  border: 1px solid #e9d5ff;
+  background: #f5f3ff;
+  color: #7c3aed;
+  border: 1px solid #ede9fe;
   font-size: 10px;
   font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
 .agent-pill {
@@ -334,22 +333,21 @@ function formatTime(timeStr) {
   color: #475569;
   font-size: 10px;
   font-weight: 500;
-  padding: 1px 6px;
-  border-radius: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
 .queue-unread-badge {
   background: #ef4444;
   color: #ffffff;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 1px 4px rgba(239, 68, 68, 0.4);
 }
 </style>

@@ -2,13 +2,13 @@
   <aside
     class="sidebar"
     id="mainSidebar"
-    :class="{ collapsed, 'mobile-open': mobileOpen }"
+    :class="{ 'mobile-open': mobileOpen }"
   >
     <!-- Brand Logo Header -->
     <div class="sidebar-header">
       <RouterLink to="/" class="brand-logo-container" title="Brisoft Desk">
-        <img :src="logoUrl" alt="Brisoft Desk" class="brand-logo-full" />
-        <img :src="iconUrl" alt="Brisoft Desk" class="brand-logo-icon-only" />
+        <img :src="iconUrl" alt="Brisoft Desk" class="brand-logo-symbol" />
+        <span class="brand-wordmark"><strong>Brisoft</strong><small>DESK</small></span>
       </RouterLink>
     </div>
 
@@ -60,17 +60,9 @@
         <span class="nav-label">{{ auth.isAdmin ? 'Configurações' : 'Equipe' }}</span>
       </RouterLink>
     </nav>
-
-    <!-- Sidebar Bottom Action (desktop only) -->
-    <div class="sidebar-bottom">
-      <button class="collapse-sidebar-btn" @click="collapsed = !collapsed" title="Recolher menu lateral">
-        <i class="fa-solid fa-chevron-left" :class="{ 'fa-rotate-180': collapsed }"></i>
-        <span class="sidebar-footer-text">{{ collapsed ? 'Expandir' : 'Recolher menu' }}</span>
-      </button>
-    </div>
   </aside>
 
-  <!-- Overlay mobile — aparece atrás do drawer -->
+  <!-- Overlay mobile -->
   <div
     class="sidebar-overlay"
     :class="{ visible: mobileOpen }"
@@ -80,12 +72,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useRoute }          from 'vue-router'
 import { useAuthStore }      from '@/stores/auth.store'
 import { useTicketStore }    from '@/stores/tickets.store'
 import { useSidebarStore }   from '@/stores/sidebar.store'
-import logoUrl from '@/assets/img/logo.png'
 import iconUrl from '@/assets/img/icon.png'
 
 const auth    = useAuthStore()
@@ -93,85 +84,117 @@ const tickets = useTicketStore()
 const route   = useRoute()
 const sidebar = useSidebarStore()
 
-// Desktop collapse state — persisted
-const savedState = localStorage.getItem('sidebar_collapsed') === 'true'
-const collapsed  = ref(savedState)
-
-watch(collapsed, (val) => {
-  try { localStorage.setItem('sidebar_collapsed', String(val)) } catch (e) {}
-})
-
-// Mobile drawer state — driven by shared Pinia store
 const mobileOpen = computed(() => sidebar.mobileOpen)
 function closeMobile() { sidebar.close() }
 
-// Fecha o drawer quando muda de rota (mobile)
 watch(() => route.path, () => { sidebar.close() })
 
 const waitingCount = computed(() => tickets.waitingTickets.length)
 </script>
 
 <style scoped>
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-sizing: border-box;
+}
+
+.brand-logo-container {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.brand-logo-symbol {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  object-fit: contain;
+}
+
+.brand-wordmark {
+  display: none;
+  flex-direction: column;
+  margin-left: 10px;
+  line-height: 1;
+}
+
+.brand-wordmark strong {
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  color: #172033;
+}
+
+.brand-wordmark small {
+  margin-top: 3px;
+  color: var(--brand-primary);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
 .nav-item {
-  position: relative;
+  text-decoration: none;
+  box-sizing: border-box;
 }
 
 .nav-item-disabled {
-  color: #64748b;
-  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.nav-item-disabled:hover {
-  background: transparent;
-  color: #64748b;
-}
-
 .development-badge {
-  margin-left: auto;
-  padding: 2px 6px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 999px;
-  color: #94a3b8;
-  font-size: 8.5px;
-  font-weight: 700;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.sidebar.collapsed .development-badge {
   display: none;
 }
 
-.nav-badge {
-  margin-left: auto;
-  background: #ef4444;
-  color: #fff;
-  font-size: 10.5px;
-  font-weight: 700;
-  padding: 1.5px 6px;
-  border-radius: 20px;
-  min-width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
+.sidebar-overlay {
+  display: none;
 }
 
-:deep(.sidebar.collapsed) .nav-badge,
-.sidebar.collapsed .nav-badge {
-  display: flex !important;
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  margin-left: 0;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  font-size: 9px;
-  border-radius: 8px;
-  box-shadow: 0 0 0 2px #0f172a;
-  z-index: 10;
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: -260px;
+    top: 0;
+    bottom: 0;
+    transition: left 0.25s ease;
+    z-index: 1000;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+  }
+
+  .sidebar.mobile-open {
+    left: 0;
+  }
+
+  .brand-wordmark {
+    display: flex;
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 999;
+  }
+
+  .sidebar-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 </style>

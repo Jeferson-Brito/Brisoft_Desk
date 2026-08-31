@@ -151,33 +151,34 @@ onMounted(() => {
 
 <style scoped>
 .page-container {
-  padding: 24px;
+  padding: 16px 20px;
   width: 100%;
+  box-sizing: border-box;
 }
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 .page-title {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text-main);
 }
 .settings-section-card {
   background: #ffffff;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  padding: 24px;
-  box-shadow: 0 1px 3px 0 rgba(0,0,0,0.05);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  padding: 16px;
+  box-shadow: none;
 }
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  font-size: 11px;
+  padding: 2px 6px;
+  font-size: 10.5px;
   font-weight: 600;
-  border-radius: 9999px;
+  border-radius: 4px;
 }
 </style>

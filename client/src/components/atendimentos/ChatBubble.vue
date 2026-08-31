@@ -351,8 +351,8 @@ const displayText = computed(() => {
   align-items: center;
   gap: 3px;
   margin-left: 5px;
-  padding: 2px 5px;
-  border-radius: 999px;
+  padding: 1.5px 5px;
+  border-radius: 4px;
   background: #dcfce7;
   color: #15803d;
   font-size: 9px;
