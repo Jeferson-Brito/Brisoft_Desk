@@ -22,3 +22,10 @@ test('não encontra vínculos em configurações ausentes ou de outros departame
     { name: 'Suporte', routing_mode: 'department', department_id: 'uuid-suporte', department_name: 'Suporte Técnico' }
   ], 'uuid-financeiro', 'Financeiro'), []);
 });
+
+test('identifica quando a migração de ordem dos departamentos ainda não foi aplicada', () => {
+  const isMissing = departmentController._test.isMissingDepartmentOrderColumn;
+  assert.equal(isMissing({ message: "column departments.sort_order does not exist" }), true);
+  assert.equal(isMissing({ message: "Could not find the 'description' column in the schema cache" }), true);
+  assert.equal(isMissing({ message: 'connection timeout' }), false);
+});

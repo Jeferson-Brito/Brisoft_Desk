@@ -11,6 +11,10 @@ function isGeneratedCustomerName(value) {
 
 function extractAndValidateName(input, config, departments = []) {
   let candidate = String(input || '')
+    // Alguns teclados e clientes do WhatsApp inserem marcas direcionais e
+    // caracteres de largura zero que não aparecem para o usuário.
+    .replace(/[\u200B-\u200D\u200E\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g, '')
+    .replace(/\u00A0/g, ' ')
     .replace(/^\s*(?:meu nome (?:é|e)|eu (?:sou|me chamo)|pode me chamar de)\s+/i, '')
     .replace(/[!?;,]+$/g, '')
     .replace(/\s+/g, ' ')
@@ -19,7 +23,7 @@ function extractAndValidateName(input, config, departments = []) {
   if (candidate.length < 2 || candidate.length > 80) return { valid: false };
   if (/https?:\/\/|www\.|@|\d/.test(candidate)) return { valid: false };
   if (!/^[\p{L}][\p{L}'’.-]*(?:\s+[\p{L}][\p{L}'’.-]*){0,5}$/u.test(candidate)) return { valid: false };
-  if (config.require_customer_last_name && candidate.split(' ').length < 2) return { valid: false };
+  if (config.require_customer_last_name && candidate.split(' ').length < 2) return { valid: false, reason: 'last_name_required' };
 
   const normalized = normalizeText(candidate);
   const blocked = [

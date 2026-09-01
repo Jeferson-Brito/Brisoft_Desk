@@ -60,17 +60,6 @@
           <div class="handling-channel-popover" role="tooltip">
             <strong><i :class="handlingChannel.icon"></i>{{ handlingChannel.label }}</strong>
             <p>{{ handlingChannel.description }}</p>
-            <div class="handling-channel-legend">
-              <div :class="{ current: handlingChannel.kind === 'device' }">
-                <i class="fa-brands fa-whatsapp"></i><span><b>WhatsApp</b>Respondido diretamente pelo aplicativo.</span>
-              </div>
-              <div :class="{ current: handlingChannel.kind === 'platform' }">
-                <i class="fa-solid fa-headset"></i><span><b>Site</b>Respondido dentro do Brisoft Desk.</span>
-              </div>
-              <div :class="{ current: handlingChannel.kind === 'mixed' }">
-                <i class="fa-solid fa-shuffle"></i><span><b>Misto</b>Teve respostas pelos dois canais.</span>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -151,8 +140,8 @@
         <span class="chat-search-counter">
           {{ messageSearchQuery ? (messageSearchMatches.length ? `${activeSearchIndex + 1} de ${messageSearchMatches.length}` : 'Nenhum resultado') : 'Digite para pesquisar' }}
         </span>
-        <button type="button" :disabled="!messageSearchMatches.length" title="Resultado anterior" @click="goToPreviousSearchResult"><i class="fa-solid fa-chevron-up"></i></button>
-        <button type="button" :disabled="!messageSearchMatches.length" title="Próximo resultado" @click="goToNextSearchResult"><i class="fa-solid fa-chevron-down"></i></button>
+        <button type="button" :disabled="activeSearchIndex <= 0" title="Resultado anterior" @click="goToPreviousSearchResult"><i class="fa-solid fa-chevron-up"></i></button>
+        <button type="button" :disabled="!messageSearchMatches.length || activeSearchIndex >= messageSearchMatches.length - 1" title="Próximo resultado" @click="goToNextSearchResult"><i class="fa-solid fa-chevron-down"></i></button>
         <button type="button" title="Fechar pesquisa" @click="closeMessageSearch"><i class="fa-solid fa-xmark"></i></button>
       </div>
     </Transition>
@@ -651,20 +640,20 @@ function isActiveSearchMessage(message) {
 function scrollToActiveSearchResult() {
   nextTick(() => {
     const target = msgBoxRef.value?.querySelector('.chat-message-search-anchor.search-hit-active')
-    target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    target?.scrollIntoView({ behavior: 'auto', block: 'center' })
   })
 }
 
 function goToNextSearchResult() {
   if (!messageSearchMatches.value.length) return
-  activeSearchIndex.value = (activeSearchIndex.value + 1) % messageSearchMatches.value.length
+  activeSearchIndex.value = Math.min(activeSearchIndex.value + 1, messageSearchMatches.value.length - 1)
   scrollToActiveSearchResult()
 }
 
 function goToPreviousSearchResult() {
   const total = messageSearchMatches.value.length
   if (!total) return
-  activeSearchIndex.value = (activeSearchIndex.value - 1 + total) % total
+  activeSearchIndex.value = Math.max(activeSearchIndex.value - 1, 0)
   scrollToActiveSearchResult()
 }
 
@@ -791,6 +780,7 @@ let resizeObserver = null
 
 function onVisibilityChange() {
   if (document.visibilityState === 'visible' && props.ticket) {
+    if (showMessageSearch.value && messageSearchQuery.value) return
     scrollToBottom()
   }
 }
@@ -804,6 +794,7 @@ onMounted(() => {
     msgBoxRef.value.addEventListener('scroll', onChatScroll, { passive: true })
     if (typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(() => {
+        if (showMessageSearch.value && messageSearchQuery.value) return
         if (!showScrollBottom.value) {
           scrollToBottom()
         }
@@ -834,9 +825,14 @@ watch(() => props.ticket?.id, () => {
   focusInput()
 }, { immediate: true })
 
-watch(messageSearchMatches, (matches) => {
+watch(messageSearchQuery, () => {
   activeSearchIndex.value = 0
-  if (matches.length) scrollToActiveSearchResult()
+  if (messageSearchMatches.value.length) scrollToActiveSearchResult()
+})
+
+watch(() => messageSearchMatches.value.length, (total) => {
+  if (!total) activeSearchIndex.value = 0
+  else if (activeSearchIndex.value >= total) activeSearchIndex.value = total - 1
 })
 
 watch(canSend, (val) => {
@@ -864,6 +860,7 @@ function scrollToBottom() {
 }
 
 watch(() => props.ticket?.messages?.length, () => {
+  if (showMessageSearch.value && messageSearchQuery.value) return
   scrollToBottom()
 })
 
@@ -1152,7 +1149,7 @@ watch(inputMsg, (newVal) => {
   z-index: 80;
   top: calc(100% + 9px);
   right: 0;
-  width: 286px;
+  width: 246px;
   padding: 11px 12px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -1203,26 +1200,6 @@ watch(inputMsg, (newVal) => {
   line-height: 1.45;
 }
 
-.handling-channel-legend {
-  margin-top: 9px;
-  padding-top: 8px;
-  border-top: 1px solid #eef2f7;
-  display: grid;
-  gap: 4px;
-}
-.handling-channel-legend > div {
-  padding: 5px 6px;
-  border-radius: 7px;
-  display: grid;
-  grid-template-columns: 20px 1fr;
-  align-items: center;
-  gap: 6px;
-  color: #94a3b8;
-}
-.handling-channel-legend > div.current { background: #f1f5f9; color: #2563eb; }
-.handling-channel-legend > div > i { text-align: center; font-size: 11px; }
-.handling-channel-legend span { display: flex; flex-direction: column; color: #64748b; font-size: 9.5px; line-height: 1.3; }
-.handling-channel-legend b { color: #334155; font-size: 10px; font-weight: 600; }
 
 .chat-message-searchbar {
   min-height: 42px;

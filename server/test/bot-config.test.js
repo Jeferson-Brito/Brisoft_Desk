@@ -46,6 +46,18 @@ test('departmentOptions cria menu numerado', () => {
   assert.equal(departmentOptions([{ name: 'Comercial' }, { name: 'Suporte' }]), '1️⃣ - Comercial\n2️⃣ - Suporte');
 });
 
+test('departmentOptions preserva a ordem definida pelo administrador', () => {
+  const orderedDepartments = [
+    { name: 'Suporte Técnico', sort_order: 1 },
+    { name: 'Financeiro', sort_order: 2 },
+    { name: 'Comercial', sort_order: 3 }
+  ];
+  assert.equal(
+    departmentOptions(orderedDepartments),
+    '1️⃣ - Suporte Técnico\n2️⃣ - Financeiro\n3️⃣ - Comercial'
+  );
+});
+
 test('atualiza somente modelos legados para a versão formatada do WhatsApp', () => {
   const migrated = normalizeBotConfig({
     queue_confirmation_message: '✅ Atendimento encaminhado para {departamento}. Aguarde um momento; um de nossos especialistas responderá em breve.'

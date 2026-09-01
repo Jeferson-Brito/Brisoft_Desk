@@ -54,9 +54,6 @@
           <span v-if="ticket.unreadCount > 0" class="unread-count-pill">
             {{ ticket.unreadCount }}
           </span>
-          <span class="queue-item-open" aria-hidden="true">
-            <i class="fa-solid fa-arrow-right"></i>
-          </span>
         </div>
       </div>
     </div>
@@ -319,29 +316,4 @@ function cleanPreview(preview) {
   justify-content: center;
 }
 
-.queue-item-open {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  flex: none;
-  background: #e8f1ff;
-  color: #2563eb;
-  font-size: 9px;
-  opacity: 0;
-  transform: translateX(-4px);
-  transition: opacity 0.16s ease, transform 0.16s ease, background-color 0.16s ease;
-}
-
-.queue-item-card:hover .queue-item-open,
-.queue-item-card.active .queue-item-open {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.queue-item-card.active .queue-item-open {
-  background: #2563eb;
-  color: #ffffff;
-}
 </style>

@@ -20,6 +20,17 @@ test('extrai e formata um nome informado em uma frase curta', () => {
   );
 });
 
+test('aceita primeiro nome e ignora caracteres invisíveis do WhatsApp', () => {
+  assert.deepEqual(
+    extractAndValidateName('\u200EEmanuele\u200B', config, departments),
+    { valid: true, name: 'Emanuele' }
+  );
+  assert.deepEqual(
+    extractAndValidateName('Emanuele', config, departments),
+    { valid: true, name: 'Emanuele' }
+  );
+});
+
 test('rejeita respostas que provavelmente são assunto, menu ou dado inválido', () => {
   for (const value of ['Quero falar com o financeiro', 'Olá', 'menu', 'João 123', 'https://exemplo.com']) {
     assert.equal(extractAndValidateName(value, config, departments).valid, false, value);
@@ -28,7 +39,7 @@ test('rejeita respostas que provavelmente são assunto, menu ou dado inválido',
 
 test('pode exigir nome e sobrenome pelas configurações', () => {
   const strictConfig = { ...config, require_customer_last_name: true };
-  assert.equal(extractAndValidateName('Maria', strictConfig, departments).valid, false);
+  assert.deepEqual(extractAndValidateName('Maria', strictConfig, departments), { valid: false, reason: 'last_name_required' });
   assert.equal(extractAndValidateName('Maria Souza', strictConfig, departments).valid, true);
 });
 

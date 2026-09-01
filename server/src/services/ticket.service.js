@@ -163,7 +163,16 @@ async function getCachedDepartments() {
   if (!departmentLoadPromise) {
     departmentLoadPromise = (async () => {
       try {
-        const { data, error } = await supabase.from('departments').select('id, name').order('name');
+        let { data, error } = await supabase
+          .from('departments')
+          .select('id, name, sort_order')
+          .order('sort_order', { ascending: true })
+          .order('name', { ascending: true });
+        if (error && /sort_order|schema cache|column .* does not exist/i.test(`${error.message || ''} ${error.details || ''}`)) {
+          const fallback = await supabase.from('departments').select('id, name').order('name');
+          data = fallback.data;
+          error = fallback.error;
+        }
         if (error) throw error;
         return data?.length ? data : [...DEFAULT_DEPARTMENTS];
       } catch (_) {

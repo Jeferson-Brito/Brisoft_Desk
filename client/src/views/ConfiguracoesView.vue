@@ -87,7 +87,7 @@
             <span class="settings-section-heading">Departamentos de atendimento</span>
             <div class="settings-section-description">Organize filas, cores e responsabilidades da equipe.</div>
           </div>
-          <button class="btn-primary" @click="showModalDept = true">
+          <button class="btn-primary" @click="openNewDepartment">
             <i class="fa-solid fa-plus"></i> Novo departamento
           </button>
         </div>
@@ -96,14 +96,28 @@
           <thead>
             <tr>
               <th>Departamento</th>
+              <th class="department-order-heading">Ordem no menu</th>
               <th>Cor de Identificação</th>
               <th>Descrição</th>
               <th style="text-align:right;">Ações</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="d in settingsStore.departments" :key="d.id">
+            <tr v-for="(d, index) in settingsStore.departments" :key="d.id">
               <td style="font-weight:600;">{{ d.name }}</td>
+              <td>
+                <div class="department-order-cell">
+                  <span class="department-order-number">{{ index + 1 }}</span>
+                  <div class="department-order-controls">
+                    <button class="btn-icon department-order-button" type="button" title="Subir no menu" :disabled="index === 0 || reorderingDepartments" @click="moveDepartment(index, -1)">
+                      <i class="fa-solid fa-chevron-up"></i>
+                    </button>
+                    <button class="btn-icon department-order-button" type="button" title="Descer no menu" :disabled="index === settingsStore.departments.length - 1 || reorderingDepartments" @click="moveDepartment(index, 1)">
+                      <i class="fa-solid fa-chevron-down"></i>
+                    </button>
+                  </div>
+                </div>
+              </td>
               <td>
                 <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;">
                   <span style="width:14px;height:14px;border-radius:50%;" :style="{ backgroundColor: d.color || '#2563eb' }"></span>
@@ -112,6 +126,9 @@
               </td>
               <td style="font-size:12px;color:#64748b;">{{ d.description || '—' }}</td>
               <td style="text-align:right;">
+                <button class="btn-icon" title="Editar departamento" @click="openEditDepartment(d)">
+                  <i class="fa-solid fa-pen"></i>
+                </button>
                 <button class="btn-icon" style="color:#ef4444;" title="Excluir" @click="deleteDept(d)">
                   <i class="fa-solid fa-trash"></i>
                 </button>
@@ -287,7 +304,8 @@
 
     <ModalDepartamento
       v-if="showModalDept"
-      @close="showModalDept = false"
+      :department="editingDepartment"
+      @close="closeDepartmentModal"
       @saved="settingsStore.fetchDepartments"
     />
   </div>
@@ -313,6 +331,8 @@ const activeTab = ref(props.initialTab)
 const savingBot = ref(false)
 
 const showModalDept = ref(false)
+const editingDepartment = ref(null)
+const reorderingDepartments = ref(false)
 
 const formGeneral = ref({
   company_name: 'Grupo Combate',
@@ -422,6 +442,43 @@ async function deleteDept(d) {
   }
 }
 
+function openNewDepartment() {
+  editingDepartment.value = null
+  showModalDept.value = true
+}
+
+function openEditDepartment(department) {
+  editingDepartment.value = department
+  showModalDept.value = true
+}
+
+function closeDepartmentModal() {
+  showModalDept.value = false
+  editingDepartment.value = null
+}
+
+async function moveDepartment(index, direction) {
+  const nextIndex = index + direction
+  if (nextIndex < 0 || nextIndex >= settingsStore.departments.length || reorderingDepartments.value) return
+
+  const previousOrder = [...settingsStore.departments]
+  const reordered = [...previousOrder]
+  ;[reordered[index], reordered[nextIndex]] = [reordered[nextIndex], reordered[index]]
+  settingsStore.departments = reordered
+  reorderingDepartments.value = true
+
+  try {
+    const result = await settingsStore.reorderDepartments(reordered.map(department => department.id))
+    if (!result.success) throw new Error(result.error || 'Não foi possível alterar a ordem.')
+    ui.showToast('Ordem do menu atualizada.')
+  } catch (error) {
+    settingsStore.departments = previousOrder
+    ui.showToast(error.response?.data?.error || error.message || 'Erro ao alterar a ordem dos departamentos.', 'error')
+  } finally {
+    reorderingDepartments.value = false
+  }
+}
+
 async function saveGeneralSettings() {
   try {
     await settingsStore.saveSetting('company_info', formGeneral.value)
@@ -480,6 +537,12 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.department-order-heading { width:150px; }
+.department-order-cell { display:flex;align-items:center;gap:8px; }
+.department-order-number { width:24px;height:24px;border-radius:7px;background:#eff6ff;color:#2563eb;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700; }
+.department-order-controls { display:flex;align-items:center;gap:3px; }
+.department-order-button { width:27px;height:27px;font-size:10px;color:#64748b; }
+.department-order-button:disabled { opacity:.28; }
 .bot-field-label { font-size:11px;font-weight:500;color:#475569;display:block;margin-bottom:6px; }
 .bot-field-control { width:100%;min-height:39px;box-sizing:border-box;font-size:12px;padding:8px 11px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#1e293b;transition:border-color .15s ease,box-shadow .15s ease; }
 .bot-field-control:focus { outline:none;border-color:#60a5fa;box-shadow:0 0 0 3px rgba(59,130,246,.1); }

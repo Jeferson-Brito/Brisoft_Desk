@@ -16,24 +16,34 @@ function findLinkedWhatsAppAccounts(settingsValue, departmentId, departmentName 
   });
 }
 
+function isMissingDepartmentOrderColumn(error) {
+  return /sort_order|description|schema cache|column .* does not exist/i.test(`${error?.message || ''} ${error?.details || ''}`);
+}
+
 class DepartmentController {
   
   // Listar todos os departamentos
   async listDepartments(req, res) {
     const defaultDepts = [
-      { id: '1', name: 'B3 Eletrônica', color: '#2563eb', sla_target_minutes: 15 },
-      { id: '2', name: 'Comercial', color: '#10b981', sla_target_minutes: 15 },
-      { id: '3', name: 'Comercial eletrônica', color: '#06b6d4', sla_target_minutes: 15 },
-      { id: '4', name: 'Financeiro', color: '#f59e0b', sla_target_minutes: 15 },
-      { id: '5', name: 'Operacional', color: '#8b5cf6', sla_target_minutes: 15 },
-      { id: '6', name: 'Recursos Humanos', color: '#ec4899', sla_target_minutes: 15 },
-      { id: '7', name: 'Suporte Técnico', color: '#ea580c', sla_target_minutes: 15 },
-      { id: '8', name: 'Suprimentos', color: '#64748b', sla_target_minutes: 15 }
+      { id: '1', name: 'B3 Eletrônica', color: '#2563eb', sla_target_minutes: 15, sort_order: 1 },
+      { id: '2', name: 'Comercial', color: '#10b981', sla_target_minutes: 15, sort_order: 2 },
+      { id: '3', name: 'Comercial eletrônica', color: '#06b6d4', sla_target_minutes: 15, sort_order: 3 },
+      { id: '4', name: 'Financeiro', color: '#f59e0b', sla_target_minutes: 15, sort_order: 4 },
+      { id: '5', name: 'Operacional', color: '#8b5cf6', sla_target_minutes: 15, sort_order: 5 },
+      { id: '6', name: 'Recursos Humanos', color: '#ec4899', sla_target_minutes: 15, sort_order: 6 },
+      { id: '7', name: 'Suporte Técnico', color: '#ea580c', sla_target_minutes: 15, sort_order: 7 },
+      { id: '8', name: 'Suprimentos', color: '#64748b', sla_target_minutes: 15, sort_order: 8 }
     ];
     try {
-      const { data, error } = await supabase.from('departments').select('*').order('name', { ascending: true });
+      let { data, error } = await supabase.from('departments').select('*').order('sort_order', { ascending: true }).order('name', { ascending: true });
+      if (error && isMissingDepartmentOrderColumn(error)) {
+        const fallback = await supabase.from('departments').select('*').order('name', { ascending: true });
+        data = fallback.data;
+        error = fallback.error;
+      }
       if (!error && data && data.length > 0) {
-        const visible = isSupervisor(req.user) ? data.filter(item => departmentIds(req.user).includes(String(item.id))) : data;
+        const normalized = data.map((item, index) => ({ ...item, sort_order: Number(item.sort_order) || index + 1 }));
+        const visible = isSupervisor(req.user) ? normalized.filter(item => departmentIds(req.user).includes(String(item.id))) : normalized;
         return res.json({ success: true, departments: visible });
       }
       const visibleDefaults = isSupervisor(req.user) ? defaultDepts.filter(item => departmentIds(req.user).includes(String(item.id))) : defaultDepts;
@@ -47,17 +57,30 @@ class DepartmentController {
   // Criar ou atualizar departamento
   async saveDepartment(req, res) {
     try {
-      const { id, name, color, sla_target_minutes } = req.body;
+      const { id, name, color, description, sla_target_minutes, sort_order } = req.body;
       
       if (!name) {
         return res.status(400).json({ success: false, error: 'Nome do departamento é obrigatório' });
       }
 
       let payload = {
-        name,
+        name: String(name).trim(),
         color: color || '#2563eb',
+        description: String(description || '').trim() || null,
+        ...(Number.isInteger(Number(sort_order)) && Number(sort_order) > 0 ? { sort_order: Number(sort_order) } : {}),
         sla_target_minutes: sla_target_minutes ? parseInt(sla_target_minutes, 10) : 15
       };
+
+      if (!id && !payload.sort_order) {
+        const { data: lastDepartment, error: orderError } = await supabase
+          .from('departments')
+          .select('sort_order')
+          .order('sort_order', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (orderError) throw orderError;
+        payload.sort_order = (Number(lastDepartment?.sort_order) || 0) + 1;
+      }
 
       let result;
       if (id) {
@@ -75,7 +98,47 @@ class DepartmentController {
       res.json({ success: true, department: result.data });
     } catch (error) {
       console.error('Erro ao salvar departamento:', error);
-      res.status(500).json({ success: false, error: 'Erro ao salvar departamento' });
+      const schemaMissing = isMissingDepartmentOrderColumn(error);
+      res.status(schemaMissing ? 409 : 500).json({
+        success: false,
+        error: schemaMissing
+          ? 'A estrutura dos departamentos ainda não foi atualizada. Execute a migração de departamentos no Supabase.'
+          : 'Erro ao salvar departamento'
+      });
+    }
+  }
+
+  async reorderDepartments(req, res) {
+    try {
+      const departmentIdsInOrder = Array.isArray(req.body?.departmentIds) ? req.body.departmentIds.map(String) : [];
+      if (!departmentIdsInOrder.length || new Set(departmentIdsInOrder).size !== departmentIdsInOrder.length) {
+        return res.status(400).json({ success: false, error: 'Informe uma ordem válida para os departamentos.' });
+      }
+
+      const { data: existing, error: listError } = await supabase.from('departments').select('id');
+      if (listError) throw listError;
+      const existingIds = new Set((existing || []).map(item => String(item.id)));
+      if (departmentIdsInOrder.length !== existingIds.size || departmentIdsInOrder.some(id => !existingIds.has(id))) {
+        return res.status(400).json({ success: false, error: 'A lista deve conter todos os departamentos exatamente uma vez.' });
+      }
+
+      const updates = await Promise.all(departmentIdsInOrder.map((id, index) =>
+        supabase.from('departments').update({ sort_order: index + 1 }).eq('id', id)
+      ));
+      const failed = updates.find(result => result.error);
+      if (failed) throw failed.error;
+
+      ticketService.invalidateDepartmentCache();
+      return res.json({ success: true });
+    } catch (error) {
+      console.error('Erro ao reordenar departamentos:', error);
+      const schemaMissing = isMissingDepartmentOrderColumn(error);
+      return res.status(schemaMissing ? 409 : 500).json({
+        success: false,
+        error: schemaMissing
+          ? 'A coluna de ordem ainda não existe. Execute a migração de departamentos no Supabase.'
+          : 'Erro ao salvar a ordem dos departamentos.'
+      });
     }
   }
 
@@ -123,6 +186,6 @@ class DepartmentController {
 }
 
 const departmentController = new DepartmentController();
-departmentController._test = { findLinkedWhatsAppAccounts };
+departmentController._test = { findLinkedWhatsAppAccounts, isMissingDepartmentOrderColumn };
 
 module.exports = departmentController;

@@ -36,8 +36,14 @@ export const useSettingsStore = defineStore('settings', () => {
     return data
   }
 
+  async function reorderDepartments(departmentIds) {
+    const { data } = await departmentsApi.reorder(departmentIds)
+    if (data.success) await fetchDepartments()
+    return data
+  }
+
   return {
     departments, settings, loading,
-    fetchDepartments, fetchSettings, saveSetting, saveDepartment, deleteDepartment
+    fetchDepartments, fetchSettings, saveSetting, saveDepartment, deleteDepartment, reorderDepartments
   }
 })

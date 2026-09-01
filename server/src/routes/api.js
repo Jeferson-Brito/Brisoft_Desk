@@ -93,6 +93,7 @@ router.delete('/quick-messages/:id', requireAuth, requireSupervisorOrAdmin, (req
 
 // Rotas de Departamentos
 router.get('/departments', requireAuth, (req, res) => departmentController.listDepartments(req, res));
+router.put('/departments/order', requireAuth, requireAdmin, (req, res) => departmentController.reorderDepartments(req, res));
 router.post('/departments', requireAuth, requireAdmin, (req, res) => departmentController.saveDepartment(req, res));
 router.delete('/departments/:id', requireAuth, requireAdmin, (req, res) => departmentController.deleteDepartment(req, res));
 

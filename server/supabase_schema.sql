@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS departments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL UNIQUE,
     color VARCHAR(20) DEFAULT '#2563eb',
+    description TEXT,
+    sort_order INT,
     sla_target_minutes INT DEFAULT 15,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -126,6 +128,9 @@ CREATE TABLE IF NOT EXISTS tickets (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS sort_order INT;
 
 CREATE TABLE IF NOT EXISTS ticket_collaborators (
     ticket_id TEXT NOT NULL,

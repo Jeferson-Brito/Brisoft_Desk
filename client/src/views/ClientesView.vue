@@ -4,7 +4,7 @@
     <!-- Toolbar -->
     <div class="table-toolbar">
       <div class="table-toolbar-left">
-        <div class="search-input-wrap" style="width:280px;">
+        <div class="search-input-wrap contacts-search">
           <i class="fa-solid fa-magnifying-glass"></i>
           <input v-model="searchTerm" type="text" :placeholder="activeContactTab === 'employees' ? 'Buscar funcionário...' : 'Buscar cliente...'" />
         </div>
@@ -391,6 +391,60 @@ onMounted(loadContacts)
 </script>
 
 <style scoped>
+.table-view-layout {
+  box-sizing: border-box;
+  gap: 12px;
+  padding: 16px;
+  background: #f8fafc;
+}
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 62px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .035);
+}
+
+.table-toolbar-left { flex: 1 1 360px; min-width: 220px; }
+.search-input-wrap { position: relative; }
+.contacts-search { width: min(100%, 430px); }
+.search-input-wrap > i {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  z-index: 1;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 12px;
+  pointer-events: none;
+}
+.search-input-wrap input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 38px;
+  padding: 0 12px 0 34px;
+  border: 1px solid #dbe2ea;
+  border-radius: 9px;
+  outline: none;
+  background: #f8fafc;
+  color: #1e293b;
+  font: inherit;
+  font-size: 12.5px;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.search-input-wrap input:focus {
+  border-color: #60a5fa;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .1);
+}
+.search-input-wrap input::placeholder { color: #94a3b8; }
+
 .clientes-loading,
 .clientes-error {
   padding: 40px;
@@ -412,10 +466,15 @@ onMounted(loadContacts)
   gap: 8px;
 }
 
+.contacts-toolbar-actions { flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; }
+.contacts-toolbar-actions button { min-height: 38px; border-radius: 9px; white-space: nowrap; }
+
 .contacts-tabs-bar {
-  padding: 0 18px;
-  border-bottom: 1px solid var(--border-color);
+  padding: 0 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 11px;
   background: #ffffff;
+  overflow-x: auto;
 }
 
 .contacts-tabs-bar button {
@@ -582,10 +641,15 @@ onMounted(loadContacts)
 .contact-type-options small { font-size: 10px; color: var(--text-muted); font-weight: 400; }
 
 @media (max-width: 640px) {
+  .table-view-layout { padding: 10px; gap: 9px; }
+  .table-toolbar { align-items: stretch; flex-direction: column; min-height: auto; padding: 10px; }
+  .table-toolbar-left, .contacts-search { width: 100%; min-width: 0; }
+  .contacts-toolbar-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .contacts-toolbar-actions .btn-primary { grid-column: 1 / -1; justify-content: center; }
   .contact-type-options { grid-template-columns: 1fr; }
-  .contacts-toolbar-actions .btn-secondary { width: 34px; padding: 6px; font-size: 0; }
-  .contacts-toolbar-actions .btn-secondary i { font-size: 12px; }
   .contacts-toolbar-actions .model-button { display: none; }
+  .contacts-toolbar-actions .btn-secondary { width: auto; padding: 7px 10px; font-size: 11.5px; justify-content: center; }
+  .contacts-toolbar-actions .btn-secondary i { font-size: 12px; }
   .contacts-tabs-bar small { display: none; }
 }
 </style>

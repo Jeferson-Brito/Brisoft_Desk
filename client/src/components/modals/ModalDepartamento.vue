@@ -3,7 +3,7 @@
     <div class="modal-overlay active" id="modalNovoDepartamento" @click.self="$emit('close')">
       <div class="modal-container" style="max-width:440px;">
         <div class="modal-header">
-          <span class="modal-title">Novo Departamento</span>
+          <span class="modal-title">{{ isEditing ? 'Editar departamento' : 'Novo departamento' }}</span>
           <button type="button" class="btn-icon" @click="$emit('close')">
             <i class="fa-solid fa-xmark"></i>
           </button>
@@ -28,12 +28,18 @@
               <label>Descrição (opcional)</label>
               <textarea v-model="description" placeholder="Objetivo ou escopo de atendimento..." rows="2" class="form-control" style="resize:none;"></textarea>
             </div>
+
+            <div class="form-group">
+              <label>Meta de SLA (minutos)</label>
+              <input v-model.number="slaTargetMinutes" type="number" min="1" max="1440" class="form-control" />
+              <small>Tempo esperado para o primeiro atendimento deste departamento.</small>
+            </div>
           </div>
 
           <div class="modal-footer">
             <button type="button" class="btn-secondary" @click="$emit('close')">Cancelar</button>
             <button type="submit" class="btn-primary" :disabled="loading">
-              <i class="fa-solid fa-check" :class="{ 'fa-spin': loading }"></i> Criar Departamento
+              <i class="fa-solid" :class="loading ? 'fa-spinner fa-spin' : 'fa-check'"></i> {{ loading ? 'Salvando...' : (isEditing ? 'Salvar alterações' : 'Criar departamento') }}
             </button>
           </div>
         </form>
@@ -43,18 +49,21 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 
 const emit = defineEmits(['close', 'saved'])
+const props = defineProps({ department: { type: Object, default: null } })
 
 const settingsStore = useSettingsStore()
 const ui = useUiStore()
 
-const name = ref('')
-const color = ref('#2563eb')
-const description = ref('')
+const isEditing = computed(() => Boolean(props.department?.id))
+const name = ref(props.department?.name || '')
+const color = ref(props.department?.color || '#2563eb')
+const description = ref(props.department?.description || '')
+const slaTargetMinutes = ref(Number(props.department?.sla_target_minutes) || 15)
 const loading = ref(false)
 
 async function handleSubmit() {
@@ -62,12 +71,15 @@ async function handleSubmit() {
   loading.value = true
   try {
     const res = await settingsStore.saveDepartment({
+      ...(props.department?.id ? { id: props.department.id } : {}),
       name: name.value.trim(),
       color: color.value,
-      description: description.value.trim()
+      description: description.value.trim(),
+      sla_target_minutes: slaTargetMinutes.value,
+      ...(props.department?.sort_order ? { sort_order: props.department.sort_order } : {})
     })
     if (res.success) {
-      ui.showToast('Departamento criado com sucesso!')
+      ui.showToast(isEditing.value ? 'Departamento atualizado com sucesso!' : 'Departamento criado com sucesso!')
       emit('saved')
       emit('close')
     } else {
