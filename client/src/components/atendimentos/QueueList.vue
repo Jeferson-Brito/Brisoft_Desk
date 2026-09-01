@@ -364,7 +364,8 @@ const filteredTickets = computed(() => {
 
 .queue-title-bold {
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   color: #0f172a;
 }
 
@@ -438,7 +439,7 @@ const filteredTickets = computed(() => {
 
 .filter-label {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 500;
   color: #475569;
 }
 
@@ -534,7 +535,7 @@ const filteredTickets = computed(() => {
 .queue-tab-btn.active {
   background: #eff6ff;
   color: #1f62d0;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .queue-tab-count {
@@ -543,7 +544,7 @@ const filteredTickets = computed(() => {
   border-radius: 999px;
   background: #e2e8f0;
   color: #475569;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .queue-tab-btn.active .queue-tab-count {
@@ -602,8 +603,8 @@ const filteredTickets = computed(() => {
   width: 100%;
   height: 30px;
   padding: 0 26px 0 28px;
-  background: #f1f5f9;
-  border: 1px solid transparent;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 6px;
   font-size: 12px;
   color: #0f172a;

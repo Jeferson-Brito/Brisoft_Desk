@@ -9,9 +9,9 @@
               <i class="fa-solid fa-arrow-right-arrow-left"></i>
             </div>
             <div>
-              <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--text-main);">Transferir Atendimento</h3>
+              <h3 class="modal-title" style="margin:0;font-size:14px;color:var(--text-main);">Transferir atendimento</h3>
               <span style="font-size:11.5px;color:var(--text-muted);">
-                Cliente: <strong>{{ ticket?.clientName || ticket?.client_name || 'Cliente' }}</strong>
+                Cliente: <strong>{{ normalizePersonName(ticket?.clientName || ticket?.client_name || 'Cliente') }}</strong>
               </span>
             </div>
           </div>
@@ -126,6 +126,7 @@ import { useTicketStore } from '@/stores/tickets.store'
 import { useUiStore } from '@/stores/ui.store'
 import { ticketsApi } from '@/api/tickets.api'
 import { usersApi } from '@/api/users.api'
+import { normalizePersonName } from '@/utils/person-display'
 
 const props = defineProps({
   ticket: {

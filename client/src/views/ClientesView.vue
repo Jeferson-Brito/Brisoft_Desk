@@ -70,7 +70,7 @@
                       {{ initials(c.name) }}
                     </div>
                     <div class="contact-cell-meta">
-                      <span class="contact-cell-name">{{ c.name }}</span>
+                      <span class="contact-cell-name">{{ normalizePersonName(c.name) }}</span>
                       <span v-if="c.cnpj" style="font-size:11px;color:#64748b;">{{ c.cnpj }}</span>
                     </div>
                   </div>
@@ -214,6 +214,7 @@
 import { ref, computed, onMounted } from 'vue'
 import api from '@/api/http'
 import { formatPhone } from '@/utils/formatters'
+import { normalizePersonName } from '@/utils/person-display'
 import { parseCsv, rowsToContacts } from '@/utils/contact-import'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'

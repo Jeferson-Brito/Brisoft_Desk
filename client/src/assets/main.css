@@ -31,6 +31,9 @@
 @import './css/views/mensagens_rapidas.css';
 @import './css/views/painel-tv.css';
 
+/* Hierarquia tipográfica compartilhada por todas as telas */
+@import './css/base/typography.css';
+
 /* Responsive Overrides (must be last) */
 @import './css/base/responsive.css';
 

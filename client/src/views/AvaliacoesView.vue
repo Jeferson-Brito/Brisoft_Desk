@@ -9,7 +9,7 @@
       <div class="performance-filters">
         <label><span>Mês</span><input v-model="filters.month" type="month" :max="currentMonth" @change="fetchPerformance" /></label>
         <label v-if="auth.canManageTeam"><span>Departamento</span><select v-model="filters.departmentId" @change="onDepartmentChange"><option value="">{{ auth.isAdmin ? 'Todos' : 'Selecione' }}</option><option v-for="department in filterOptions.departments" :key="department.id" :value="department.id">{{ department.name }}</option></select></label>
-        <label v-if="auth.canManageTeam"><span>Atendente</span><select v-model="filters.agentId" @change="fetchPerformance"><option value="">Todos</option><option v-for="agent in availableAgents" :key="agent.id" :value="agent.id">{{ agent.name }}</option></select></label>
+        <label v-if="auth.canManageTeam"><span>Atendente</span><select v-model="filters.agentId" @change="fetchPerformance"><option value="">Todos</option><option v-for="agent in availableAgents" :key="agent.id" :value="agent.id">{{ normalizePersonName(agent.name) }}</option></select></label>
         <button class="performance-refresh" :disabled="loading" @click="fetchPerformance"><i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': loading }"></i> Atualizar</button>
       </div>
     </section>
@@ -53,7 +53,7 @@
         <tbody>
           <tr v-if="!agents.length"><td colspan="8" class="performance-empty">Nenhum atendimento encontrado para os filtros selecionados.</td></tr>
           <tr v-for="(agent, index) in agents" :key="agent.id">
-            <td><span class="rank-pill">{{ index + 1 }}</span></td><td><div class="agent-cell"><span class="agent-avatar">{{ initials(agent.name) }}</span><div><strong>{{ agent.name }}</strong><small>{{ departmentName(agent.departmentId) }}</small></div></div></td>
+            <td><span class="rank-pill">{{ index + 1 }}</span></td><td><div class="agent-cell"><span class="agent-avatar">{{ initials(agent.name) }}</span><div><strong>{{ normalizePersonName(agent.name) }}</strong><small>{{ departmentName(agent.departmentId) }}</small></div></div></td>
             <td><strong>{{ agent.completed }}</strong></td><td>{{ agent.tma }}</td><td><span class="sla-pill" :class="{ warning: agent.slaPercent < 90 }">{{ agent.slaPercent }}%</span></td><td>{{ agent.ratingAverage == null ? '—' : `${agent.ratingAverage} ★` }}</td><td>{{ agent.satisfactionPercent }}%</td><td><span class="performance-comparison" :class="comparisonClass(agent.comparison.completed)"><i :class="comparisonIcon(agent.comparison.completed)"></i> {{ comparisonText(agent.comparison.completed) }}</span></td>
           </tr>
         </tbody>
@@ -74,6 +74,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { ticketsApi } from '@/api/tickets.api'
 import { useAuthStore } from '@/stores/auth.store'
+import { normalizePersonName } from '@/utils/person-display'
 
 const auth = useAuthStore()
 const now = new Date()

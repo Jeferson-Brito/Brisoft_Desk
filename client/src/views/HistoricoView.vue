@@ -135,7 +135,7 @@
                     </div>
                     <div class="contact-cell-meta">
                       <span class="contact-cell-name">
-                        {{ item.clientName || item.client_name || 'Cliente' }}
+                        {{ normalizePersonName(item.clientName || item.client_name || 'Cliente') }}
                       </span>
                       <span class="contact-cell-sub">
                         <i class="fa-brands fa-whatsapp" style="color:#22c55e;margin-right:2px;"></i>
@@ -279,7 +279,7 @@
               </div>
               <div>
                 <span class="modal-title" style="font-size:15px;display:flex;align-items:center;gap:8px;">
-                  {{ selectedTicketModal.clientName || selectedTicketModal.client_name || 'Cliente' }}
+                  {{ normalizePersonName(selectedTicketModal.clientName || selectedTicketModal.client_name || 'Cliente') }}
                   <span class="badge badge-whatsapp" style="font-size:10.5px;">
                     <i class="fa-brands fa-whatsapp"></i> {{ formatPhone(selectedTicketModal.phone) }}
                   </span>
@@ -305,7 +305,10 @@
               </div>
 
               <div class="chat-messages-container" style="flex:1;overflow-y:auto;padding:16px;">
-                <div v-if="!selectedTicketModal.messages || selectedTicketModal.messages.length === 0" style="padding:32px;text-align:center;color:#94a3b8;font-size:12px;">
+                <div v-if="detailLoading" style="padding:32px;text-align:center;color:#64748b;font-size:12px;">
+                  <i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i> Carregando conversa completa...
+                </div>
+                <div v-else-if="!selectedTicketModal.messages || selectedTicketModal.messages.length === 0" style="padding:32px;text-align:center;color:#94a3b8;font-size:12px;">
                   Nenhuma mensagem registrada neste chamado.
                 </div>
                 <template v-else>
@@ -387,7 +390,7 @@
                 <div class="contact-info-list">
                   <div class="contact-info-item">
                     <i class="fa-solid fa-user"></i>
-                    <span>Nome: <strong>{{ selectedTicketModal.clientName || selectedTicketModal.client_name }}</strong></span>
+                    <span>Nome: <strong>{{ normalizePersonName(selectedTicketModal.clientName || selectedTicketModal.client_name) }}</strong></span>
                   </div>
                   <div class="contact-info-item">
                     <i class="fa-brands fa-whatsapp" style="color:#22c55e;"></i>
@@ -435,6 +438,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ticketsApi } from '@/api/tickets.api'
 import { useSettingsStore } from '@/stores/settings.store'
 import { formatPhone, formatCnpjCpf, formatDateTime } from '@/utils/formatters'
+import { normalizePersonName } from '@/utils/person-display'
 import ChatBubble from '@/components/atendimentos/ChatBubble.vue'
 import ModalEditarContato from '@/components/modals/ModalEditarContato.vue'
 
@@ -443,6 +447,7 @@ const settingsStore = useSettingsStore()
 const historyList = ref([])
 const loading = ref(false)
 const selectedTicketModal = ref(null)
+const detailLoading = ref(false)
 const showEditContactModal = ref(false)
 
 const currentPage = ref(1)
@@ -570,8 +575,26 @@ function getDeptColor(deptName) {
   return d?.color || '#2563eb'
 }
 
-function openDetailsModal(item) {
-  selectedTicketModal.value = item
+async function openDetailsModal(item) {
+  selectedTicketModal.value = { ...item }
+  detailLoading.value = true
+  try {
+    const { data } = await ticketsApi.get(item.id)
+    if (data?.success && data.ticket && selectedTicketModal.value?.id === item.id) {
+      selectedTicketModal.value = {
+        ...item,
+        ...data.ticket,
+        clientName: data.ticket.clientName || data.ticket.client_name || item.clientName,
+        avatarColor: data.ticket.avatarColor || data.ticket.avatar_color || item.avatarColor,
+        rating: item.rating,
+        messages: data.ticket.messages || item.messages || []
+      }
+    }
+  } catch (error) {
+    console.warn('Falha ao atualizar a conversa completa:', error)
+  } finally {
+    detailLoading.value = false
+  }
 }
 
 async function fetchHistory() {

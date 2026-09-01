@@ -310,6 +310,41 @@ function assertSupabase(result, context) {
   return result ? result.data : null;
 }
 
+// O Supabase limita respostas a 1.000 linhas. Sem paginação, os tickets fora
+// da primeira página pareciam não possuir mensagens no histórico.
+async function fetchAllMessagesForTicketIds(ticketIds = []) {
+  const ids = [...new Set(ticketIds.filter(Boolean).map(String))];
+  const allMessages = [];
+  const batchSize = 40;
+  const pageSize = 1000;
+  for (let offset = 0; offset < ids.length; offset += batchSize) {
+    const batch = ids.slice(offset, offset + batchSize);
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .in('ticket_id', batch)
+        .order('created_at', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      allMessages.push(...(data || []));
+      if (!data || data.length < pageSize) break;
+    }
+  }
+  return allMessages;
+}
+
+async function fetchRatingsForTicketIds(ticketIds = []) {
+  const ids = [...new Set(ticketIds.filter(Boolean).map(String))];
+  const rows = [];
+  for (let offset = 0; offset < ids.length; offset += 50) {
+    const { data, error } = await supabase.from('ratings').select('ticket_id, score').in('ticket_id', ids.slice(offset, offset + 50));
+    if (error) throw error;
+    rows.push(...(data || []));
+  }
+  return rows;
+}
+
 class TicketService {
   invalidateDepartmentCache() {
     departmentCache = null;
@@ -1673,18 +1708,12 @@ ${rendered}`,
 
       const { data: pastTickets, error } = await query;
       if (error || !pastTickets || pastTickets.length === 0) {
-        const { data: currentMsgs } = await supabase.from('messages').select('*').eq('ticket_id', ticket.id).order('created_at', { ascending: true });
-        return currentMsgs || [];
+        return fetchAllMessagesForTicketIds([ticket.id]);
       }
 
       let consolidated = [];
       const relatedTicketIds = [...pastTickets.map(item => item.id), ticket.id];
-      const { data: relatedMessages, error: relatedMessagesError } = await supabase
-        .from('messages')
-        .select('*')
-        .in('ticket_id', relatedTicketIds)
-        .order('created_at', { ascending: true });
-      if (relatedMessagesError) throw relatedMessagesError;
+      const relatedMessages = await fetchAllMessagesForTicketIds(relatedTicketIds);
       const messagesByTicket = new Map();
       for (const message of relatedMessages || []) {
         const group = messagesByTicket.get(message.ticket_id) || [];
@@ -1736,8 +1765,7 @@ ${rendered}`,
       return consolidated;
     } catch (e) {
       console.warn('Erro ao carregar mensagens 24h:', e.message);
-      const { data: currentMsgs } = await supabase.from('messages').select('*').eq('ticket_id', ticket.id).order('created_at', { ascending: true });
-      return currentMsgs || [];
+      return fetchAllMessagesForTicketIds([ticket.id]);
     }
   }
 
@@ -1927,9 +1955,9 @@ ${rendered}`,
       let messagesMap = {};
 
       if (ticketIds.length > 0) {
-        const [ { data: avaliacoes }, { data: msgs } ] = await Promise.all([
-          supabase.from('ratings').select('ticket_id, score').in('ticket_id', ticketIds),
-          supabase.from('messages').select('*').in('ticket_id', ticketIds).order('created_at', { ascending: true })
+        const [avaliacoes, msgs] = await Promise.all([
+          fetchRatingsForTicketIds(ticketIds),
+          fetchAllMessagesForTicketIds(ticketIds)
         ]);
 
         (avaliacoes || []).forEach(a => { ratingMap[a.ticket_id] = a.score; });

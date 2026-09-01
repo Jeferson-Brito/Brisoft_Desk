@@ -16,7 +16,7 @@
 
         <div class="modal-body">
           <p style="font-size:13px;color:#475569;margin:0 0 16px 0;line-height:1.5;">
-            Deseja realmente encerrar o atendimento de <strong>{{ ticket?.clientName || ticket?.client_name || 'Cliente' }}</strong>?
+            Deseja realmente encerrar o atendimento de <strong>{{ normalizePersonName(ticket?.clientName || ticket?.client_name || 'Cliente') }}</strong>?
             A pesquisa de satisfação será enviada automaticamente via WhatsApp.
           </p>
 
@@ -53,6 +53,7 @@
 import { ref } from 'vue'
 import { useTicketStore } from '@/stores/tickets.store'
 import { useUiStore } from '@/stores/ui.store'
+import { normalizePersonName } from '@/utils/person-display'
 
 const props = defineProps({
   ticket: {

@@ -19,17 +19,18 @@
         title="Clique para ver os detalhes do contato"
         @click="$emit('toggle-details')"
       >
-        <h2 class="chat-contact-title">
-          {{ ticket?.clientName || ticket?.client_name || 'Cliente' }}
-        </h2>
-        <i
-          class="fa-solid"
-          :class="isDetailsOpen ? 'fa-chevron-up' : 'fa-chevron-down'"
-          style="font-size: 11px; color: #94a3b8; margin-left: 2px;"
-        ></i>
-        <span v-if="ticket?.is_employee" class="employee-contact-badge" title="Funcionário da empresa">
-          <i class="fa-solid fa-id-badge"></i> Funcionário
-        </span>
+        <div class="chat-contact-copy">
+          <div class="chat-contact-name-line">
+            <h2 class="chat-contact-title">{{ headerPerson.name || 'Cliente' }}</h2>
+            <i class="fa-solid chat-contact-chevron" :class="isDetailsOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            <span v-if="ticket?.is_employee" class="employee-contact-badge" title="Funcionário da empresa"><i class="fa-solid fa-id-badge"></i> Funcionário</span>
+          </div>
+          <div v-if="headerPerson.role || ticket?.department" class="chat-contact-subtitle">
+            <span v-if="headerPerson.role">{{ headerPerson.role }}</span>
+            <i v-if="headerPerson.role && ticket?.department"></i>
+            <span v-if="ticket?.department">{{ ticket.department }}</span>
+          </div>
+        </div>
       </div>
 
       <!-- Ações à Direita -->
@@ -381,6 +382,7 @@ import { ticketsApi } from '@/api/tickets.api'
 import { quickMessagesApi } from '@/api/quick-messages.api'
 import { classifyBotInteractions } from '@/utils/chat-message-visibility'
 import { preloadTicketMedia } from '@/utils/protected-media-cache'
+import { splitPersonLabel } from '@/utils/person-display'
 import ChatBubble from './ChatBubble.vue'
 import ModalTransferir from '@/components/modals/ModalTransferir.vue'
 import ModalColaboradores from '@/components/modals/ModalColaboradores.vue'
@@ -429,6 +431,7 @@ const displaySla = computed(() => {
   return '—'
 })
 const displayTme = computed(() => props.performance?.metrics?.tme || '00:00:00')
+const headerPerson = computed(() => splitPersonLabel(props.ticket?.clientName || props.ticket?.client_name || 'Cliente'))
 
 defineEmits(['toggle-details', 'go-back'])
 

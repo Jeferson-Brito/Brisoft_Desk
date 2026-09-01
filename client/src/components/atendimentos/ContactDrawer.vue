@@ -133,7 +133,7 @@
           </div>
           <div class="contact-profile-text">
             <strong class="contact-profile-name" :title="ticket?.clientName || ticket?.client_name">
-              {{ ticket?.clientName || ticket?.client_name || 'Cliente' }}
+              {{ normalizePersonName(ticket?.clientName || ticket?.client_name || 'Cliente') }}
             </strong>
             <span class="contact-profile-phone">{{ displayPhone }}</span>
             <div class="contact-role-tag" :class="{ employee: ticket?.is_employee }">
@@ -233,6 +233,7 @@ import { useTicketStore } from '@/stores/tickets.store'
 import { ticketsApi } from '@/api/tickets.api'
 import { formatPhone, formatCnpjCpf } from '@/utils/formatters'
 import ModalEditarContato from '@/components/modals/ModalEditarContato.vue'
+import { normalizePersonName } from '@/utils/person-display'
 
 const props = defineProps({
   ticket: {

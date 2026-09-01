@@ -33,13 +33,17 @@
         <span class="queue-item-time">{{ relativeTime }}</span>
       </div>
 
-      <!-- Linha 2: Preview da mensagem + Tag de Espera / SLA -->
+      <div class="queue-item-context">
+        <span v-if="person.role" class="contact-role" :title="person.role">{{ person.role }}</span>
+        <span v-else-if="ticket.is_employee" class="contact-role">Funcionário da empresa</span>
+        <span v-if="deptName" class="department-chip" :title="deptName">
+          <span :style="{ backgroundColor: deptColor }"></span>{{ deptName }}
+        </span>
+      </div>
+
+      <!-- Última mensagem + Tag de Espera / SLA -->
       <div class="queue-item-footer">
         <span class="queue-item-snippet" :class="{ 'unread-text': ticket.unreadCount > 0 }">
-          <span v-if="deptName" class="department-queue-label" :title="deptName">
-            <span class="dept-indicator-line" :style="{ backgroundColor: deptColor }"></span>
-            <span class="department-queue-name">{{ deptName }}</span>
-          </span>
           <span class="preview-text">{{ cleanPreview(ticket.preview) }}</span>
         </span>
 
@@ -59,6 +63,7 @@
 <script setup>
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useTicketStore } from '@/stores/tickets.store'
+import { splitPersonLabel } from '@/utils/person-display'
 
 const props = defineProps({
   ticket: {
@@ -83,7 +88,8 @@ function handleClick() {
   emit('select', props.ticket.id)
 }
 
-const displayName = computed(() => props.ticket.clientName || props.ticket.client_name || 'Cliente')
+const person = computed(() => splitPersonLabel(props.ticket.clientName || props.ticket.client_name || 'Cliente'))
+const displayName = computed(() => person.value.name || 'Cliente')
 const deptName = computed(() => props.ticket.department || props.ticket.departments?.name || props.ticket.deptInitial || '')
 const deptColor = computed(() => props.ticket.departmentColor || '#1f62d0')
 const isWhatsapp = computed(() => true)
@@ -116,10 +122,15 @@ const waitTimeBadge = computed(() => {
 
 function cleanPreview(preview) {
   if (!preview) return 'Conversa iniciada'
-  if (preview.startsWith('[Chatbot]')) {
-    return 'Menu do robô'
-  }
-  return preview
+  let clean = String(preview).replace(/^WhatsApp:\s*/i, '').trim()
+  if (clean.startsWith('[Chatbot]')) return 'Interação com o assistente'
+  clean = clean.replace(/^\[[^\]]+\]\s*/, '').trim()
+  clean = clean
+    .replace(/📹?\s*\[Vídeo\]/i, 'Vídeo')
+    .replace(/📷?\s*\[Imagem\]/i, 'Imagem')
+    .replace(/🎙️?\s*\[Mensagem de Voz\]/i, 'Mensagem de voz')
+    .replace(/🎵?\s*\[Áudio\]/i, 'Áudio')
+  return clean || 'Nova mensagem'
 }
 </script>
 
@@ -127,10 +138,11 @@ function cleanPreview(preview) {
 .queue-item-card {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 11px;
+  padding: 11px 12px;
   margin: 2px 8px;
-  border-radius: 6px;
+  border-radius: 9px;
+  border: 1px solid transparent;
   cursor: pointer;
   background: #ffffff;
   transition: all 0.12s ease;
@@ -140,10 +152,13 @@ function cleanPreview(preview) {
 
 .queue-item-card:hover {
   background-color: #f8fafc;
+  border-color:#eef2f7;
 }
 
 .queue-item-card.active {
-  background-color: #ebf3fe !important;
+  background-color: #eff6ff !important;
+  border-color:#dbeafe;
+  box-shadow:inset 3px 0 0 #2563eb;
 }
 
 .avatar-wrap {
@@ -179,7 +194,7 @@ function cleanPreview(preview) {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .queue-item-header {
@@ -197,7 +212,7 @@ function cleanPreview(preview) {
 
 .queue-item-name {
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   color: #0f172a;
   white-space: nowrap;
   overflow: hidden;
@@ -228,6 +243,8 @@ function cleanPreview(preview) {
   gap: 6px;
 }
 
+.queue-item-context{display:flex;align-items:center;gap:6px;min-width:0;height:16px}.contact-role{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#64748b;font-size:10.5px;font-weight:400}.department-chip{max-width:48%;display:inline-flex;align-items:center;gap:4px;padding:1px 6px;border:1px solid #e2e8f0;border-radius:999px;color:#64748b;background:#fff;font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.department-chip>span{width:5px;height:5px;border-radius:50%;flex:none}
+
 .queue-item-snippet {
   font-size: 11.5px;
   color: #64748b;
@@ -241,30 +258,10 @@ function cleanPreview(preview) {
 }
 
 .unread-text {
-  color: #0f172a;
-  font-weight: 600;
+  color: #334155;
+  font-weight: 500;
 }
 
-.dept-indicator-line {
-  width: 3px;
-  height: 10px;
-  border-radius: 2px;
-  display: inline-block;
-  flex-shrink: 0;
-}
-
-.department-queue-label {
-  max-width: 45%;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  color: #475569;
-  font-size: 10px;
-  font-weight: 650;
-}
-
-.department-queue-name,
 .preview-text {
   white-space: nowrap;
   overflow: hidden;
@@ -274,12 +271,6 @@ function cleanPreview(preview) {
 .preview-text {
   min-width: 0;
   color: #94a3b8;
-}
-
-.department-queue-label + .preview-text::before {
-  content: '·';
-  margin-right: 4px;
-  color: #cbd5e1;
 }
 
 .queue-item-badges {

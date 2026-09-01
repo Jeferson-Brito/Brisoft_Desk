@@ -35,7 +35,7 @@
                   {{ getUserInitials(u.name) }}
                 </div>
                 <div>
-                  <span style="font-weight:600;font-size:12.5px;">{{ u.name || '—' }}</span>
+                  <span style="font-weight:600;font-size:12.5px;">{{ normalizePersonName(u.name) || '—' }}</span>
                   <span v-if="u.id === authStore.user?.id" style="margin-left:6px;background:#e0f2fe;color:#0369a1;border-radius:20px;font-size:9px;font-weight:700;padding:1px 6px;">VOCÊ</span>
                 </div>
               </div>
@@ -91,6 +91,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { usersApi } from '@/api/users.api'
 import ModalUsuario from '@/components/modals/ModalUsuario.vue'
+import { normalizePersonName } from '@/utils/person-display'
 
 const authStore = useAuthStore()
 const ui = useUiStore()

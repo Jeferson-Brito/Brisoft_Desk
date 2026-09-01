@@ -72,7 +72,7 @@
         <button
           type="button"
           class="user-avatar-btn"
-          :title="`${auth.userName} (${roleLabel})`"
+          :title="`${displayUserName} (${roleLabel})`"
           @click.stop="showUserDropdown = !showUserDropdown"
         >
           <img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="Foto do perfil" />
@@ -84,7 +84,7 @@
         <div v-if="showUserDropdown" class="user-popup-menu" @click.stop>
           <button type="button" class="user-popup-profile" @click="goTo('/perfil')">
             <span class="popup-avatar"><img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="" /><b v-else>{{ userInitials }}</b></span>
-            <span class="user-popup-header"><strong>{{ auth.userName }}</strong><small>{{ roleLabel }}</small><span>{{ departmentLabel }}</span></span>
+            <span class="user-popup-header"><strong>{{ displayUserName }}</strong><small>{{ roleLabel }}</small><span>{{ departmentLabel }}</span></span>
             <i class="fa-solid fa-chevron-right"></i>
           </button>
           <div v-if="auth.isAdmin" class="admin-shortcuts">
@@ -118,6 +118,7 @@ import { useAuthStore }      from '@/stores/auth.store'
 import { useTicketStore }    from '@/stores/tickets.store'
 import { useSidebarStore }   from '@/stores/sidebar.store'
 import iconUrl from '@/assets/img/icon.png'
+import { normalizePersonName } from '@/utils/person-display'
 
 const auth    = useAuthStore()
 const tickets = useTicketStore()
@@ -137,6 +138,7 @@ watch(() => route.path, () => {
 })
 
 const waitingCount = computed(() => tickets.waitingTickets.length)
+const displayUserName = computed(() => normalizePersonName(auth.userName || 'Usuário'))
 
 const userInitials = computed(() => {
   const name = auth.userName || 'U'
