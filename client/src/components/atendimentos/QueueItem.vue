@@ -36,12 +36,15 @@
       <!-- Linha 2: Preview da mensagem + Tag de Espera / SLA -->
       <div class="queue-item-footer">
         <span class="queue-item-snippet" :class="{ 'unread-text': ticket.unreadCount > 0 }">
-          <span v-if="deptName" class="dept-indicator-line" :style="{ backgroundColor: deptColor }"></span>
-          {{ cleanPreview(ticket.preview) }}
+          <span v-if="deptName" class="department-queue-label" :title="deptName">
+            <span class="dept-indicator-line" :style="{ backgroundColor: deptColor }"></span>
+            <span class="department-queue-name">{{ deptName }}</span>
+          </span>
+          <span class="preview-text">{{ cleanPreview(ticket.preview) }}</span>
         </span>
 
         <div class="queue-item-badges">
-          <span v-if="waitTimeBadge" class="sla-timer-badge">
+          <span v-if="waitTimeBadge" class="sla-timer-badge" title="Tempo deste atendimento na fila aguardando um atendente">
             <i class="fa-regular fa-clock"></i> {{ waitTimeBadge }}
           </span>
           <span v-if="ticket.unreadCount > 0" class="unread-count-pill">
@@ -54,7 +57,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useTicketStore } from '@/stores/tickets.store'
 
 const props = defineProps({
@@ -66,6 +69,14 @@ const props = defineProps({
 
 const emit = defineEmits(['select'])
 const ticketStore = useTicketStore()
+const clockTick = ref(Date.now())
+let clockTimer = null
+
+onMounted(() => {
+  clockTimer = setInterval(() => { clockTick.value = Date.now() }, 30000)
+})
+
+onBeforeUnmount(() => clearInterval(clockTimer))
 
 function handleClick() {
   ticketStore.selectTicket(props.ticket.id)
@@ -73,7 +84,7 @@ function handleClick() {
 }
 
 const displayName = computed(() => props.ticket.clientName || props.ticket.client_name || 'Cliente')
-const deptName = computed(() => props.ticket.department || props.ticket.deptInitial || '')
+const deptName = computed(() => props.ticket.department || props.ticket.departments?.name || props.ticket.deptInitial || '')
 const deptColor = computed(() => props.ticket.departmentColor || '#1f62d0')
 const isWhatsapp = computed(() => true)
 
@@ -88,10 +99,19 @@ const relativeTime = computed(() => {
 })
 
 const waitTimeBadge = computed(() => {
-  if (props.ticket.status === 'aguardando' || !props.ticket.assumed) {
-    return '14m'
-  }
-  return null
+  if (props.ticket.status !== 'aguardando') return null
+  const now = clockTick.value
+  const enteredQueueAt = props.ticket.queued_at || props.ticket.created_at
+  const enteredQueueMs = new Date(enteredQueueAt).getTime()
+  if (!Number.isFinite(enteredQueueMs)) return null
+  const totalMinutes = Math.max(0, Math.floor((now - enteredQueueMs) / 60000))
+  if (totalMinutes < 1) return '<1m'
+  if (totalMinutes < 60) return `${totalMinutes}m`
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours < 24) return `${hours}h${minutes ? ` ${minutes}m` : ''}`
+  const days = Math.floor(hours / 24)
+  return `${days}d ${hours % 24}h`
 })
 
 function cleanPreview(preview) {
@@ -231,6 +251,35 @@ function cleanPreview(preview) {
   border-radius: 2px;
   display: inline-block;
   flex-shrink: 0;
+}
+
+.department-queue-label {
+  max-width: 45%;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.department-queue-name,
+.preview-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-text {
+  min-width: 0;
+  color: #94a3b8;
+}
+
+.department-queue-label + .preview-text::before {
+  content: '·';
+  margin-right: 4px;
+  color: #cbd5e1;
 }
 
 .queue-item-badges {

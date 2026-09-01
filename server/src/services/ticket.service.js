@@ -27,7 +27,8 @@ const {
   isGeneratedCustomerName,
   extractAndValidateName,
   findContactByPhone,
-  saveConfirmedContact
+  saveConfirmedContact,
+  ensureWhatsAppContact
 } = require('./customer-identification.service');
 
 // Janela de avaliacao: 30 minutos
@@ -565,7 +566,7 @@ ${rendered}`,
             io,
             whatsappService,
             botConfig,
-            sendRating: false,
+            sendRating: expired && botConfig.send_rating_on_external_inactivity,
             reason: requestedRestart ? 'Novo atendimento solicitado pelo cliente' : 'Inatividade no WhatsApp'
           });
           ticket = null;
@@ -1327,7 +1328,7 @@ ${rendered}`,
       let { data: ticket, error: activeError } = await activeQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (activeError) throw activeError;
       let createdTicket = false;
-      const knownContact = await findContactByPhone(phone);
+      let knownContact = await findContactByPhone(phone);
 
       let previousTicket = null;
       if (!ticket) {
@@ -1337,6 +1338,17 @@ ${rendered}`,
           : previousQuery.eq('channel', channel);
         const previousResult = await previousQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
         if (!previousResult.error) previousTicket = previousResult.data;
+
+        if (!knownContact && phone) {
+          try {
+            knownContact = await ensureWhatsAppContact(
+              phone,
+              previousTicket?.client_name || `Cliente ${phone.slice(-4)}`
+            );
+          } catch (contactError) {
+            console.warn(`Falha ao cadastrar automaticamente contato do WhatsApp: ${contactError.message}`);
+          }
+        }
 
         const departments = await getCachedDepartments();
         const botConfig = await getBotConfig();
@@ -1390,6 +1402,13 @@ ${rendered}`,
         ticket = assertSupabase(insertResult, 'Falha ao criar atendimento iniciado pelo WhatsApp');
         createdTicket = true;
       } else {
+        if (!knownContact && phone) {
+          try {
+            knownContact = await ensureWhatsAppContact(phone, ticket.client_name || `Cliente ${phone.slice(-4)}`);
+          } catch (contactError) {
+            console.warn(`Falha ao cadastrar automaticamente contato do WhatsApp: ${contactError.message}`);
+          }
+        }
         const inferredCurrent = ticket.handled_via || (ticket.agent_name && !String(ticket.agent_name).startsWith('WhatsApp (') ? 'platform' : 'pending');
         const updatePayload = {
           status: 'em_atendimento',
@@ -1574,7 +1593,12 @@ ${rendered}`,
     let closed = 0;
     for (const ticket of tickets || []) {
       try {
-        if (await this.finalizeExternalTicket(ticket, { io, whatsappService, botConfig: config })) closed += 1;
+        if (await this.finalizeExternalTicket(ticket, {
+          io,
+          whatsappService,
+          botConfig: config,
+          sendRating: config.send_rating_on_external_inactivity
+        })) closed += 1;
       } catch (closeError) {
         console.warn(`Falha ao encerrar atendimento externo ${ticket.id}: ${closeError.message}`);
       }
@@ -1732,6 +1756,14 @@ ${rendered}`,
         ticket.department = ticket.departments.name;
         ticket.departmentColor = ticket.departments.color;
         ticket.department_id = ticket.departments.id || ticket.department_id;
+      }
+      if (ticket.contact_id) {
+        const { data: contact, error: contactError } = await supabase
+          .from('contacts')
+          .select('*')
+          .eq('id', ticket.contact_id)
+          .maybeSingle();
+        if (!contactError && contact) ticket.contact = contact;
       }
       return ticket;
     } catch (e) {
@@ -2601,38 +2633,65 @@ ${rendered}`,
     try {
       const existingTicket = await this.getFullTicket(ticketId, currentUser);
       if (!existingTicket) return { success: false, error: 'Ticket nao encontrado' };
-      const { name, phone, email, cnpj, company, note } = contactData;
+      const { name, phone, email, cnpj, note, is_employee: requestedEmployee } = contactData;
+      let normalizedPhone = String(phone || existingTicket.phone || '').replace(/\D/g, '');
+      if (normalizedPhone.length === 10 || normalizedPhone.length === 11) normalizedPhone = `55${normalizedPhone}`;
+
+      let existingContact = null;
+      if (existingTicket.contact_id) {
+        const result = await supabase.from('contacts').select('*').eq('id', existingTicket.contact_id).maybeSingle();
+        if (result.error) throw result.error;
+        existingContact = result.data;
+      }
+      if (!existingContact && normalizedPhone) existingContact = await findContactByPhone(normalizedPhone);
+
+      const isEmployee = requestedEmployee === undefined
+        ? Boolean(existingContact?.is_employee ?? existingTicket.is_employee)
+        : requestedEmployee === true || requestedEmployee === 'true';
+      const contactPayload = {
+        name: String(name || existingContact?.name || existingTicket.client_name || 'Cliente').trim(),
+        phone: normalizedPhone || null,
+        email: email !== undefined ? (email || null) : (existingContact?.email || null),
+        cnpj: cnpj !== undefined ? (cnpj || null) : (existingContact?.cnpj || null),
+        channel: existingContact?.channel || 'WhatsApp',
+        status: existingContact?.status || 'Ativo',
+        notes: note !== undefined ? (note || null) : (existingContact?.notes || null),
+        is_employee: isEmployee
+      };
+
+      let contactResult;
+      if (existingContact) {
+        contactResult = await supabase.from('contacts').update(contactPayload).eq('id', existingContact.id).select().single();
+      } else {
+        contactResult = await supabase.from('contacts').insert({ id: crypto.randomUUID(), ...contactPayload }).select().single();
+      }
+      const savedContact = assertSupabase(contactResult, 'Falha ao salvar contato');
+
       const updatePayload = {
+        client_name: contactPayload.name,
+        initials: contactPayload.name.substring(0, 2).toUpperCase(),
+        phone: normalizedPhone || existingTicket.phone,
+        contact_id: savedContact.id,
+        is_employee: isEmployee,
         updated_at: new Date().toISOString()
       };
-      if (name) updatePayload.client_name = name;
-      if (phone) updatePayload.phone = phone;
-
-      assertSupabase(await supabase.from('tickets').update(updatePayload).eq('id', ticketId), 'Falha ao atualizar contato');
-
-      const { data: ticket } = await supabase.from('tickets').select('*').eq('id', ticketId).single();
-      if (ticket) {
-        const { data: existingContact } = await supabase.from('contacts').select('*').eq('phone', ticket.phone).maybeSingle();
-        if (existingContact) {
-          await supabase.from('contacts').update({
-            name: name || existingContact.name,
-            email: email || existingContact.email,
-            role: company || existingContact.role
-          }).eq('id', existingContact.id);
-        } else if (name || phone) {
-          await supabase.from('contacts').insert({
-            id: crypto.randomUUID(),
-            name: name || ticket.client_name,
-            phone: phone || ticket.phone,
-            email: email || null,
-            role: company || null
-          });
-        }
+      assertSupabase(await supabase.from('tickets').update(updatePayload).eq('id', ticketId), 'Falha ao atualizar contato do atendimento');
+      assertSupabase(
+        await supabase.from('tickets').update({ is_employee: isEmployee }).eq('contact_id', savedContact.id),
+        'Falha ao sincronizar classificação do contato'
+      );
+      if (normalizedPhone) {
+        assertSupabase(
+          await supabase.from('tickets').update({ contact_id: savedContact.id, is_employee: isEmployee }).eq('phone', normalizedPhone),
+          'Falha ao sincronizar classificação pelo telefone'
+        );
       }
 
       const fullTicket = await this.getFullTicket(ticketId);
       if (io && fullTicket) {
         emitTicketEvent(io, 'ticket_updated', { ticket: fullTicket }, fullTicket);
+        emitTicketEvent(io, 'queue_updated', { ticket: fullTicket }, fullTicket);
+        scheduleKpiUpdate(io);
       }
 
       return { success: true, ticket: fullTicket };

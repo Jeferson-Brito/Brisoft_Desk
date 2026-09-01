@@ -85,6 +85,30 @@ async function saveConfirmedContact(phone, name) {
   return data;
 }
 
+async function ensureWhatsAppContact(phone, name) {
+  const normalizedPhone = String(phone || '').replace(/\D/g, '');
+  if (!normalizedPhone) return null;
+  const existing = await findContactByPhone(normalizedPhone);
+  if (existing) return existing;
+
+  const safeName = String(name || '').trim() || `Cliente ${normalizedPhone.slice(-4)}`;
+  const { data, error } = await supabase.from('contacts').insert({
+    id: crypto.randomUUID(),
+    name: safeName,
+    phone: normalizedPhone,
+    channel: 'WhatsApp',
+    status: 'Ativo',
+    is_employee: false
+  }).select().single();
+  if (!error) return data;
+
+  // Duas mensagens podem chegar quase ao mesmo tempo. Se outra requisição
+  // criou o contato primeiro, reutilizamos o cadastro em vez de duplicá-lo.
+  const concurrentContact = await findContactByPhone(normalizedPhone);
+  if (concurrentContact) return concurrentContact;
+  throw error;
+}
+
 async function repairBlankContacts() {
   if (!isSupabaseConfigured()) return;
   try {
@@ -115,4 +139,4 @@ async function repairBlankContacts() {
 
 setTimeout(() => repairBlankContacts().catch(() => {}), 1500);
 
-module.exports = { normalizeText, isGeneratedCustomerName, extractAndValidateName, findContactByPhone, saveConfirmedContact, repairBlankContacts };
+module.exports = { normalizeText, isGeneratedCustomerName, extractAndValidateName, findContactByPhone, saveConfirmedContact, ensureWhatsAppContact, repairBlankContacts };

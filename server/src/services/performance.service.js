@@ -111,11 +111,11 @@ function calculateMetrics({ createdTickets, closedTickets, activeTickets, rating
     ticket.closed_at || ticket.finished_at || ticket.updated_at
   )).filter(value => value !== null);
   const waitSeconds = closed.map(ticket => secondsBetween(
-    ticket.created_at,
+    ticket.queued_at || ticket.created_at,
     ticket.first_response_at || ticket.assumed_at
   )).filter(value => value !== null);
   const slaResults = closed.map(ticket => {
-    const wait = secondsBetween(ticket.created_at, ticket.first_response_at || ticket.assumed_at);
+    const wait = secondsBetween(ticket.queued_at || ticket.created_at, ticket.first_response_at || ticket.assumed_at);
     if (wait === null) return null;
     const target = Number(ticket.sla_minutes_target || ticketDepartment(ticket).sla_target_minutes || 15) * 60;
     return wait <= target;
@@ -171,7 +171,7 @@ function buildTrend(tickets, period) {
 }
 
 let performanceColumnsAvailable = null;
-const FULL_SELECT = 'id, user_id, department_id, department, agent_name, encerrado_por, status, is_employee, created_at, updated_at, started_at, assumed_at, first_response_at, finished_at, closed_at, sla_minutes_target, sla_met, departments(id, name, color, sla_target_minutes)';
+const FULL_SELECT = 'id, user_id, department_id, department, agent_name, encerrado_por, status, is_employee, created_at, queued_at, updated_at, started_at, assumed_at, first_response_at, finished_at, closed_at, sla_minutes_target, sla_met, departments(id, name, color, sla_target_minutes)';
 const SAFE_SELECT = 'id, user_id, department_id, department, agent_name, encerrado_por, status, is_employee, created_at, updated_at, assumed_at, closed_at, departments(id, name, color, sla_target_minutes)';
 
 class PerformanceService {
@@ -198,7 +198,7 @@ class PerformanceService {
       if (useFull) performanceColumnsAvailable = true;
       return { created, closed, active, ratings: ratings || [] };
     } catch (err) {
-      if (useFull && (err.code === '42703' || err.code === 'PGRST204' || /does not exist|schema cache|started_at|first_response_at|finished_at|sla_minutes_target|sla_met/i.test(String(err.message || '')))) {
+      if (useFull && (err.code === '42703' || err.code === 'PGRST204' || /does not exist|schema cache|queued_at|started_at|first_response_at|finished_at|sla_minutes_target|sla_met/i.test(String(err.message || '')))) {
         performanceColumnsAvailable = false;
         return this.loadPeriod(period, departmentId);
       }

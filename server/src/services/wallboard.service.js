@@ -43,7 +43,7 @@ function calculateQueueState(tickets, slaMinutes, config, now = Date.now()) {
   const waiting = (tickets || []).filter(ticket => ticket.status === 'aguardando');
   const handling = (tickets || []).filter(ticket => ticket.status === 'em_atendimento');
   const queue = waiting.map(ticket => {
-    const waitSeconds = secondsSince(ticket.created_at, now);
+    const waitSeconds = secondsSince(ticket.queued_at || ticket.created_at, now);
     const targetSeconds = Math.max(60, Number(ticket.sla_minutes_target || slaMinutes || 15) * 60);
     const progress = Math.round((waitSeconds / targetSeconds) * 100);
     return {
@@ -148,9 +148,9 @@ class WallboardService {
     if (!isSupabaseConfigured()) throw new Error('Supabase não configurado.');
     const department = await this.resolveDepartment(user, departmentId);
     const config = await this.getConfig(department.id);
-    const [{ data: activeTickets, error }, performance, connectedUsers] = await Promise.all([
+    let [activeResult, performance, connectedUsers] = await Promise.all([
       supabase.from('tickets')
-        .select('id, status, created_at')
+        .select('id, status, created_at, queued_at')
         .eq('department_id', department.id)
         .in('status', ['aguardando', 'em_atendimento'])
         .order('created_at', { ascending: true })
@@ -158,7 +158,16 @@ class WallboardService {
       this.getPerformance(user, department.id, force),
       this.connectedUsers(io, department.id)
     ]);
-    if (error) throw error;
+    if (activeResult.error && /queued_at|schema cache|does not exist/i.test(String(activeResult.error.message || ''))) {
+      activeResult = await supabase.from('tickets')
+        .select('id, status, created_at')
+        .eq('department_id', department.id)
+        .in('status', ['aguardando', 'em_atendimento'])
+        .order('created_at', { ascending: true })
+        .limit(1000);
+    }
+    if (activeResult.error) throw activeResult.error;
+    const activeTickets = activeResult.data || [];
 
     const queueState = calculateQueueState(activeTickets, department.sla_target_minutes, config);
     const whatsapp = this.whatsappState(whatsappService, department);

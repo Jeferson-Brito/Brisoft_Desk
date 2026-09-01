@@ -39,6 +39,19 @@ test('inverte a comparação de tempos porque menor é melhor', () => {
   assert.equal(comparison.sla, 5);
 });
 
+test('calcula o TME a partir da entrada real na fila', () => {
+  const ticket = {
+    id: 'queue-time', status: 'finalizado',
+    created_at: '2026-08-01T10:00:00Z', queued_at: '2026-08-01T10:03:00Z',
+    assumed_at: '2026-08-01T10:05:00Z', closed_at: '2026-08-01T10:15:00Z'
+  };
+  const metrics = performanceService._test.calculateMetrics({
+    createdTickets: [ticket], closedTickets: [ticket], activeTickets: [], ratings: [],
+    period: { days: 31, isCurrent: false }
+  });
+  assert.equal(metrics.tme, '00:02:00');
+});
+
 test('atendimentos de funcionários não entram nos indicadores de clientes', () => {
   const customer = {
     id: 'customer', is_employee: false, agent_name: 'Ana', status: 'finalizado',

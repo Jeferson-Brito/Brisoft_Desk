@@ -183,6 +183,48 @@
             </div>
           </div>
 
+          <div class="inactivity-settings-card">
+            <div class="inactivity-settings-header">
+              <div class="inactivity-settings-icon"><i class="fa-regular fa-clock"></i></div>
+              <div class="inactivity-settings-title">
+                <strong>Inatividade nos atendimentos pelo WhatsApp</strong>
+                <span>Controla conversas em andamento atendidas diretamente pelo celular, fora da plataforma.</span>
+              </div>
+              <label class="inactivity-toggle">
+                <input v-model="botConfig.auto_close_external_service" type="checkbox" />
+                <span>{{ botConfig.auto_close_external_service ? 'Ativada' : 'Desativada' }}</span>
+              </label>
+            </div>
+
+            <div v-if="botConfig.auto_close_external_service" class="inactivity-settings-body">
+              <div>
+                <label class="bot-field-label">Encerrar após quanto tempo sem mensagens?</label>
+                <div class="inactivity-time-input">
+                  <input v-model.number="botConfig.external_service_idle_minutes" class="bot-field-control" type="number" min="5" max="1440" />
+                  <span>minutos</span>
+                </div>
+                <span class="bot-field-help">Aceita de 5 minutos a 24 horas. O tempo reinicia sempre que o cliente ou atendente envia uma mensagem.</span>
+              </div>
+
+              <label class="inactivity-action-option">
+                <input v-model="botConfig.send_rating_on_external_inactivity" type="checkbox" />
+                <span>
+                  <strong>Enviar pesquisa de satisfação ao encerrar</strong>
+                  <small>Aplica-se somente a clientes. Funcionários nunca recebem pesquisa de satisfação.</small>
+                </span>
+              </label>
+
+              <div class="inactivity-result-note">
+                <i class="fa-solid fa-arrow-rotate-right"></i>
+                <span>Depois do encerramento, uma nova mensagem do cliente inicia normalmente um novo fluxo no bot.</span>
+              </div>
+            </div>
+
+            <div v-else class="inactivity-disabled-note">
+              Os atendimentos feitos pelo celular permanecerão em andamento até serem encerrados manualmente ou até o cliente pedir um novo atendimento.
+            </div>
+          </div>
+
           <div style="display:grid;grid-template-columns:repeat(2,minmax(0,260px));gap:12px;">
             <div v-if="botConfig.auto_route_after_invalid">
               <label class="bot-field-label">Tentativas inválidas antes de encaminhar</label>
@@ -192,11 +234,6 @@
               <label class="bot-field-label">Proteção para mensagens rápidas (seg.)</label>
               <input v-model.number="botConfig.rapid_message_grace_seconds" class="bot-field-control" type="number" min="0" max="15" />
               <span class="bot-field-help">Evita considerar como erro uma mensagem enviada antes de o menu aparecer. Use 0 para desativar.</span>
-            </div>
-            <div v-if="botConfig.auto_close_external_service">
-              <label class="bot-field-label">Encerrar atendimento pelo WhatsApp após (min.)</label>
-              <input v-model.number="botConfig.external_service_idle_minutes" class="bot-field-control" type="number" min="5" max="1440" />
-              <span class="bot-field-help">Após esse período sem mensagens, encerra o atendimento e libera o bot para um novo contato.</span>
             </div>
           </div>
 
@@ -317,6 +354,7 @@ const botConfig = ref({
   rapid_message_grace_seconds: 3,
   auto_close_external_service: true,
   external_service_idle_minutes: 60,
+  send_rating_on_external_inactivity: true,
   auto_route_after_invalid: true,
   send_queue_confirmation: true,
   send_transfer_notice: true,
@@ -346,8 +384,7 @@ const botBehaviorOptions = [
   { key: 'require_customer_last_name', label: 'Exigir nome e sobrenome', help: 'Reduz cadastros imprecisos exigindo pelo menos duas palavras.' },
   { key: 'send_queue_confirmation', label: 'Confirmar entrada na fila', help: 'Envia uma mensagem após escolher o departamento.' },
   { key: 'send_transfer_notice', label: 'Avisar sobre transferências', help: 'Notifica o cliente quando o setor for alterado.' },
-  { key: 'send_rating_request', label: 'Solicitar avaliação', help: 'Envia a pesquisa ao encerrar o atendimento.' },
-  { key: 'auto_close_external_service', label: 'Encerrar atendimento pelo WhatsApp por inatividade', help: 'Finaliza automaticamente atendimentos feitos pelo celular após o tempo configurado.' }
+  { key: 'send_rating_request', label: 'Solicitar avaliação', help: 'Envia a pesquisa ao encerrar atendimentos manualmente.' }
 ]
 
 const botMessageFields = [
@@ -412,6 +449,13 @@ async function saveBotSettings() {
     ui.showToast('Selecione o departamento padrão para o roteamento automático.', 'error')
     return
   }
+  if (botConfig.value.auto_close_external_service) {
+    const idleMinutes = Number(botConfig.value.external_service_idle_minutes)
+    if (!Number.isInteger(idleMinutes) || idleMinutes < 5 || idleMinutes > 1440) {
+      ui.showToast('Defina a inatividade entre 5 e 1440 minutos.', 'error')
+      return
+    }
+  }
   savingBot.value = true
   try {
     const data = await settingsStore.saveSetting('bot_config', botConfig.value)
@@ -444,4 +488,23 @@ onMounted(async () => {
 .bot-field-control:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.1); }
 .bot-field-help { font-size:10.5px;color:#94a3b8;margin-top:4px;display:block;line-height:1.4; }
 button:disabled { opacity:.55;cursor:not-allowed; }
+.inactivity-settings-card { border:1px solid #dbeafe;border-radius:10px;background:#f8fbff;overflow:hidden; }
+.inactivity-settings-header { display:flex;align-items:center;gap:10px;padding:14px; }
+.inactivity-settings-icon { width:34px;height:34px;border-radius:8px;background:#e0edff;color:#2563eb;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+.inactivity-settings-title { display:flex;flex-direction:column;gap:2px;flex:1;min-width:0; }
+.inactivity-settings-title strong { color:#1e293b;font-size:13px; }
+.inactivity-settings-title span { color:#64748b;font-size:11px;line-height:1.35; }
+.inactivity-toggle { display:flex;align-items:center;gap:7px;color:#334155;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap; }
+.inactivity-settings-body { display:grid;grid-template-columns:minmax(220px,1fr) minmax(240px,1fr);gap:14px;padding:14px;border-top:1px solid #dbeafe;background:#fff; }
+.inactivity-time-input { display:flex;align-items:center;gap:8px; }
+.inactivity-time-input .bot-field-control { max-width:130px; }
+.inactivity-time-input span { color:#64748b;font-size:11.5px;font-weight:600; }
+.inactivity-action-option { display:flex;align-items:flex-start;gap:8px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer; }
+.inactivity-action-option input { margin-top:2px; }
+.inactivity-action-option span { display:flex;flex-direction:column;gap:3px; }
+.inactivity-action-option strong { color:#334155;font-size:11.5px; }
+.inactivity-action-option small { color:#64748b;font-size:10.5px;line-height:1.35; }
+.inactivity-result-note { grid-column:1 / -1;display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:7px;background:#f0fdf4;color:#166534;font-size:10.5px; }
+.inactivity-disabled-note { padding:11px 14px;border-top:1px solid #dbeafe;color:#64748b;font-size:10.5px;background:#fff; }
+@media (max-width: 800px) { .inactivity-settings-body { grid-template-columns:1fr; } .inactivity-result-note { grid-column:auto; } .inactivity-settings-header { align-items:flex-start;flex-wrap:wrap; } .inactivity-toggle { margin-left:44px; } }
 </style>

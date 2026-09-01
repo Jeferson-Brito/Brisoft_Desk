@@ -85,9 +85,42 @@
           <span class="card-section-title">
             <i class="fa-solid fa-user-circle"></i> Contato Relacionado
           </span>
-          <button type="button" class="btn-card-action" @click="showEditModal = true">
+          <button
+            v-if="!contactSaved"
+            type="button"
+            class="btn-card-action save-contact"
+            :disabled="savingContact"
+            @click="saveContact(ticket?.is_employee)"
+          >
+            <i class="fa-solid" :class="savingContact ? 'fa-spinner fa-spin' : 'fa-user-plus'"></i>
+            Salvar contato
+          </button>
+          <button v-else type="button" class="btn-card-action" @click="showEditModal = true">
             <i class="fa-solid fa-pen-to-square"></i> Editar
           </button>
+        </div>
+
+        <div class="contact-type-control">
+          <span class="contact-type-label">Tipo de contato</span>
+          <div class="contact-type-options" role="group" aria-label="Tipo de contato">
+            <button
+              type="button"
+              :class="{ active: !ticket?.is_employee }"
+              :disabled="savingContact"
+              @click="saveContact(false)"
+            >
+              <i class="fa-solid fa-user"></i> Cliente
+            </button>
+            <button
+              type="button"
+              :class="{ active: ticket?.is_employee }"
+              :disabled="savingContact"
+              @click="saveContact(true)"
+            >
+              <i class="fa-solid fa-id-badge"></i> Funcionário
+            </button>
+          </div>
+          <small>{{ contactSaved ? 'Alterações são salvas imediatamente.' : 'Ao escolher, o contato também será salvo.' }}</small>
         </div>
 
         <!-- Banner de Perfil do Contato -->
@@ -188,6 +221,7 @@
       v-if="showEditModal"
       :ticket="ticket"
       @close="showEditModal = false"
+      @saved="showEditModal = false"
     />
   </div>
 </template>
@@ -195,6 +229,8 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
+import { useTicketStore } from '@/stores/tickets.store'
+import { ticketsApi } from '@/api/tickets.api'
 import { formatPhone, formatCnpjCpf } from '@/utils/formatters'
 import ModalEditarContato from '@/components/modals/ModalEditarContato.vue'
 
@@ -208,7 +244,9 @@ const props = defineProps({
 defineEmits(['close'])
 
 const ui = useUiStore()
+const ticketStore = useTicketStore()
 const showEditModal = ref(false)
+const savingContact = ref(false)
 const copiedId = ref(false)
 const nowTick = ref(Date.now())
 let timer = null
@@ -224,6 +262,7 @@ onBeforeUnmount(() => {
 })
 
 const contact = computed(() => props.ticket?.contact || {})
+const contactSaved = computed(() => Boolean(props.ticket?.contact_id || contact.value?.id))
 
 const displayPhone = computed(() => {
   const p = contact.value?.phone || props.ticket?.phone
@@ -263,6 +302,32 @@ function copyTicketId() {
   navigator.clipboard.writeText(props.ticket.id)
   copiedId.value = true
   setTimeout(() => { copiedId.value = false }, 2000)
+}
+
+async function saveContact(isEmployee = false) {
+  if (!props.ticket?.id || savingContact.value) return
+  savingContact.value = true
+  try {
+    const notes = typeof contact.value?.notes === 'string'
+      ? contact.value.notes
+      : contact.value?.notes?.[0]?.text || ''
+    const { data } = await ticketsApi.updateContact(props.ticket.id, {
+      name: props.ticket.clientName || props.ticket.client_name || contact.value?.name || 'Cliente',
+      phone: contact.value?.phone || props.ticket.phone || '',
+      email: contact.value?.email || '',
+      cnpj: contact.value?.cnpj || '',
+      note: notes,
+      is_employee: Boolean(isEmployee)
+    })
+    if (!data?.success || !data.ticket) throw new Error(data?.error || 'Não foi possível salvar o contato.')
+    ticketStore.receiveTicket(data.ticket)
+    ticketStore.notifyKpisUpdated()
+    ui.showToast(Boolean(isEmployee) ? 'Contato salvo como funcionário.' : 'Contato salvo como cliente.')
+  } catch (error) {
+    ui.showToast(error.response?.data?.error || error.message || 'Não foi possível salvar o contato.', 'error')
+  } finally {
+    savingContact.value = false
+  }
 }
 </script>
 
@@ -403,6 +468,22 @@ function copyTicketId() {
 .btn-card-action:hover {
   background: #eff6ff;
   color: #1d4ed8;
+}
+
+.btn-card-action:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.btn-card-action.save-contact {
+  color: #047857;
+  background: #ecfdf5;
+  padding: 4px 7px;
+}
+
+.btn-card-action.save-contact:hover {
+  background: #d1fae5;
+  color: #065f46;
 }
 
 /* Status Pill */
@@ -613,6 +694,56 @@ function copyTicketId() {
 .contact-role-tag.employee {
   background: #fef3c7;
   color: #b45309;
+}
+
+.contact-type-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.contact-type-label {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.contact-type-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.contact-type-options button {
+  border: 0;
+  border-radius: 5px;
+  padding: 6px 5px;
+  background: transparent;
+  color: #64748b;
+  font-size: 10.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.contact-type-options button.active {
+  background: #fff;
+  color: #1d4ed8;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.09);
+}
+
+.contact-type-options button:disabled {
+  cursor: wait;
+}
+
+.contact-type-control small {
+  color: #94a3b8;
+  font-size: 9.5px;
 }
 
 /* Contact Attributes List */

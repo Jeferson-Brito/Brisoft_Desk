@@ -278,33 +278,23 @@
 
     <!-- Barra de Indicadores KPIs no rodapé do ChatPanel (sempre visível quando metricsExpanded) -->
     <div v-if="metricsExpanded" class="chat-kpi-bar">
-      <div class="kpi-mini-card" title="Atendimentos em andamento">
-        <div class="kpi-mini-icon" style="background:#eff6ff;color:#2563eb;">
-          <i class="fa-solid fa-headset"></i>
-        </div>
-        <div class="kpi-mini-info">
-          <span class="kpi-mini-label">Em atendimento</span>
-          <span class="kpi-mini-value">{{ ticketStore.inProgressTickets.length }}</span>
-        </div>
-      </div>
-
-      <div class="kpi-mini-card" title="Clientes aguardando atendimento na fila">
-        <div class="kpi-mini-icon" style="background:#fef3c7;color:#d97706;">
-          <i class="fa-solid fa-hourglass-half"></i>
-        </div>
-        <div class="kpi-mini-info">
-          <span class="kpi-mini-label">Aguardando fila</span>
-          <span class="kpi-mini-value">{{ ticketStore.waitingTickets.length }}</span>
-        </div>
-      </div>
-
-      <div class="kpi-mini-card" title="Total de chamados recebidos hoje">
+      <div class="kpi-mini-card" title="Total de chats de clientes recebidos hoje pelo departamento">
         <div class="kpi-mini-icon" style="background:#ecfdf5;color:#10b981;">
           <i class="fa-regular fa-comment-dots"></i>
         </div>
         <div class="kpi-mini-info">
-          <span class="kpi-mini-label">Chats hoje</span>
-          <span class="kpi-mini-value">{{ performance?.today?.departmentReceived || ticketStore.queue.length }}</span>
+          <span class="kpi-mini-label">Chats do setor hoje</span>
+          <span class="kpi-mini-value">{{ performance?.today?.departmentReceived ?? 0 }}</span>
+        </div>
+      </div>
+
+      <div class="kpi-mini-card" title="Atendimentos de clientes concluídos hoje por você">
+        <div class="kpi-mini-icon" style="background:#eff6ff;color:#2563eb;">
+          <i class="fa-solid fa-headset"></i>
+        </div>
+        <div class="kpi-mini-info">
+          <span class="kpi-mini-label">Meus atendimentos hoje</span>
+          <span class="kpi-mini-value">{{ performance?.today?.agentCompleted ?? 0 }}</span>
         </div>
       </div>
 
@@ -328,12 +318,12 @@
         </div>
       </div>
 
-      <div class="kpi-mini-card" title="Média de avaliação dos clientes">
+      <div class="kpi-mini-card" :title="`Média das ${performance?.metrics?.ratingCount ?? 0} avaliações dos seus atendimentos neste mês`">
         <div class="kpi-mini-icon" style="background:#fffbeb;color:#d97706;">
           <i class="fa-regular fa-star"></i>
         </div>
         <div class="kpi-mini-info">
-          <span class="kpi-mini-label">Avaliação</span>
+          <span class="kpi-mini-label">Avaliação no mês</span>
           <span class="kpi-mini-value">{{ ratingLabel }}</span>
         </div>
       </div>
@@ -352,7 +342,7 @@
     <div v-else class="chat-kpi-bar-collapsed" @click="toggleMetrics" title="Exibir indicadores de atendimento">
       <div class="chat-kpi-collapsed-content">
         <i class="fa-solid fa-chart-line"></i>
-        <span>Indicadores: <strong>{{ ticketStore.inProgressTickets.length }}</strong> em atendimento • <strong>{{ ticketStore.waitingTickets.length }}</strong> aguardando</span>
+        <span>Indicadores do mês • avaliação <strong>{{ ratingLabel }}</strong></span>
       </div>
       <i class="fa-solid fa-chevron-up"></i>
     </div>
@@ -419,7 +409,7 @@ const displaySla = computed(() => {
   const sla = props.performance?.metrics?.slaPercent
   if (sla != null && Number(sla) > 0) return `${Number(sla).toFixed(0)}%`
   if (props.performance?.metrics?.completed > 0) return `${Number(sla || 0).toFixed(0)}%`
-  return '100%'
+  return '—'
 })
 
 defineEmits(['toggle-details', 'go-back'])

@@ -79,9 +79,7 @@ export const useTicketStore = defineStore('tickets', () => {
             act.unread_count = 0
             ticketsApi.markAsRead(activeTicketId.value).catch(() => {})
             ticketsApi.get(activeTicketId.value).then(res => {
-              if (res.data?.success && res.data.ticket?.messages) {
-                act.messages = res.data.ticket.messages
-              }
+              if (res.data?.success && res.data.ticket) receiveTicket(res.data.ticket)
             }).catch(() => {})
           }
         }
@@ -192,9 +190,7 @@ export const useTicketStore = defineStore('tickets', () => {
       ticketsApi.markAsRead(ticketId).catch(() => {})
       try {
         const { data } = await ticketsApi.get(ticketId)
-        if (data.success && data.ticket?.messages) {
-          ticket.messages = data.ticket.messages
-        }
+        if (data.success && data.ticket) receiveTicket(data.ticket)
       } catch (e) {}
     }
   }

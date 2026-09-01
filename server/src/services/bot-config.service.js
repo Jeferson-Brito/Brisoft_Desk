@@ -17,6 +17,7 @@ const DEFAULT_BOT_CONFIG = Object.freeze({
   rapid_message_grace_seconds: 3,
   auto_close_external_service: true,
   external_service_idle_minutes: 60,
+  send_rating_on_external_inactivity: true,
   auto_route_after_invalid: true,
   send_queue_confirmation: true,
   send_transfer_notice: true,
@@ -95,7 +96,7 @@ const BOOLEAN_FIELDS = [
   'auto_route_after_invalid', 'send_queue_confirmation', 'send_transfer_notice',
   'send_rating_request', 'accept_media_during_routing', 'human_handoff_enabled',
   'allow_customer_cancel', 'collect_customer_name', 'require_customer_last_name',
-  'auto_close_external_service'
+  'auto_close_external_service', 'send_rating_on_external_inactivity'
 ];
 
 const MESSAGE_FIELDS = [

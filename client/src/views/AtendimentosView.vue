@@ -71,19 +71,23 @@ const performance = ref({
 let refreshTimer      = null
 let queueRefreshTimer = null
 let liveSyncRunning   = false
+let performanceRequestId = 0
 
 function onTicketSelected() {
   mobilePanel.value = 'chat'
 }
 
 async function fetchPerformance() {
+  const requestId = ++performanceRequestId
   try {
-    const params = {}
+    // Analistas e administradores que também atendem veem seus próprios
+    // números. Supervisores mantêm a visão consolidada dos setores vinculados.
+    const params = auth.user?.id && !auth.isSupervisor ? { agentId: auth.user.id } : {}
     if (!auth.isAdmin && auth.departmentId) {
       params.departmentId = auth.departmentId
     }
     const { data } = await ticketsApi.performance(params)
-    if (data.success && data.performance) performance.value = data.performance
+    if (requestId === performanceRequestId && data.success && data.performance) performance.value = data.performance
   } catch (_) {}
 }
 
@@ -114,7 +118,7 @@ watch(() => ticketStore.activeTicket, (ticket) => {
 
 onMounted(async () => {
   await Promise.all([ticketStore.fetchQueue(), fetchPerformance()])
-  refreshTimer = setInterval(syncLiveData, 10000)
+  refreshTimer = setInterval(syncLiveData, 5000)
   document.addEventListener('visibilitychange', syncLiveData)
 })
 

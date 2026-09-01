@@ -34,3 +34,17 @@ test('prioriza falha de conexão e estouro de SLA na saúde operacional', () => 
   assert.equal(calculateHealth({ queueState: { waiting: 1, slaAtRisk: 0, slaBreached: 1 }, whatsappConnected: true, config }).level, 'critical');
   assert.equal(calculateHealth({ queueState: { waiting: 0, slaAtRisk: 0, slaBreached: 0 }, whatsappConnected: true, config }).level, 'healthy');
 });
+
+test('tempo da fila usa queued_at e não o início da conversa com o bot', () => {
+  const now = new Date('2026-08-28T15:00:00Z').getTime();
+  const queue = calculateQueueState([
+    {
+      id: 'queue-real-time', status: 'aguardando',
+      created_at: '2026-08-28T14:30:00Z', queued_at: '2026-08-28T14:57:00Z',
+      sla_minutes_target: 15
+    }
+  ], 15, normalizeConfig({ warningSlaPercent: 70 }), now);
+  assert.equal(queue.oldestWaitSeconds, 180);
+  assert.equal(queue.slaAtRisk, 0);
+  assert.equal(queue.slaBreached, 0);
+});

@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS tickets (
     direct_whatsapp_messages INT DEFAULT 0,
     platform_messages INT DEFAULT 0,
     is_employee BOOLEAN NOT NULL DEFAULT false,
+    queued_at TIMESTAMP WITH TIME ZONE,
     
     -- Métricas de SLA
     started_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
@@ -125,6 +126,31 @@ CREATE TABLE IF NOT EXISTS tickets (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS queued_at TIMESTAMPTZ;
+
+CREATE OR REPLACE FUNCTION public.set_ticket_queued_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.status = 'aguardando' THEN
+    IF TG_OP = 'INSERT' THEN
+      NEW.queued_at := COALESCE(NEW.queued_at, now());
+    ELSIF OLD.status IS DISTINCT FROM 'aguardando' THEN
+      NEW.queued_at := now();
+    ELSIF NEW.queued_at IS NULL THEN
+      NEW.queued_at := now();
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS tickets_set_queued_at ON public.tickets;
+CREATE TRIGGER tickets_set_queued_at
+BEFORE INSERT OR UPDATE OF status ON public.tickets
+FOR EACH ROW EXECUTE FUNCTION public.set_ticket_queued_at();
 
 -- 7. Tabela de Mensagens da Conversa
 CREATE TABLE IF NOT EXISTS messages (
@@ -219,6 +245,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE ratings;
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS awaiting_rating BOOLEAN DEFAULT false;
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS assumed_at TIMESTAMPTZ;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS queued_at TIMESTAMPTZ;
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS unread_count INT DEFAULT 0;
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS preview TEXT;
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS client_name VARCHAR(255);
