@@ -3,6 +3,9 @@ import http from './http'
 export const ticketsApi = {
   list:        ()                    => http.get('/tickets'),
   get:         (ticketId)            => http.get(`/tickets/${ticketId}`),
+  collaborators: (ticketId)          => http.get(`/tickets/${ticketId}/collaborators`),
+  addCollaborator: (ticketId, userId) => http.post(`/tickets/${ticketId}/collaborators`, { userId }),
+  removeCollaborator: (ticketId, userId) => http.delete(`/tickets/${ticketId}/collaborators/${userId}`),
   history:     ()                    => http.get('/tickets/history'),
   assume:        (ticketId)                        => http.post('/tickets/assume',           { ticketId }),
   transfer:      (ticketId, transferData)          => http.post('/tickets/transfer',         { ticketId, ...transferData }),

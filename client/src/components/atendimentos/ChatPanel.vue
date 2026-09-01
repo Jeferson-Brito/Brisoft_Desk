@@ -65,6 +65,10 @@
           </button>
 
           <div v-if="showActionsMenu" class="actions-menu-dropdown">
+            <button type="button" class="actions-menu-item" @click="openCollaborators">
+              <i class="fa-solid fa-user-plus"></i>
+              <span>Adicionar participante</span>
+            </button>
             <button
               type="button"
               class="actions-menu-item"
@@ -104,6 +108,12 @@
       </div>
 
       <!-- Histórico de Mensagens agrupado por data com Sticky Header do WhatsApp -->
+      <div v-else-if="ticketStore.isLoadingMessages(ticket.id) && visibleMessages.length === 0" class="conversation-loading">
+        <span class="conversation-loading-icon"><i class="fa-solid fa-comments"></i></span>
+        <strong>Carregando conversa...</strong>
+        <span>Buscando o histórico de mensagens com segurança.</span>
+        <i class="fa-solid fa-spinner fa-spin"></i>
+      </div>
       <template v-else>
         <div
           v-for="(group, gIdx) in messageGroups"
@@ -303,9 +313,14 @@
           <i class="fa-regular fa-clock"></i>
         </div>
         <div class="kpi-mini-info">
-          <span class="kpi-mini-label">TMA no mês</span>
+          <span class="kpi-mini-label">TMA</span>
           <span class="kpi-mini-value">{{ displayTma }}</span>
         </div>
+      </div>
+
+      <div class="kpi-mini-card" title="Tempo médio de espera do analista no mês atual">
+        <div class="kpi-mini-icon" style="background:#eef2ff;color:#4f46e5;"><i class="fa-regular fa-hourglass-half"></i></div>
+        <div class="kpi-mini-info"><span class="kpi-mini-label">TME</span><span class="kpi-mini-value">{{ displayTme }}</span></div>
       </div>
 
       <div class="kpi-mini-card" title="Índice de cumprimento de SLA no mês">
@@ -353,6 +368,7 @@
       :ticket="ticket"
       @close="showTransferModal = false"
     />
+    <ModalColaboradores v-if="showCollaboratorsModal && ticket" :ticket="ticket" @close="showCollaboratorsModal = false" @updated="updateCollaborators" />
   </div>
 </template>
 
@@ -367,6 +383,7 @@ import { classifyBotInteractions } from '@/utils/chat-message-visibility'
 import { preloadTicketMedia } from '@/utils/protected-media-cache'
 import ChatBubble from './ChatBubble.vue'
 import ModalTransferir from '@/components/modals/ModalTransferir.vue'
+import ModalColaboradores from '@/components/modals/ModalColaboradores.vue'
 
 const props = defineProps({
   ticket: {
@@ -377,7 +394,7 @@ const props = defineProps({
     type: Object,
     default: () => ({
       today: { departmentReceived: 0, agentCompleted: 0 },
-      metrics: { tma: '00:00:00', slaPercent: 0, ratingAverage: null }
+      metrics: { tma: '00:00:00', tme: '00:00:00', slaPercent: 0, ratingAverage: null }
     })
   },
   isDetailsOpen: {
@@ -411,6 +428,7 @@ const displaySla = computed(() => {
   if (props.performance?.metrics?.completed > 0) return `${Number(sla || 0).toFixed(0)}%`
   return '—'
 })
+const displayTme = computed(() => props.performance?.metrics?.tme || '00:00:00')
 
 defineEmits(['toggle-details', 'go-back'])
 
@@ -419,6 +437,7 @@ const authStore = useAuthStore()
 const ui = useUiStore()
 
 const showTransferModal = ref(false)
+const showCollaboratorsModal = ref(false)
 const showActionsMenu = ref(false)
 const actionsDropdownRef = ref(null)
 const msgBoxRef = ref(null)
@@ -441,6 +460,9 @@ let recorderStream = null
 let recordedChunks = []
 let discardRecording = false
 let recordingTimer = null
+
+function openCollaborators() { showActionsMenu.value = false; showCollaboratorsModal.value = true }
+function updateCollaborators(collaborators) { ticketStore.patchTicket(props.ticket.id, { collaborators }) }
 
 const inputMsg = ref('')
 const chatMode = ref('responder') // 'responder' | 'observacao'
@@ -1557,6 +1579,8 @@ watch(inputMsg, (newVal) => {
 .actions-menu-item.danger:hover {
   background: #fef2f2;
 }
+
+.conversation-loading{flex:1;min-height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#94a3b8;margin:auto}.conversation-loading-icon{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:#eff6ff;color:#2563eb;font-size:18px}.conversation-loading strong{font-size:13px;color:#334155}.conversation-loading span:not(.conversation-loading-icon){font-size:11px}
 
 /* Botão voltar (mobile) */
 .chat-back-btn {

@@ -127,6 +127,15 @@ CREATE TABLE IF NOT EXISTS tickets (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS ticket_collaborators (
+    ticket_id UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    added_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    PRIMARY KEY (ticket_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS ticket_collaborators_user_idx ON ticket_collaborators(user_id, created_at DESC);
+
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS queued_at TIMESTAMPTZ;
 
 CREATE OR REPLACE FUNCTION public.set_ticket_queued_at()

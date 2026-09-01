@@ -18,6 +18,8 @@ export const useAuthStore = defineStore('auth', () => {
   const isTemporary     = computed(() => user.value?.is_temporary === true)
   const departmentId    = computed(() => user.value?.department_id ?? null)
   const departmentName  = computed(() => user.value?.department_name ?? null)
+  const userName        = computed(() => user.value?.name || 'Usuário')
+  const userEmail       = computed(() => user.value?.email || '')
   const departmentIds   = computed(() => [...new Set([
     ...(Array.isArray(user.value?.department_ids) ? user.value.department_ids : []),
     user.value?.department_id
@@ -72,12 +74,18 @@ export const useAuthStore = defineStore('auth', () => {
     return false
   }
 
+  async function refreshUser() {
+    const { data } = await authApi.me()
+    if (data.success && data.user) user.value = data.user
+    return user.value
+  }
+
   return {
     // state
     token, user, initialized,
     // getters
-    isAuthenticated, isAdmin, isSupervisor, canManageTeam, isTemporary, departmentId, departmentName, departmentIds,
+    isAuthenticated, isAdmin, isSupervisor, canManageTeam, isTemporary, departmentId, departmentName, departmentIds, userName, userEmail,
     // actions
-    login, logout, initAuth, setSession, clearSession
+    login, logout, initAuth, refreshUser, setSession, clearSession
   }
 })

@@ -13,6 +13,7 @@ const MensagensRapidasView  = () => import('@/views/MensagensRapidasView.vue')
 const ConfiguracoesView     = () => import('@/views/ConfiguracoesView.vue')
 const PainelTvView          = () => import('@/views/PainelTvView.vue')
 const UsuariosView          = () => import('@/views/UsuariosView.vue')
+const PerfilView            = () => import('@/views/PerfilView.vue')
 
 const routes = [
   // Rota pública
@@ -32,6 +33,7 @@ const routes = [
       { path: 'avaliacoes',        redirect: { name: 'desempenho' } },
       { path: 'clientes',          name: 'clientes',          component: ClientesView          },
       { path: 'mensagens-rapidas', name: 'mensagens_rapidas', component: MensagensRapidasView  },
+      { path: 'perfil',            name: 'perfil',            component: PerfilView            },
       {
         path: 'configuracoes',
         name: 'configuracoes',
@@ -42,6 +44,13 @@ const routes = [
         path: 'usuarios',
         name: 'usuarios',
         component: UsuariosView,
+        meta: { requiresAdmin: true }
+      },
+      {
+        path: 'configuracao-ia',
+        name: 'configuracao_ia',
+        component: ConfiguracoesView,
+        props: { initialTab: 'bot', standalone: true },
         meta: { requiresAdmin: true }
       }
     ]

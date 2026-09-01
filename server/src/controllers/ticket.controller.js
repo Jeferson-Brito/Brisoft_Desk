@@ -27,6 +27,27 @@ class TicketController {
     }
   }
 
+  async getCollaborators(req, res) {
+    try {
+      const result = await ticketService.getCollaborationOptions(req.params.id, req.user);
+      return res.status(result?.success ? 200 : 400).json(result);
+    } catch (err) { return res.status(500).json({ success: false, error: err.message }); }
+  }
+
+  async addCollaborator(req, res) {
+    try {
+      const result = await ticketService.addCollaborator(req.params.id, req.body?.userId, req.user, req.app.get('io'));
+      return res.status(result?.success ? 200 : 400).json(result);
+    } catch (err) { return res.status(500).json({ success: false, error: err.message }); }
+  }
+
+  async removeCollaborator(req, res) {
+    try {
+      const result = await ticketService.removeCollaborator(req.params.id, req.params.userId, req.user, req.app.get('io'));
+      return res.status(result?.success ? 200 : 400).json(result);
+    } catch (err) { return res.status(500).json({ success: false, error: err.message }); }
+  }
+
   async sendMessage(req, res) {
     try {
       const { ticketId, text } = req.body;

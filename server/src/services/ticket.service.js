@@ -271,8 +271,16 @@ async function analystParticipatedInTicket(user, ticketId) {
   return results.some(result => !result.error && Boolean(result.data));
 }
 
+async function isTicketCollaborator(userId, ticketId) {
+  if (!userId || !ticketId || !isSupabaseConfigured()) return false;
+  const { data, error } = await supabase.from('ticket_collaborators').select('user_id').eq('ticket_id', ticketId).eq('user_id', userId).maybeSingle();
+  if (error) return false; // implantação continua funcional antes da migration
+  return Boolean(data);
+}
+
 async function canUserAccessTicketDetails(user, ticket) {
   if (!user || !ticket) return false;
+  if (await isTicketCollaborator(user.id, ticket.id)) return true;
   if (ticket.status !== 'finalizado') return canUserAccessTicket(user, ticket);
   if (historyTicketVisibleToUser(user, ticket)) return true;
   return analystParticipatedInTicket(user, ticket.id);
@@ -1711,9 +1719,21 @@ ${rendered}`,
         .select('*, departments(id, name, color)')
         .in('status', ['aguardando', 'em_atendimento']);
       ticketQuery = scopeTicketQuery(ticketQuery, user);
-      const { data: tickets, error } = await ticketQuery
+      let { data: tickets, error } = await ticketQuery
         .order('updated_at', { ascending: false });
       if (error) throw error;
+
+      // Participantes explícitos continuam vendo o atendimento mesmo quando ele
+      // pertence a outro departamento.
+      if (!isAdmin(user) && user?.id) {
+        const { data: links } = await supabase.from('ticket_collaborators').select('ticket_id').eq('user_id', user.id);
+        const linkedIds = (links || []).map(item => item.ticket_id).filter(Boolean);
+        if (linkedIds.length) {
+          const known = new Set((tickets || []).map(item => String(item.id)));
+          const { data: linkedTickets } = await supabase.from('tickets').select('*, departments(id, name, color)').in('id', linkedIds).in('status', ['aguardando', 'em_atendimento']);
+          tickets = [...(tickets || []), ...(linkedTickets || []).filter(item => !known.has(String(item.id)))];
+        }
+      }
 
       for (let t of tickets) {
         // A listagem da fila carrega apenas resumos. As mensagens são buscadas
@@ -1727,6 +1747,7 @@ ${rendered}`,
           t.departmentColor = t.departments.color;
           t.department_id = t.departments.id || t.department_id;
         }
+        t.collaborators = await this.getCollaborators(t.id, user, { skipAccessCheck: true });
       }
       saveTicketsToDisk(tickets);
       return tickets;
@@ -1765,11 +1786,53 @@ ${rendered}`,
           .maybeSingle();
         if (!contactError && contact) ticket.contact = contact;
       }
+      ticket.collaborators = await this.getCollaborators(ticket.id, user, { skipAccessCheck: true });
       return ticket;
     } catch (e) {
       console.error('Erro em getFullTicket:', e);
       return null;
     }
+  }
+
+  async getCollaborators(ticketId, user, options = {}) {
+    if (!isSupabaseConfigured()) return [];
+    const { data: ticket } = await supabase.from('tickets').select('id, department_id, department, status, user_id, agent_name, encerrado_por').eq('id', ticketId).maybeSingle();
+    if (!ticket || (!options.skipAccessCheck && !(await canUserAccessTicketDetails(user, ticket)))) return null;
+    const { data, error } = await supabase.from('ticket_collaborators').select('user_id, created_at, users(id, name, role, department_id, avatar_url, is_active)').eq('ticket_id', ticketId).order('created_at');
+    if (error) return [];
+    return (data || []).map(row => ({ ...(row.users || {}), joined_at: row.created_at })).filter(item => item.id);
+  }
+
+  async getCollaborationOptions(ticketId, user) {
+    const { data: ticket } = await supabase.from('tickets').select('id, department_id, department, status, user_id, agent_name, encerrado_por').eq('id', ticketId).maybeSingle();
+    if (!ticket || !(await canUserAccessTicketDetails(user, ticket))) return { success: false, error: 'Atendimento não encontrado.' };
+    let query = supabase.from('users').select('id, name, role, department_id, avatar_url').eq('is_active', true).order('name');
+    if (!isAdmin(user) && ticket.department_id) query = query.eq('department_id', ticket.department_id);
+    const [{ data: users, error }, collaborators] = await Promise.all([query, this.getCollaborators(ticketId, user, { skipAccessCheck: true })]);
+    if (error) return { success: false, error: 'Não foi possível listar os usuários.' };
+    return { success: true, collaborators, users: (users || []).filter(item => item.id !== user.id) };
+  }
+
+  async addCollaborator(ticketId, userId, currentUser, io) {
+    const options = await this.getCollaborationOptions(ticketId, currentUser);
+    if (!options.success) return options;
+    const target = options.users.find(item => String(item.id) === String(userId));
+    if (!target) return { success: false, error: 'Usuário indisponível para este atendimento.' };
+    const { error } = await supabase.from('ticket_collaborators').upsert({ ticket_id: ticketId, user_id: userId, added_by: uuidOrNull(currentUser.id) }, { onConflict: 'ticket_id,user_id' });
+    if (error) return { success: false, error: /ticket_collaborators|schema cache/i.test(error.message || '') ? 'Execute a migration de co-atendimento no Supabase.' : error.message };
+    const { data: ticket } = await supabase.from('tickets').select('*').eq('id', ticketId).single();
+    if (ticket) emitTicketEvent(io, 'ticket_updated', { ticket: await this.getFullTicket(ticketId) }, ticket);
+    return { success: true, collaborators: await this.getCollaborators(ticketId, currentUser, { skipAccessCheck: true }) };
+  }
+
+  async removeCollaborator(ticketId, userId, currentUser, io) {
+    const options = await this.getCollaborationOptions(ticketId, currentUser);
+    if (!options.success) return options;
+    const { error } = await supabase.from('ticket_collaborators').delete().eq('ticket_id', ticketId).eq('user_id', userId);
+    if (error) return { success: false, error: error.message };
+    const { data: ticket } = await supabase.from('tickets').select('*').eq('id', ticketId).single();
+    if (ticket) emitTicketEvent(io, 'ticket_updated', { ticket: await this.getFullTicket(ticketId) }, ticket);
+    return { success: true };
   }
 
   /** Retorna histórico de tickets finalizados com avaliações e mensagens */

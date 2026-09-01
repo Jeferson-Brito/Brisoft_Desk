@@ -68,24 +68,30 @@
 
     <!-- Sidebar Bottom: User Profile Avatar -->
     <div class="sidebar-bottom">
-      <div class="user-menu-wrapper" style="position:relative;">
+      <div ref="userMenuRef" class="user-menu-wrapper" style="position:relative;">
         <button
           type="button"
           class="user-avatar-btn"
           :title="`${auth.userName} (${roleLabel})`"
-          @click="showUserDropdown = !showUserDropdown"
+          @click.stop="showUserDropdown = !showUserDropdown"
         >
-          {{ userInitials }}
+          <img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="Foto do perfil" />
+          <span v-else>{{ userInitials }}</span>
           <span class="user-status-dot"></span>
         </button>
 
         <!-- Dropdown Popup -->
-        <div v-if="showUserDropdown" class="user-popup-menu" @click.outside="showUserDropdown = false">
-          <div class="user-popup-header">
-            <strong>{{ auth.userName }}</strong>
-            <small>{{ roleLabel }}</small>
-            <span v-if="auth.userEmail" class="user-popup-email">{{ auth.userEmail }}</span>
+        <div v-if="showUserDropdown" class="user-popup-menu" @click.stop>
+          <button type="button" class="user-popup-profile" @click="goTo('/perfil')">
+            <span class="popup-avatar"><img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="" /><b v-else>{{ userInitials }}</b></span>
+            <span class="user-popup-header"><strong>{{ auth.userName }}</strong><small>{{ roleLabel }}</small><span>{{ departmentLabel }}</span></span>
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <div v-if="auth.isAdmin" class="admin-shortcuts">
+            <button type="button" @click="goTo('/usuarios')"><i class="fa-solid fa-user-group"></i><span>Usuários</span></button>
+            <button type="button" @click="goTo('/configuracao-ia')"><i class="fa-solid fa-robot"></i><span>Config. IA</span></button>
           </div>
+          <div class="appearance-row"><i class="fa-regular fa-moon"></i><span>Aparência: <strong>Claro</strong></span><i class="fa-solid fa-display"></i></div>
           <div class="user-popup-divider"></div>
           <button type="button" class="user-popup-item" @click="handleLogout">
             <i class="fa-solid fa-arrow-right-from-bracket"></i>
@@ -106,7 +112,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore }      from '@/stores/auth.store'
 import { useTicketStore }    from '@/stores/tickets.store'
@@ -120,6 +126,7 @@ const router  = useRouter()
 const sidebar = useSidebarStore()
 
 const showUserDropdown = ref(false)
+const userMenuRef = ref(null)
 const mobileOpen = computed(() => sidebar.mobileOpen)
 
 function closeMobile() { sidebar.close() }
@@ -138,9 +145,15 @@ const userInitials = computed(() => {
 
 const roleLabel = computed(() => {
   if (auth.isAdmin) return 'Administrador'
-  if (auth.isSupervisor) return `Supervisor · ${auth.departmentName || 'Setor'}`
-  return `Analista · ${auth.departmentName || 'Geral'}`
+  if (auth.isSupervisor) return 'Supervisor'
+  return 'Analista'
 })
+const departmentLabel = computed(() => auth.departmentName || (auth.isAdmin ? 'Todos os departamentos' : 'Geral'))
+
+function goTo(path) { showUserDropdown.value = false; router.push(path) }
+function closeOnOutside(event) { if (showUserDropdown.value && !userMenuRef.value?.contains(event.target)) showUserDropdown.value = false }
+onMounted(() => document.addEventListener('click', closeOnOutside))
+onUnmounted(() => document.removeEventListener('click', closeOnOutside))
 
 async function handleLogout() {
   await auth.logout()
@@ -289,6 +302,7 @@ async function handleLogout() {
   outline: none;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
+.user-avatar-btn img{width:100%;height:100%;border-radius:50%;object-fit:cover}
 
 .user-status-dot {
   position: absolute;
@@ -305,19 +319,20 @@ async function handleLogout() {
   position: absolute;
   bottom: 0;
   left: 48px;
-  width: 200px;
+  width: 292px;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.05);
-  padding: 8px;
+  padding: 14px;
   z-index: 100;
   display: flex;
   flex-direction: column;
 }
 
+.user-popup-profile{width:100%;border:0;background:transparent;display:grid;grid-template-columns:46px 1fr 12px;align-items:center;gap:10px;padding:0;text-align:left;cursor:pointer;color:#334155}.popup-avatar{width:46px;height:46px;border-radius:50%;background:#dbeafe;color:#1d4ed8;display:grid;place-items:center;overflow:hidden}.popup-avatar img{width:100%;height:100%;object-fit:cover}.user-popup-profile>i{font-size:11px;color:#94a3b8}
 .user-popup-header {
-  padding: 6px 8px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -332,6 +347,8 @@ async function handleLogout() {
   font-size: 10.5px;
   color: #64748b;
 }
+.user-popup-header span{font-size:10.5px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.admin-shortcuts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.admin-shortcuts button{height:76px;border:1px solid #dbe1e8;border-radius:10px;background:#fff;color:#334155;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;font-size:11.5px}.admin-shortcuts button:hover{background:#f8fafc;border-color:#bfdbfe}.admin-shortcuts i{width:31px;height:31px;border:1px solid #e2e8f0;border-radius:50%;display:grid;place-items:center;font-size:13px}.appearance-row{display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px;border:1px solid #dbe1e8;border-radius:9px;background:#f8fafc;color:#475569;font-size:11.5px}.appearance-row span{flex:1}.appearance-row>i:last-child{color:#64748b}
 
 .user-popup-email {
   font-size: 10px;
@@ -356,7 +373,8 @@ async function handleLogout() {
   font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
+  justify-content:center;
   transition: background 0.15s ease;
 }
 

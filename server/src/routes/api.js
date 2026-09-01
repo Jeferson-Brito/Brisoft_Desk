@@ -31,6 +31,7 @@ router.post('/auth/logout', (req, res) => authController.logout(req, res));
 // ROTAS PROTEGIDAS (requerem JWT válido)
 // ==========================================================================
 router.get('/auth/me', requireAuth, (req, res) => authController.me(req, res));
+router.put('/auth/profile', requireAuth, (req, res) => authController.updateProfile(req, res));
 router.get('/media/:filename', requireAuth, async (req, res) => {
   const filename = path.basename(req.params.filename || '');
   if (!filename || filename !== req.params.filename || !/^[a-zA-Z0-9._-]+$/.test(filename)) {
@@ -62,6 +63,9 @@ router.delete('/users/:id', requireAuth, requireAdmin, (req, res) => usersContro
 // Rotas de Tickets / Atendimentos
 router.get('/tickets', requireAuth, (req, res) => ticketController.listTickets(req, res));
 router.get('/tickets/history', requireAuth, (req, res) => ticketController.listHistory(req, res));
+router.get('/tickets/:id/collaborators', requireAuth, (req, res) => ticketController.getCollaborators(req, res));
+router.post('/tickets/:id/collaborators', requireAuth, (req, res) => ticketController.addCollaborator(req, res));
+router.delete('/tickets/:id/collaborators/:userId', requireAuth, (req, res) => ticketController.removeCollaborator(req, res));
 router.get('/tickets/:id', requireAuth, (req, res) => ticketController.getTicket(req, res));
 router.put('/tickets/:id/contact', requireAuth, (req, res) => ticketController.updateContact(req, res));
 router.post('/tickets/start-conversation', requireAuth, (req, res) => ticketController.startConversation(req, res));

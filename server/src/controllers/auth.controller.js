@@ -190,6 +190,67 @@ class AuthController {
     }
   }
 
+  /** PUT /api/auth/profile — o e-mail de login nunca é alterado aqui. */
+  async updateProfile(req, res) {
+    const { id, is_temporary } = req.user;
+    if (is_temporary || id === TEMP_ADMIN_ID) {
+      return res.status(400).json({ success: false, error: 'Crie um administrador definitivo antes de editar o perfil.' });
+    }
+    if (!isSupabaseConfigured()) return res.status(503).json({ success: false, error: 'Banco de dados indisponível.' });
+
+    const name = String(req.body?.name || '').trim().replace(/\s+/g, ' ');
+    const phone = String(req.body?.phone || '').trim().slice(0, 30) || null;
+    const avatar = req.body?.avatar_url;
+    const currentPassword = String(req.body?.current_password || '');
+    const newPassword = String(req.body?.new_password || '');
+
+    if (name.length < 3 || name.length > 100 || !name.includes(' ')) {
+      return res.status(400).json({ success: false, error: 'Informe nome e sobrenome.' });
+    }
+    const updates = { name, phone };
+    if (avatar === null || avatar === '') {
+      updates.avatar_url = null;
+    } else if (avatar !== undefined) {
+      const match = String(avatar).match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+      if (!match || Buffer.byteLength(match[2], 'base64') > 512 * 1024) {
+        return res.status(400).json({ success: false, error: 'Foto inválida ou maior que 512 KB.' });
+      }
+      updates.avatar_url = avatar;
+    }
+
+    try {
+      if (newPassword) {
+        if (newPassword.length < 8) return res.status(400).json({ success: false, error: 'A nova senha deve ter ao menos 8 caracteres.' });
+        if (!currentPassword) return res.status(400).json({ success: false, error: 'Informe a senha atual.' });
+        const { data: current, error: currentError } = await supabase.from('users').select('password_hash').eq('id', id).single();
+        if (currentError || !current || !(await bcrypt.compare(currentPassword, current.password_hash || ''))) {
+          return res.status(400).json({ success: false, error: 'A senha atual está incorreta.' });
+        }
+        updates.password_hash = await bcrypt.hash(newPassword, 12);
+      }
+      const { error } = await supabase.from('users').update(updates).eq('id', id);
+      if (error) throw error;
+      const { data: refreshed, error: readError } = await supabase
+        .from('users')
+        .select('id, name, email, role, department_id, avatar_url, status, is_active, is_temporary, phone, departments!users_department_id_fkey(id, name, color)')
+        .eq('id', id)
+        .single();
+      if (readError || !refreshed) throw readError || new Error('Usuário não encontrado.');
+      refreshed.department_name = refreshed.departments?.name || null;
+      refreshed.department_color = refreshed.departments?.color || null;
+      const publicUser = await enrichUserAccess(refreshed);
+      const token = jwt.sign(
+        { id: publicUser.id, email: publicUser.email, name: publicUser.name, role: publicUser.role, is_temporary: false, department_id: publicUser.department_id, department_name: publicUser.department_name },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES }
+      );
+      return res.json({ success: true, user: publicUser, token });
+    } catch (err) {
+      console.error('Erro ao atualizar perfil:', err.message);
+      return res.status(500).json({ success: false, error: 'Não foi possível atualizar o perfil.' });
+    }
+  }
+
   /**
    * POST /api/auth/logout
    */

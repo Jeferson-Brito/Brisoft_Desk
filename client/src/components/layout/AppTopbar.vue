@@ -37,7 +37,9 @@ const VIEW_META = {
   mensagens_rapidas: { title: 'Mensagens rápidas',       subtitle: 'Crie e gerencie mensagens prontas para agilizar respostas.' },
   desempenho:        { title: 'Desempenho',              subtitle: 'Indicadores mensais dos atendentes e departamentos.' },
   configuracoes:     { title: 'Configurações',           subtitle: 'Gerencie integrações e configurações gerais da plataforma.' },
-  usuarios:          { title: 'Usuários',                subtitle: 'Gerencie atendentes, supervisores e administradores.' }
+  usuarios:          { title: 'Usuários',                subtitle: 'Gerencie atendentes, supervisores e administradores.' },
+  configuracao_ia:   { title: 'Configuração da IA',      subtitle: 'Configure o chatbot, automações e regras de inatividade.' },
+  perfil:            { title: 'Meu perfil',              subtitle: 'Atualize seus dados pessoais e sua segurança.' }
 }
 
 const pageTitle    = computed(() => VIEW_META[route.name]?.title    || 'Central de Atendimento')

@@ -17,11 +17,13 @@
                 style="width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0;"
                 :style="{ background: formData.role === 'Administrador' ? 'linear-gradient(135deg,#2563eb,#1d4ed8)' : 'linear-gradient(135deg,#7c3aed,#6d28d9)' }"
               >
-                {{ initials }}
+                <img v-if="formData.avatar_url" :src="formData.avatar_url" alt="Foto do usuário" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" />
+                <span v-else>{{ initials }}</span>
               </div>
               <div style="flex:1;">
-                <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">URL da Foto de Perfil (opcional)</label>
-                <input v-model="formData.avatar_url" type="url" placeholder="https://exemplo.com/foto.jpg" class="form-control" style="width:100%;font-size:12px;padding:6px 10px;" />
+                <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">Foto de perfil (opcional)</label>
+                <label class="btn-secondary" style="display:inline-flex;cursor:pointer;font-size:11px;padding:6px 9px;">Escolher arquivo<input type="file" accept="image/jpeg,image/png,image/webp" hidden @change="choosePhoto" /></label>
+                <button v-if="formData.avatar_url" type="button" style="border:0;background:none;color:#dc2626;font-size:11px;cursor:pointer;margin-left:7px;" @click="formData.avatar_url = null">Remover</button>
               </div>
             </div>
 
@@ -111,6 +113,7 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { usersApi } from '@/api/users.api'
 import { useUiStore } from '@/stores/ui.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { prepareAvatar } from '@/utils/avatar-upload'
 
 const props = defineProps({
   editingUser: {
@@ -142,6 +145,14 @@ const initials = computed(() => {
   const name = formData.value.name || 'U'
   return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
 })
+
+async function choosePhoto(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  try { formData.value.avatar_url = await prepareAvatar(file) }
+  catch (error) { ui.showToast(error.message, 'error') }
+}
 
 async function handleSubmit() {
   loading.value = true

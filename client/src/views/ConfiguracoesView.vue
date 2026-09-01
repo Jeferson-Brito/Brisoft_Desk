@@ -1,7 +1,7 @@
 <template>
-  <div class="settings-view-grid" style="width:100%;">
+  <div class="settings-view-grid" :class="{ standalone }" style="width:100%;">
     <!-- Coluna 1: Menu de Navegação das Configurações -->
-    <div class="settings-nav-sidebar">
+    <div v-if="!standalone" class="settings-nav-sidebar">
       <div
         v-if="authStore.isAdmin"
         class="settings-nav-item"
@@ -38,19 +38,6 @@
         <div class="settings-nav-meta">
           <span class="settings-nav-title">Departamentos</span>
           <span class="settings-nav-desc">Filas de atendimento e cores</span>
-        </div>
-      </div>
-
-      <div
-        v-if="authStore.isAdmin"
-        class="settings-nav-item"
-        :class="{ active: activeTab === 'bot' }"
-        @click="activeTab = 'bot'"
-      >
-        <i class="fa-solid fa-robot"></i>
-        <div class="settings-nav-meta">
-          <span class="settings-nav-title">Chatbot & Roteamento</span>
-          <span class="settings-nav-desc">Menu de opções e saudação</span>
         </div>
       </div>
 
@@ -312,7 +299,11 @@ const settingsStore = useSettingsStore()
 const authStore = useAuthStore()
 const ui = useUiStore()
 
-const activeTab = ref('geral')
+const props = defineProps({
+  initialTab: { type: String, default: 'geral' },
+  standalone: { type: Boolean, default: false }
+})
+const activeTab = ref(props.initialTab)
 const savingBot = ref(false)
 
 const showModalDept = ref(false)

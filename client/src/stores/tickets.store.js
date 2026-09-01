@@ -8,6 +8,7 @@ export const useTicketStore = defineStore('tickets', () => {
   const queue          = ref([])      // todos os tickets ativos (aguardando + em_atendimento)
   const activeTicketId = ref(null)    // ticket selecionado no painel direito
   const loading        = ref(false)
+  const loadingMessageIds = ref([])
   const kpiRevision    = ref(0)
   const assumeRequests = new Map()
 
@@ -19,6 +20,7 @@ export const useTicketStore = defineStore('tickets', () => {
     if (auth.isAdmin) return queue.value
 
     return queue.value.filter(t => {
+      if ((t.collaborators || []).some(person => String(person.id) === String(auth.user?.id))) return true
       // Ticket atribuído diretamente ao analista
       if (t.user_id && auth.user?.id && t.user_id === auth.user.id) return true
       if (auth.isSupervisor && t.department_id && auth.departmentIds.includes(String(t.department_id))) return true
@@ -71,21 +73,35 @@ export const useTicketStore = defineStore('tickets', () => {
           activeTicketId.value = first?.id ?? null
         }
 
-        // Se há um ticket ativo, carrega o histórico completo em background
+        // Carrega o histórico completo com estado visual explícito. Assim a tela
+        // nunca parece uma conversa vazia enquanto o banco responde.
         if (activeTicketId.value) {
           const act = queue.value.find(t => t.id === activeTicketId.value)
           if (act) {
             act.unreadCount = 0
             act.unread_count = 0
             ticketsApi.markAsRead(activeTicketId.value).catch(() => {})
-            ticketsApi.get(activeTicketId.value).then(res => {
-              if (res.data?.success && res.data.ticket) receiveTicket(res.data.ticket)
-            }).catch(() => {})
+            await loadTicketMessages(activeTicketId.value)
           }
         }
       }
     } finally {
       if (!silent) loading.value = false
+    }
+  }
+
+  function isLoadingMessages(ticketId) {
+    return loadingMessageIds.value.includes(ticketId)
+  }
+
+  async function loadTicketMessages(ticketId) {
+    if (!ticketId || isLoadingMessages(ticketId)) return
+    loadingMessageIds.value = [...loadingMessageIds.value, ticketId]
+    try {
+      const { data } = await ticketsApi.get(ticketId)
+      if (data.success && data.ticket) receiveTicket(data.ticket)
+    } finally {
+      loadingMessageIds.value = loadingMessageIds.value.filter(id => id !== ticketId)
     }
   }
 
@@ -188,10 +204,7 @@ export const useTicketStore = defineStore('tickets', () => {
       ticket.unreadCount = 0
       ticket.unread_count = 0
       ticketsApi.markAsRead(ticketId).catch(() => {})
-      try {
-        const { data } = await ticketsApi.get(ticketId)
-        if (data.success && data.ticket) receiveTicket(data.ticket)
-      } catch (e) {}
+      try { await loadTicketMessages(ticketId) } catch (e) {}
     }
   }
 
@@ -263,11 +276,11 @@ export const useTicketStore = defineStore('tickets', () => {
 
   return {
     // state
-    queue, activeTicketId, loading, kpiRevision,
+    queue, activeTicketId, loading, loadingMessageIds, kpiRevision,
     // getters
     visibleTickets, waitingTickets, inProgressTickets, chatbotTickets, activeTicket,
     // actions
-    fetchQueue, fetchTickets: fetchQueue, receiveTicket, appendMessage, removeTicket, patchTicket, notifyKpisUpdated,
+    fetchQueue, fetchTickets: fetchQueue, receiveTicket, appendMessage, removeTicket, patchTicket, notifyKpisUpdated, isLoadingMessages, loadTicketMessages,
     selectTicket, assume, close
   }
 })

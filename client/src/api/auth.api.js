@@ -8,5 +8,8 @@ export const authApi = {
     http.post('/auth/logout').catch(() => {}),
 
   me: () =>
-    http.get('/auth/me')
+    http.get('/auth/me'),
+
+  updateProfile: (payload) =>
+    http.put('/auth/profile', payload)
 }
