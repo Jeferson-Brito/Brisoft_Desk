@@ -16,10 +16,12 @@ function parseMonth(value, fallback = new Date()) {
   const nextMonth = month === 12 ? 1 : month + 1;
   const previousYear = month === 1 ? year - 1 : year;
   const previousMonth = month === 1 ? 12 : month - 1;
+  const startDate = new Date(Date.UTC(year, month - 1, 1, 3, 0, 0));
+  const endDate = new Date(Date.UTC(nextYear, nextMonth - 1, 1, 3, 0, 0));
   return {
     key,
-    start: `${key}-01T00:00:00-03:00`,
-    end: `${nextYear}-${String(nextMonth).padStart(2, '0')}-01T00:00:00-03:00`,
+    start: startDate.toISOString(),
+    end: endDate.toISOString(),
     previousKey: `${previousYear}-${String(previousMonth).padStart(2, '0')}`,
     days: new Date(year, month, 0).getDate(),
     isCurrent: year === fallback.getFullYear() && month === fallback.getMonth() + 1
@@ -181,13 +183,11 @@ class PerformanceService {
       : (departmentId ? query.eq('department_id', departmentId) : query);
     
     try {
-      const closedQuery = useFull
-        ? () => applyDepartment(supabase.from('tickets').select(select).eq('status', 'finalizado')
-            .or(`and(closed_at.gte.${period.start},closed_at.lt.${period.end}),and(closed_at.is.null,updated_at.gte.${period.start},updated_at.lt.${period.end})`)
-            .order('updated_at'))
-        : () => applyDepartment(supabase.from('tickets').select(select).eq('status', 'finalizado')
-            .gte('updated_at', period.start).lt('updated_at', period.end)
-            .order('updated_at'));
+      const closedQuery = () => applyDepartment(
+        supabase.from('tickets').select(select).eq('status', 'finalizado')
+          .gte('updated_at', period.start).lt('updated_at', period.end)
+          .order('updated_at')
+      );
 
       const [created, closed, active, ratings] = await Promise.all([
         fetchAll(() => applyDepartment(supabase.from('tickets').select(select).gte('created_at', period.start).lt('created_at', period.end).order('created_at'))),

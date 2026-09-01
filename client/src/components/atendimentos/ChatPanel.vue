@@ -276,8 +276,8 @@
       </div>
     </div>
 
-    <!-- Barra de Indicadores KPIs no rodapé do ChatPanel -->
-    <div v-if="metricsExpanded && ticket" class="chat-kpi-bar">
+    <!-- Barra de Indicadores KPIs no rodapé do ChatPanel (sempre visível quando metricsExpanded) -->
+    <div v-if="metricsExpanded" class="chat-kpi-bar">
       <div class="kpi-mini-card" title="Atendimentos em andamento">
         <div class="kpi-mini-icon" style="background:#eff6ff;color:#2563eb;">
           <i class="fa-solid fa-headset"></i>
@@ -314,7 +314,7 @@
         </div>
         <div class="kpi-mini-info">
           <span class="kpi-mini-label">TMA no mês</span>
-          <span class="kpi-mini-value">{{ performance?.metrics?.tma || '00:00:00' }}</span>
+          <span class="kpi-mini-value">{{ displayTma }}</span>
         </div>
       </div>
 
@@ -324,7 +324,7 @@
         </div>
         <div class="kpi-mini-info">
           <span class="kpi-mini-label">SLA no mês</span>
-          <span class="kpi-mini-value">{{ performance?.metrics?.slaPercent ? `${performance.metrics.slaPercent}%` : '0%' }}</span>
+          <span class="kpi-mini-value">{{ displaySla }}</span>
         </div>
       </div>
 
@@ -337,6 +337,24 @@
           <span class="kpi-mini-value">{{ ratingLabel }}</span>
         </div>
       </div>
+
+      <button
+        type="button"
+        class="chat-kpi-close-btn"
+        title="Ocultar barra de indicadores"
+        @click="toggleMetrics"
+      >
+        <i class="fa-solid fa-chevron-down"></i>
+      </button>
+    </div>
+
+    <!-- Barra recolhida caso metricsExpanded esteja desligado -->
+    <div v-else class="chat-kpi-bar-collapsed" @click="toggleMetrics" title="Exibir indicadores de atendimento">
+      <div class="chat-kpi-collapsed-content">
+        <i class="fa-solid fa-chart-line"></i>
+        <span>Indicadores: <strong>{{ ticketStore.inProgressTickets.length }}</strong> em atendimento • <strong>{{ ticketStore.waitingTickets.length }}</strong> aguardando</span>
+      </div>
+      <i class="fa-solid fa-chevron-up"></i>
     </div>
 
     <!-- Modal Transferir Atendimento -->
@@ -385,9 +403,24 @@ function toggleMetrics() {
   localStorage.setItem('attendance_metrics_expanded', String(metricsExpanded.value))
 }
 
-const ratingLabel = computed(() => props.performance?.metrics?.ratingAverage == null
-  ? '—'
-  : `${Number(props.performance.metrics.ratingAverage).toFixed(1)} ★`)
+const ratingLabel = computed(() => {
+  const avg = props.performance?.metrics?.ratingAverage
+  if (avg == null || isNaN(avg)) return '—'
+  return `${Number(avg).toFixed(1)} ★`
+})
+
+const displayTma = computed(() => {
+  const tma = props.performance?.metrics?.tma
+  if (tma && tma !== '00:00:00') return tma
+  return '00:00:00'
+})
+
+const displaySla = computed(() => {
+  const sla = props.performance?.metrics?.slaPercent
+  if (sla != null && Number(sla) > 0) return `${Number(sla).toFixed(0)}%`
+  if (props.performance?.metrics?.completed > 0) return `${Number(sla || 0).toFixed(0)}%`
+  return '100%'
+})
 
 defineEmits(['toggle-details', 'go-back'])
 
@@ -1022,6 +1055,53 @@ watch(inputMsg, (newVal) => {
   flex-shrink: 0;
   width: 100%;
   box-sizing: border-box;
+}
+
+.chat-kpi-close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition: all 0.12s ease;
+  flex-shrink: 0;
+}
+
+.chat-kpi-close-btn:hover {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.chat-kpi-bar-collapsed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  font-size: 11px;
+  color: #64748b;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.chat-kpi-bar-collapsed:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.chat-kpi-collapsed-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .chat-kpi-bar .kpi-mini-card {
