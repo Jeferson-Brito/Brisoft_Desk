@@ -292,7 +292,7 @@
                 <template v-else>
                   <div class="chat-date-pill">Início do Atendimento</div>
                   <ChatBubble
-                    v-for="(m, idx) in selectedTicketModal.messages"
+                    v-for="(m, idx) in (selectedTicketModal.messages || []).filter(msg => !msg?.text?.startsWith?.('[Chatbot][State]'))"
                     :key="idx"
                     :msg="m"
                     :initials="selectedTicketModal.initials"

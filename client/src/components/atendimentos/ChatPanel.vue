@@ -40,14 +40,8 @@
           {{ handlingChannel.label }}
         </span>
 
-        <div v-if="ticket?.agent_name || ticket?.agentName" class="assignee-pill" title="Atendente responsável">
-          <span class="assignee-avatar">
-            {{ (ticket?.agent_name || ticket?.agentName || 'A').slice(0, 1).toUpperCase() }}
-          </span>
-          <span>{{ ticket?.agent_name || ticket?.agentName }}</span>
-        </div>
         <button
-          v-else-if="canAssume"
+          v-if="canAssume"
           type="button"
           class="assignee-assume-btn"
           :disabled="isAssuming"
@@ -378,7 +372,11 @@ const handlingChannel = computed(() => {
 })
 
 const visibleMessages = computed(() => {
-  return props.ticket?.messages || []
+  return (props.ticket?.messages || []).filter(m => {
+    if (!m?.text) return true
+    if (typeof m.text === 'string' && m.text.startsWith('[Chatbot][State]')) return false
+    return true
+  })
 })
 
 function parseValidDate(val) {

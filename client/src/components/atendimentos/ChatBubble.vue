@@ -220,7 +220,13 @@ const displayTime = computed(() => {
   return props.msg?.time || ''
 })
 
+const isBotStateMessage = computed(() => {
+  const t = props.msg?.text || ''
+  return typeof t === 'string' && t.startsWith('[Chatbot][State]')
+})
+
 const isSystemMessage = computed(() => {
+  if (isBotStateMessage.value) return false
   const t = props.msg?.text || ''
   return (
     props.msg?.type === 'divider' ||
