@@ -78,7 +78,11 @@ function onTicketSelected() {
 
 async function fetchPerformance() {
   try {
-    const { data } = await ticketsApi.performance(auth.isAdmin && auth.user?.id ? { agentId: auth.user.id } : {})
+    const params = {}
+    if (!auth.isAdmin && auth.departmentId) {
+      params.departmentId = auth.departmentId
+    }
+    const { data } = await ticketsApi.performance(params)
     if (data.success && data.performance) performance.value = data.performance
   } catch (_) {}
 }

@@ -278,29 +278,39 @@
 
     <!-- Barra de Indicadores KPIs no rodapé do ChatPanel -->
     <div v-if="metricsExpanded && ticket" class="chat-kpi-bar">
-      <div class="kpi-mini-card">
+      <div class="kpi-mini-card" title="Atendimentos em andamento">
+        <div class="kpi-mini-icon" style="background:#eff6ff;color:#2563eb;">
+          <i class="fa-solid fa-headset"></i>
+        </div>
+        <div class="kpi-mini-info">
+          <span class="kpi-mini-label">Em atendimento</span>
+          <span class="kpi-mini-value">{{ ticketStore.inProgressTickets.length }}</span>
+        </div>
+      </div>
+
+      <div class="kpi-mini-card" title="Clientes aguardando atendimento na fila">
+        <div class="kpi-mini-icon" style="background:#fef3c7;color:#d97706;">
+          <i class="fa-solid fa-hourglass-half"></i>
+        </div>
+        <div class="kpi-mini-info">
+          <span class="kpi-mini-label">Aguardando fila</span>
+          <span class="kpi-mini-value">{{ ticketStore.waitingTickets.length }}</span>
+        </div>
+      </div>
+
+      <div class="kpi-mini-card" title="Total de chamados recebidos hoje">
         <div class="kpi-mini-icon" style="background:#ecfdf5;color:#10b981;">
           <i class="fa-regular fa-comment-dots"></i>
         </div>
         <div class="kpi-mini-info">
-          <span class="kpi-mini-label">Chats do setor</span>
-          <span class="kpi-mini-value">{{ performance?.today?.departmentReceived || 0 }}</span>
+          <span class="kpi-mini-label">Chats hoje</span>
+          <span class="kpi-mini-value">{{ performance?.today?.departmentReceived || ticketStore.queue.length }}</span>
         </div>
       </div>
 
-      <div class="kpi-mini-card">
-        <div class="kpi-mini-icon" style="background:#eff6ff;color:#2563eb;">
+      <div class="kpi-mini-card" title="Tempo Médio de Atendimento no mês">
+        <div class="kpi-mini-icon" style="background:#f1f5f9;color:#475569;">
           <i class="fa-regular fa-clock"></i>
-        </div>
-        <div class="kpi-mini-info">
-          <span class="kpi-mini-label">Meus atendimentos</span>
-          <span class="kpi-mini-value">{{ performance?.today?.agentCompleted || 0 }}</span>
-        </div>
-      </div>
-
-      <div class="kpi-mini-card">
-        <div class="kpi-mini-icon" style="background:#ecfdf5;color:#059669;">
-          <i class="fa-solid fa-chart-pie"></i>
         </div>
         <div class="kpi-mini-info">
           <span class="kpi-mini-label">TMA no mês</span>
@@ -308,22 +318,22 @@
         </div>
       </div>
 
-      <div class="kpi-mini-card">
+      <div class="kpi-mini-card" title="Índice de cumprimento de SLA no mês">
         <div class="kpi-mini-icon" style="background:#f3e8ff;color:#7e22ce;">
           <i class="fa-solid fa-gauge-high"></i>
         </div>
         <div class="kpi-mini-info">
           <span class="kpi-mini-label">SLA no mês</span>
-          <span class="kpi-mini-value">{{ performance?.metrics?.slaPercent || 0 }}%</span>
+          <span class="kpi-mini-value">{{ performance?.metrics?.slaPercent ? `${performance.metrics.slaPercent}%` : '0%' }}</span>
         </div>
       </div>
 
-      <div class="kpi-mini-card">
+      <div class="kpi-mini-card" title="Média de avaliação dos clientes">
         <div class="kpi-mini-icon" style="background:#fffbeb;color:#d97706;">
           <i class="fa-regular fa-star"></i>
         </div>
         <div class="kpi-mini-info">
-          <span class="kpi-mini-label">Média de avaliação</span>
+          <span class="kpi-mini-label">Avaliação</span>
           <span class="kpi-mini-value">{{ ratingLabel }}</span>
         </div>
       </div>
