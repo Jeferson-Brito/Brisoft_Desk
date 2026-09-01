@@ -39,7 +39,7 @@
           <div v-if="loading" class="conversation-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Carregando contatos...</div>
           <div v-else-if="filteredContacts.length === 0" class="conversation-state">
             <i class="fa-regular fa-address-book"></i>
-            <strong>Nenhum contato disponível</strong>
+            <strong>Cliente não encontrado ou funcionário não encontrado!</strong>
             <span>Cadastre ou importe contatos com um número de WhatsApp.</span>
           </div>
           <template v-else>

@@ -1,76 +1,95 @@
 <template>
   <div class="table-view-layout" style="width:100%;">
     <!-- Barra de Filtros Avançados -->
-    <div class="card-box" style="padding:12px 16px;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;">
-      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
-        <!-- Busca Textual -->
-        <div class="search-input-wrap" style="flex:1;min-width:220px;">
-          <i class="fa-solid fa-magnifying-glass"></i>
-          <input
-            v-model="filters.search"
-            type="text"
-            placeholder="Buscar por cliente, telefone, protocolo ou mensagem..."
-          />
+    <div class="card-box" style="padding:16px;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:16px;">
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        
+        <!-- Search and Actions Row -->
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div class="search-input-wrap" style="flex:1;position:relative;">
+            <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:14px;"></i>
+            <input
+              v-model="filters.search"
+              type="text"
+              class="form-control"
+              style="width:100%;padding:10px 14px 10px 38px;border:1px solid #cbd5e1;border-radius:8px;font-size:13.5px;transition:all 0.2s;"
+              placeholder="Buscar por cliente, telefone, protocolo ou mensagem..."
+            />
+          </div>
+          <button
+            v-if="hasActiveFilters"
+            class="btn-secondary"
+            style="height:40px;padding:0 16px;color:#ef4444;border-color:#fca5a5;background:#fef2f2;border-radius:8px;font-weight:600;font-size:13px;white-space:nowrap;"
+            title="Limpar todos os filtros"
+            @click="clearFilters"
+          >
+            <i class="fa-solid fa-eraser" style="margin-right:6px;"></i> Limpar Filtros
+          </button>
         </div>
 
-        <!-- Filtro: Departamento -->
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="font-size:11.5px;font-weight:600;color:#64748b;">Depto:</span>
-          <select v-model="filters.department" class="form-control" style="font-size:12px;padding:6px 10px;height:34px;">
-            <option value="">Todos os Departamentos</option>
-            <option v-for="d in settingsStore.departments" :key="d.id" :value="d.name">
-              {{ d.name }}
-            </option>
-          </select>
-        </div>
+        <!-- Filters Grid Row -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;background:#f8fafc;padding:12px;border-radius:8px;border:1px solid #f1f5f9;">
+          
+          <!-- Filtro: Departamento -->
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <label style="font-size:12px;font-weight:600;color:#64748b;display:flex;align-items:center;gap:4px;">
+              <i class="fa-solid fa-building" style="color:#cbd5e1;"></i> Departamento
+            </label>
+            <select v-model="filters.department" class="form-control" style="width:100%;height:38px;border-radius:6px;border:1px solid #cbd5e1;font-size:13px;background-color:#ffffff;">
+              <option value="">Todos os Departamentos</option>
+              <option v-for="d in settingsStore.departments" :key="d.id" :value="d.name">
+                {{ d.name }}
+              </option>
+            </select>
+          </div>
 
-        <!-- Filtro: Atendente -->
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="font-size:11.5px;font-weight:600;color:#64748b;">Atendente:</span>
-          <select v-model="filters.agent" class="form-control" style="font-size:12px;padding:6px 10px;height:34px;">
-            <option value="">Todos os Atendentes</option>
-            <option v-for="ag in uniqueAgents" :key="ag" :value="ag">
-              {{ ag }}
-            </option>
-          </select>
-        </div>
+          <!-- Filtro: Atendente -->
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <label style="font-size:12px;font-weight:600;color:#64748b;display:flex;align-items:center;gap:4px;">
+              <i class="fa-solid fa-user-tie" style="color:#cbd5e1;"></i> Atendente
+            </label>
+            <select v-model="filters.agent" class="form-control" style="width:100%;height:38px;border-radius:6px;border:1px solid #cbd5e1;font-size:13px;background-color:#ffffff;">
+              <option value="">Todos os Atendentes</option>
+              <option v-for="ag in uniqueAgents" :key="ag" :value="ag">
+                {{ ag }}
+              </option>
+            </select>
+          </div>
 
-        <!-- Filtro: Avaliação CSAT -->
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="font-size:11.5px;font-weight:600;color:#64748b;">Avaliação:</span>
-          <select v-model="filters.rating" class="form-control" style="font-size:12px;padding:6px 10px;height:34px;">
-            <option value="">Todas</option>
-            <option value="5">⭐⭐⭐⭐⭐ (5 estrelas)</option>
-            <option value="4">⭐⭐⭐⭐ (4 estrelas)</option>
-            <option value="3">⭐⭐⭐ (3 estrelas)</option>
-            <option value="2">⭐⭐ (2 estrelas)</option>
-            <option value="1">⭐ (1 estrela)</option>
-            <option value="sem_avaliacao">Sem avaliação</option>
-          </select>
-        </div>
+          <!-- Filtro: Avaliação CSAT -->
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <label style="font-size:12px;font-weight:600;color:#64748b;display:flex;align-items:center;gap:4px;">
+              <i class="fa-solid fa-star" style="color:#cbd5e1;"></i> Avaliação
+            </label>
+            <select v-model="filters.rating" class="form-control" style="width:100%;height:38px;border-radius:6px;border:1px solid #cbd5e1;font-size:13px;background-color:#ffffff;">
+              <option value="">Todas</option>
+              <option value="5">⭐⭐⭐⭐⭐ (5)</option>
+              <option value="4">⭐⭐⭐⭐ (4)</option>
+              <option value="3">⭐⭐⭐ (3)</option>
+              <option value="2">⭐⭐ (2)</option>
+              <option value="1">⭐ (1)</option>
+              <option value="sem_avaliacao">Sem avaliação</option>
+            </select>
+          </div>
 
-        <!-- Filtro: Data Início -->
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="font-size:11.5px;font-weight:600;color:#64748b;">De:</span>
-          <input v-model="filters.dateFrom" type="date" class="form-control" style="font-size:12px;padding:4px 8px;height:34px;" />
+          <!-- Filtros de Data -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <!-- Data Início -->
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <label style="font-size:12px;font-weight:600;color:#64748b;display:flex;align-items:center;gap:4px;">
+                <i class="fa-regular fa-calendar" style="color:#cbd5e1;"></i> De
+              </label>
+              <input v-model="filters.dateFrom" type="date" class="form-control" style="width:100%;height:38px;border-radius:6px;border:1px solid #cbd5e1;font-size:13px;padding:0 10px;background-color:#ffffff;" />
+            </div>
+            <!-- Data Fim -->
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <label style="font-size:12px;font-weight:600;color:#64748b;display:flex;align-items:center;gap:4px;">
+                <i class="fa-regular fa-calendar-check" style="color:#cbd5e1;"></i> Até
+              </label>
+              <input v-model="filters.dateTo" type="date" class="form-control" style="width:100%;height:38px;border-radius:6px;border:1px solid #cbd5e1;font-size:13px;padding:0 10px;background-color:#ffffff;" />
+            </div>
+          </div>
         </div>
-
-        <!-- Filtro: Data Fim -->
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="font-size:11.5px;font-weight:600;color:#64748b;">Até:</span>
-          <input v-model="filters.dateTo" type="date" class="form-control" style="font-size:12px;padding:4px 8px;height:34px;" />
-        </div>
-
-        <!-- Botão Limpar Filtros -->
-        <button
-          v-if="hasActiveFilters"
-          class="btn-secondary"
-          style="font-size:11.5px;height:34px;padding:0 10px;color:#ef4444;"
-          title="Limpar todos os filtros"
-          @click="clearFilters"
-        >
-          <i class="fa-solid fa-xmark"></i> Limpar
-        </button>
       </div>
     </div>
 
@@ -95,7 +114,7 @@
               <tr v-if="paginatedList.length === 0">
                 <td colspan="8" style="text-align:center;padding:36px 12px;color:#94a3b8;font-size:13px;">
                   <i class="fa-solid fa-magnifying-glass" style="font-size:20px;display:block;margin-bottom:8px;"></i>
-                  Nenhum atendimento encontrado com os filtros selecionados.
+                  Cliente não encontrado ou funcionário não encontrado!
                 </td>
               </tr>
               <tr

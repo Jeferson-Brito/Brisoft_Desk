@@ -60,7 +60,7 @@
               <tr v-if="filteredContacts.length === 0">
                 <td colspan="6" style="text-align:center;color:#64748b;padding:32px;">
                   <i class="fa-solid fa-users-slash" style="margin-right:8px;"></i>
-                  Nenhum {{ activeContactTab === 'employees' ? 'funcionário' : 'cliente' }} encontrado.
+                  Cliente não encontrado ou funcionário não encontrado!
                 </td>
               </tr>
               <tr v-for="c in filteredContacts" :key="c.id">
