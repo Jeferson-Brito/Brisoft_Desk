@@ -1,120 +1,183 @@
 <template>
   <div class="details-column" id="contactDetailsCol">
-    <!-- Header: Conversation Details -->
+    <!-- Header: Detalhes do Atendimento -->
     <div class="details-header">
-      <span class="details-header-title">Detalhes do Atendimento</span>
+      <div class="details-header-title-box">
+        <span class="details-header-title">Detalhes do Atendimento</span>
+      </div>
       <div class="details-header-actions">
-        <button type="button" class="details-gear-btn" title="Editar contato" @click="showEditModal = true">
+        <button
+          type="button"
+          class="details-action-btn"
+          title="Editar contato"
+          @click="showEditModal = true"
+        >
           <i class="fa-solid fa-pen"></i>
         </button>
-        <button type="button" class="details-gear-btn" title="Fechar detalhes" @click="$emit('close')">
+        <button
+          type="button"
+          class="details-action-btn close"
+          title="Fechar painel"
+          @click="$emit('close')"
+        >
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
     </div>
 
     <div class="details-body">
-      <!-- Metadados do Atendimento -->
-      <div class="metadata-table">
-        <div class="metadata-row">
-          <span class="metadata-key">Departamento</span>
-          <strong class="metadata-val" style="color:#1f62d0;">{{ ticket?.department || ticket?.deptInitial || 'Geral' }}</strong>
-        </div>
-        <div class="metadata-row">
-          <span class="metadata-key">Conexão</span>
-          <span class="metadata-val" style="color:#168a52;display:flex;align-items:center;gap:4px;">
-            <i class="fa-brands fa-whatsapp"></i> {{ whatsappAccountLabel }}
+      <!-- Card Metadados do Atendimento -->
+      <div class="details-card">
+        <div class="card-title-row">
+          <span class="card-section-title">
+            <i class="fa-solid fa-circle-info"></i> Dados do Chamado
+          </span>
+          <span class="status-pill" :class="ticket?.status || 'aberto'">
+            <span class="status-dot"></span>
+            {{ statusLabel }}
           </span>
         </div>
-        <div class="metadata-row">
-          <span class="metadata-key">Status</span>
-          <span class="metadata-val">{{ statusLabel }}</span>
-        </div>
-        <div class="metadata-row">
-          <span class="metadata-key">Tempo de Espera</span>
-          <span class="metadata-val">{{ waitTimeStr }}</span>
-        </div>
-        <div class="metadata-row">
-          <span class="metadata-key">ID</span>
-          <code class="metadata-val">{{ ticket?.id ? ticket.id.substring(0, 10) : '—' }}</code>
+
+        <div class="meta-grid">
+          <div class="meta-item">
+            <span class="meta-label">Departamento</span>
+            <div class="meta-value-box">
+              <span class="dept-badge">
+                <i class="fa-solid fa-tag"></i>
+                {{ ticket?.department || ticket?.deptInitial || 'Geral' }}
+              </span>
+            </div>
+          </div>
+
+          <div class="meta-item">
+            <span class="meta-label">Canal / Conexão</span>
+            <div class="meta-value-box">
+              <span class="channel-badge">
+                <i class="fa-brands fa-whatsapp"></i>
+                {{ whatsappAccountLabel }}
+              </span>
+            </div>
+          </div>
+
+          <div class="meta-item">
+            <span class="meta-label">
+              {{ ticket?.status === 'em_atendimento' ? 'Tempo de Atendimento' : 'Tempo em Espera' }}
+            </span>
+            <span class="meta-value text-highlight">
+              <i class="fa-regular fa-clock" style="font-size:11px; margin-right:3px;"></i>
+              {{ durationStr }}
+            </span>
+          </div>
+
+          <div class="meta-item">
+            <span class="meta-label">Protocolo / ID</span>
+            <div class="id-copy-box" @click="copyTicketId" title="Clique para copiar ID">
+              <code>#{{ ticket?.id ? ticket.id.substring(0, 8) : '—' }}</code>
+              <i class="fa-regular" :class="copiedId ? 'fa-circle-check text-success' : 'fa-copy'"></i>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="details-divider"></div>
-
-      <!-- Section: Related / Contato Relacionado -->
-      <div class="details-section">
-        <div class="section-title-row">
-          <span class="section-title">Contato Relacionado</span>
-          <button type="button" class="section-action-link" @click="showEditModal = true">Editar</button>
+      <!-- Card do Contato Relacionado -->
+      <div class="details-card">
+        <div class="card-title-row">
+          <span class="card-section-title">
+            <i class="fa-solid fa-user-circle"></i> Contato Relacionado
+          </span>
+          <button type="button" class="btn-card-action" @click="showEditModal = true">
+            <i class="fa-solid fa-pen-to-square"></i> Editar
+          </button>
         </div>
 
-        <!-- Card de Perfil do Contato -->
-        <div class="related-contact-card">
+        <!-- Banner de Perfil do Contato -->
+        <div class="contact-profile-box">
           <div
-            class="contact-avatar"
-            :style="{ backgroundColor: ticket?.avatarColor || '#1f62d0' }"
+            class="contact-avatar-lg"
+            :style="{ backgroundColor: ticket?.avatarColor || '#2563eb' }"
           >
             {{ ticket?.initials || 'CL' }}
           </div>
-          <div class="contact-card-info">
-            <strong class="contact-name">{{ ticket?.clientName || ticket?.client_name || 'Cliente' }}</strong>
-            <span class="contact-sub">{{ displayPhone }}</span>
+          <div class="contact-profile-text">
+            <strong class="contact-profile-name" :title="ticket?.clientName || ticket?.client_name">
+              {{ ticket?.clientName || ticket?.client_name || 'Cliente' }}
+            </strong>
+            <span class="contact-profile-phone">{{ displayPhone }}</span>
+            <div class="contact-role-tag" :class="{ employee: ticket?.is_employee }">
+              <i class="fa-solid" :class="ticket?.is_employee ? 'fa-id-badge' : 'fa-user'"></i>
+              {{ ticket?.is_employee ? 'Funcionário' : 'Cliente' }}
+            </div>
           </div>
         </div>
 
-        <!-- Lista de Campos do Contato -->
-        <div class="contact-fields-list">
-          <div class="contact-field-item">
-            <i class="fa-solid fa-location-dot"></i>
-            <span>Brasil</span>
+        <!-- Lista de Atributos do Contato -->
+        <div class="contact-attributes-list">
+          <div class="attribute-row">
+            <div class="attribute-icon"><i class="fa-solid fa-earth-americas"></i></div>
+            <div class="attribute-content">
+              <span class="attribute-label">País / Fuso</span>
+              <span class="attribute-val">Brasil (GMT-3)</span>
+            </div>
           </div>
-          <div class="contact-field-item">
-            <i class="fa-regular fa-clock"></i>
-            <span>Horário de Brasília (GMT-3)</span>
+
+          <div class="attribute-row">
+            <div class="attribute-icon"><i class="fa-regular fa-envelope"></i></div>
+            <div class="attribute-content">
+              <span class="attribute-label">E-mail</span>
+              <span class="attribute-val" :class="{ 'text-muted': !contact.email }">
+                {{ contact.email || 'Não informado' }}
+              </span>
+            </div>
           </div>
-          <div class="contact-field-item">
-            <i class="fa-regular fa-user"></i>
-            <span>{{ ticket?.is_employee ? 'Funcionário da Empresa' : 'Cliente' }}</span>
+
+          <div class="attribute-row">
+            <div class="attribute-icon"><i class="fa-regular fa-id-card"></i></div>
+            <div class="attribute-content">
+              <span class="attribute-label">CPF / CNPJ</span>
+              <span class="attribute-val" :class="{ 'text-muted': !contact.cnpj }">
+                {{ contact.cnpj ? formatCnpjCpf(contact.cnpj) : 'Não informado' }}
+              </span>
+            </div>
           </div>
-          <div class="contact-field-item">
-            <i class="fa-regular fa-envelope"></i>
-            <span>{{ contact.email || 'E-mail não informado' }}</span>
-          </div>
-          <div class="contact-field-item">
-            <i class="fa-regular fa-id-card"></i>
-            <span>{{ contact.cnpj ? `Documento: ${formatCnpjCpf(contact.cnpj)}` : 'Documento: —' }}</span>
-          </div>
-          <div class="contact-field-item">
-            <i class="fa-regular fa-building"></i>
-            <span>{{ contact.company || 'Empresa não informada' }}</span>
+
+          <div class="attribute-row">
+            <div class="attribute-icon"><i class="fa-regular fa-building"></i></div>
+            <div class="attribute-content">
+              <span class="attribute-label">Empresa</span>
+              <span class="attribute-val" :class="{ 'text-muted': !contact.company }">
+                {{ contact.company || 'Não informada' }}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="details-divider"></div>
-
-      <!-- Section: Latest Conversations / Conversas Anteriores -->
-      <div class="details-section">
-        <div class="section-title-row">
-          <span class="section-title">Conversas Anteriores</span>
-          <RouterLink to="/historico" class="section-action-link">Ver todas</RouterLink>
+      <!-- Card: Histórico de Conversas Anteriores -->
+      <div class="details-card">
+        <div class="card-title-row">
+          <span class="card-section-title">
+            <i class="fa-solid fa-clock-rotate-left"></i> Histórico
+          </span>
+          <RouterLink to="/historico" class="btn-card-action">
+            Ver todas <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:10px;"></i>
+          </RouterLink>
         </div>
 
-        <div class="latest-conversations-list">
+        <div class="history-list">
           <div v-if="contact.history && contact.history.length > 0">
-            <div v-for="(h, idx) in contact.history" :key="idx" class="history-item-row">
-              <div class="history-item-avatar">
-                <i class="fa-regular fa-comment"></i>
+            <div v-for="(h, idx) in contact.history" :key="idx" class="history-card-item">
+              <div class="history-card-icon">
+                <i class="fa-regular fa-comment-dots"></i>
               </div>
-              <div class="history-item-copy">
-                <span class="history-item-subject">{{ h.subject || 'Atendimento via WhatsApp' }}</span>
-                <small class="history-item-date">{{ h.date }}</small>
+              <div class="history-card-info">
+                <span class="history-card-title">{{ h.subject || 'Atendimento via WhatsApp' }}</span>
+                <span class="history-card-date">{{ h.date }}</span>
               </div>
             </div>
           </div>
-          <div v-else class="empty-history-text">
-            Nenhuma conversa anterior registrada.
+          <div v-else class="history-empty-box">
+            <i class="fa-regular fa-comments"></i>
+            <span>Nenhuma conversa anterior registrada para este contato.</span>
           </div>
         </div>
       </div>
@@ -130,7 +193,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
 import { formatPhone, formatCnpjCpf } from '@/utils/formatters'
 import ModalEditarContato from '@/components/modals/ModalEditarContato.vue'
@@ -146,6 +209,19 @@ defineEmits(['close'])
 
 const ui = useUiStore()
 const showEditModal = ref(false)
+const copiedId = ref(false)
+const nowTick = ref(Date.now())
+let timer = null
+
+onMounted(() => {
+  timer = setInterval(() => {
+    nowTick.value = Date.now()
+  }, 1000)
+})
+
+onBeforeUnmount(() => {
+  clearInterval(timer)
+})
 
 const contact = computed(() => props.ticket?.contact || {})
 
@@ -170,22 +246,34 @@ const whatsappAccountLabel = computed(() => {
   return account?.name || 'WhatsApp Principal'
 })
 
-const waitTimeStr = computed(() => {
-  if (props.ticket?.status === 'em_atendimento' || props.ticket?.assumed) {
-    return 'Em atendimento'
-  }
-  return 'Na fila'
+const durationStr = computed(() => {
+  // Trigger on every second
+  const _ = nowTick.value
+  const start = props.ticket?.assumed_at || props.ticket?.started_at || props.ticket?.created_at
+  if (!start) return '00:00:00'
+  const diffSec = Math.max(0, Math.floor((Date.now() - new Date(start).getTime()) / 1000))
+  const hrs = Math.floor(diffSec / 3600)
+  const mins = Math.floor((diffSec % 3600) / 60)
+  const secs = diffSec % 60
+  return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 })
+
+function copyTicketId() {
+  if (!props.ticket?.id) return
+  navigator.clipboard.writeText(props.ticket.id)
+  copiedId.value = true
+  setTimeout(() => { copiedId.value = false }, 2000)
+}
 </script>
 
 <style scoped>
 .details-column {
-  width: 280px;
-  min-width: 280px;
-  max-width: 280px;
+  width: 300px;
+  min-width: 300px;
+  max-width: 300px;
   flex-shrink: 0;
-  background-color: #ffffff;
-  border-left: 1px solid #e5e7eb;
+  background-color: #f8fafc;
+  border-left: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -194,41 +282,65 @@ const waitTimeStr = computed(() => {
   user-select: none;
 }
 
+/* Header */
 .details-header {
-  height: 48px;
-  min-height: 48px;
-  padding: 0 14px;
+  height: 52px;
+  min-height: 52px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.details-header-title-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .details-header-title {
   font-size: 13.5px;
   font-weight: 700;
   color: #0f172a;
+  letter-spacing: -0.01em;
 }
 
-.details-gear-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
-  border: 1px solid transparent;
-  background: transparent;
+.details-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.details-action-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
   color: #64748b;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 12.5px;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.details-gear-btn:hover {
+.details-action-btn:hover {
   background: #f1f5f9;
-  color: #0f172a;
+  color: #1e293b;
+  border-color: #cbd5e1;
 }
 
+.details-action-btn.close:hover {
+  background: #fee2e2;
+  color: #ef4444;
+  border-color: #fca5a5;
+}
+
+/* Body */
 .details-body {
   flex: 1;
   overflow-y: auto;
@@ -238,172 +350,399 @@ const waitTimeStr = computed(() => {
   gap: 12px;
 }
 
-.metadata-table {
+/* Cards */
+.details-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-section-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-section-title i {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.btn-card-action {
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  transition: all 0.12s ease;
+}
+
+.btn-card-action:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+/* Status Pill */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.status-pill .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.status-pill.em_atendimento {
+  background: #ecfdf5;
+  color: #059669;
+}
+.status-pill.em_atendimento .status-dot {
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.status-pill.aguardando {
+  background: #fffbeb;
+  color: #d97706;
+}
+.status-pill.aguardando .status-dot {
+  background: #f59e0b;
+}
+
+.status-pill.chatbot {
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+.status-pill.chatbot .status-dot {
+  background: #8b5cf6;
+}
+
+.status-pill.finalizado {
+  background: #f1f5f9;
+  color: #64748b;
+}
+.status-pill.finalizado .status-dot {
+  background: #94a3b8;
+}
+
+/* Meta Grid */
+.meta-grid {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.metadata-row {
+.meta-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #f8fafc;
 }
 
-.metadata-key {
+.meta-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.meta-label {
+  color: #64748b;
+  font-size: 11.5px;
+}
+
+.meta-value {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.text-highlight {
+  color: #2563eb;
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.dept-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  color: #1d4ed8;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.channel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  background: #f0fdf4;
+  border: 1px solid #dcfce7;
+  color: #15803d;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.id-copy-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.id-copy-box:hover {
+  background: #e2e8f0;
+}
+
+.id-copy-box code {
+  font-size: 11px;
+  font-family: monospace;
+  color: #334155;
+  font-weight: 600;
+}
+
+.id-copy-box i {
+  font-size: 11px;
   color: #64748b;
 }
 
-.metadata-val {
-  color: #0f172a;
-  font-weight: 600;
+.text-success {
+  color: #10b981 !important;
 }
 
-.details-divider {
-  height: 1px;
-  background: #edf0f3;
-  margin: 4px 0;
-}
-
-.details-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.section-title-row {
+/* Contact Profile Box */
+.contact-profile-box {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 8px;
 }
 
-.section-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.section-action-link {
-  font-size: 11px;
-  font-weight: 600;
-  color: #1f62d0;
-  text-decoration: none;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-}
-
-.section-action-link:hover {
-  text-decoration: underline;
-}
-
-.related-contact-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.contact-avatar {
-  width: 32px;
-  height: 32px;
+.contact-avatar-lg {
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   color: #ffffff;
-  font-size: 11.5px;
+  font-size: 15px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
 }
 
-.contact-card-info {
+.contact-profile-text {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  gap: 2px;
 }
 
-.contact-name {
-  font-size: 12.5px;
-  font-weight: 650;
+.contact-profile-name {
+  font-size: 13px;
+  font-weight: 700;
   color: #0f172a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.contact-sub {
-  font-size: 11px;
+.contact-profile-phone {
+  font-size: 11.5px;
   color: #64748b;
 }
 
-.contact-fields-list {
+.contact-role-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  background: #e0f2fe;
+  color: #0369a1;
+  margin-top: 2px;
+}
+
+.contact-role-tag.employee {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+/* Contact Attributes List */
+.contact-attributes-list {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 9px;
   padding-top: 4px;
 }
 
-.contact-field-item {
+.attribute-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 11.5px;
+}
+
+.attribute-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #edf2f7;
+  color: #94a3b8;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 11.5px;
-  color: #475569;
-}
-
-.contact-field-item i {
-  width: 14px;
-  text-align: center;
-  color: #94a3b8;
+  justify-content: center;
   font-size: 11px;
+  flex-shrink: 0;
 }
 
-.latest-conversations-list {
+.attribute-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.attribute-label {
+  font-size: 10px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 600;
+}
+
+.attribute-val {
+  color: #1e293b;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.text-muted {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* History List */
+.history-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.history-item-row {
+.history-card-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px solid #f1f5f9;
+  gap: 9px;
+  padding: 8px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 6px;
+  transition: all 0.12s ease;
 }
 
-.history-item-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #f1f5f9;
-  color: #64748b;
+.history-card-item:hover {
+  background: #eff6ff;
+  border-color: #dbeafe;
+}
+
+.history-card-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #2563eb;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 11px;
+  flex-shrink: 0;
 }
 
-.history-item-copy {
+.history-card-info {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
-.history-item-subject {
+.history-card-title {
   font-size: 11.5px;
-  font-weight: 500;
-  color: #0f172a;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.history-item-date {
+.history-card-date {
   font-size: 10px;
   color: #94a3b8;
 }
 
-.empty-history-text {
-  font-size: 11px;
+.history-empty-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 8px;
+  text-align: center;
   color: #94a3b8;
-  padding: 4px 0;
+  gap: 6px;
+  font-size: 11px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px dashed #e2e8f0;
+}
+
+.history-empty-box i {
+  font-size: 16px;
+  color: #cbd5e1;
 }
 </style>
