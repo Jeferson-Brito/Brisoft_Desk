@@ -56,6 +56,13 @@
             <label>Nome para identificar este número</label>
             <input v-model="newAccountName" maxlength="80" placeholder="Ex.: Comercial, Suporte ou Unidade Centro" autofocus />
           </div>
+          <div style="flex:1;">
+            <label>Departamento padrão deste número</label>
+            <select v-model="newAccountFallbackDepartmentId">
+              <option value="">Usar o padrão geral do bot</option>
+              <option v-for="dept in departments" :key="dept.id" :value="dept.id">{{ dept.name }}</option>
+            </select>
+          </div>
           <button class="btn-primary" :disabled="busy" type="submit">Criar e gerar QR Code</button>
           <button class="btn-secondary" type="button" @click="showNewAccount = false">Cancelar</button>
         </form>
@@ -78,6 +85,9 @@
                   </span>
                   <span v-else class="routing-badge general" title="Menu com opções de departamentos">
                     <i class="fa-solid fa-layer-group"></i> Geral (Menu)
+                  </span>
+                  <span v-if="account.routingMode !== 'department' && account.fallbackDepartmentName" class="routing-badge fallback" :title="'Conversas pelo celular: ' + account.fallbackDepartmentName">
+                    <i class="fa-solid fa-mobile-screen"></i> {{ account.fallbackDepartmentName }}
                   </span>
                 </div>
                 <small>{{ account.phone ? formatPhone(account.phone) : accountStatusLabel(account.status) }}</small>
@@ -138,6 +148,14 @@
                     </option>
                   </select>
                 </div>
+                <div v-else class="department-picker-row fallback-picker">
+                  <label :for="`fallback-${account.id}`"><i class="fa-solid fa-mobile-screen"></i> Conversas feitas pelo celular:</label>
+                  <select :id="`fallback-${account.id}`" v-model="routingDrafts[account.id].fallbackDepartmentId" class="dept-select">
+                    <option value="">Usar o departamento padrão geral do bot</option>
+                    <option v-for="dept in departments" :key="dept.id" :value="dept.id">{{ dept.name }}</option>
+                  </select>
+                  <small>Este destino é individual para este número e tem prioridade sobre o padrão do bot.</small>
+                </div>
 
                 <div class="routing-footer">
                   <button
@@ -194,6 +212,7 @@ const serverInfo = ref(null)
 const logs = ref([])
 const showNewAccount = ref(false)
 const newAccountName = ref('')
+const newAccountFallbackDepartmentId = ref('')
 const selectedAccountId = ref(null)
 const busy = ref(false)
 const departments = ref([])
@@ -219,7 +238,8 @@ watch(accounts, (newAccounts) => {
 function initDraft(account) {
   routingDrafts.value[account.id] = {
     routingMode: account.routingMode || 'general',
-    departmentId: account.departmentId || (departments.value[0]?.id || '')
+    departmentId: account.departmentId || (departments.value[0]?.id || ''),
+    fallbackDepartmentId: account.fallbackDepartmentId || ''
   }
 }
 
@@ -277,6 +297,7 @@ function isRoutingModified(account) {
   const currentDept = account.departmentId || ''
   if (draft.routingMode !== currentMode) return true
   if (draft.routingMode === 'department' && draft.departmentId !== currentDept) return true
+  if (draft.routingMode !== 'department' && draft.fallbackDepartmentId !== (account.fallbackDepartmentId || '')) return true
   return false
 }
 
@@ -289,10 +310,13 @@ async function saveRouting(account) {
   savingRouting.value[account.id] = true
   try {
     const selectedDeptObj = departments.value.find(d => String(d.id) === String(draft.departmentId))
+    const fallbackDeptObj = departments.value.find(d => String(d.id) === String(draft.fallbackDepartmentId))
     const payload = {
       routing_mode: draft.routingMode,
       department_id: draft.routingMode === 'department' ? draft.departmentId : null,
-      department_name: draft.routingMode === 'department' ? (selectedDeptObj?.name || null) : null
+      department_name: draft.routingMode === 'department' ? (selectedDeptObj?.name || null) : null,
+      fallback_department_id: draft.routingMode === 'department' ? null : (draft.fallbackDepartmentId || null),
+      fallback_department_name: draft.routingMode === 'department' ? null : (fallbackDeptObj?.name || null)
     }
     const { data } = await connectionsApi.updateWhatsApp(account.id, payload)
     if (data.success) {
@@ -310,10 +334,16 @@ async function createAccount() {
   if (!newAccountName.value.trim()) return ui.showToast('Informe um nome para a conta.', 'error')
   busy.value = true
   try {
-    const { data } = await connectionsApi.createWhatsApp(newAccountName.value.trim())
+    const fallbackDept = departments.value.find(d => String(d.id) === String(newAccountFallbackDepartmentId.value))
+    const { data } = await connectionsApi.createWhatsApp({
+      name: newAccountName.value.trim(),
+      fallback_department_id: newAccountFallbackDepartmentId.value || null,
+      fallback_department_name: fallbackDept?.name || null
+    })
     await loadAccounts()
     selectedAccountId.value = data.account.id
     newAccountName.value = ''
+    newAccountFallbackDepartmentId.value = ''
     showNewAccount.value = false
     ui.showToast('Conta criada. Escaneie o QR Code para conectar.')
   } catch (error) { ui.showToast(error.response?.data?.error || 'Erro ao criar conta.', 'error') }
@@ -393,5 +423,8 @@ onBeforeUnmount(() => clearInterval(refreshTimer))
 .routing-footer{display:flex;align-items:center;gap:12px;padding-top:4px}
 .btn-save-routing{padding:6px 14px;font-size:11px}
 .unsaved-badge{font-size:10.5px;font-weight:600;color:#d97706;display:inline-flex;align-items:center;gap:4px}
+.new-account-form select{width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#fff}
+.routing-badge.fallback{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.fallback-picker{background:#eff6ff;border-color:#bfdbfe;flex-wrap:wrap}.fallback-picker label{color:#1d4ed8}.fallback-picker small{width:100%;color:#64748b;font-size:10.5px}
 @media(max-width:900px){.server-info-grid,.account-data,.routing-modes-grid{grid-template-columns:1fr}}
 </style>

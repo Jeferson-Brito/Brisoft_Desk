@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS tickets (
 );
 
 CREATE TABLE IF NOT EXISTS ticket_collaborators (
-    ticket_id UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    ticket_id TEXT NOT NULL,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     added_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,

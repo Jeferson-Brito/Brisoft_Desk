@@ -128,6 +128,18 @@ test('limpa departamento quando roteamento é alterado para geral', () => {
   assert.equal(result.departmentName, null);
 });
 
+test('preserva um departamento padrão individual em conta com menu geral', () => {
+  const result = whatsappService._test.normalizeAccountRouting({
+    routing_mode: 'general',
+    fallback_department_id: 'dept-comercial',
+    fallback_department_name: 'Comercial'
+  });
+  assert.equal(result.routingMode, 'general');
+  assert.equal(result.departmentId, null);
+  assert.equal(result.fallbackDepartmentId, 'dept-comercial');
+  assert.equal(result.fallbackDepartmentName, 'Comercial');
+});
+
 test('restaura o roteamento anterior quando a persistência falha', async () => {
   const account = {
     routingMode: 'department',

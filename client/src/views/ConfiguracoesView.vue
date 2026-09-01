@@ -146,7 +146,7 @@
                 <option :value="null">Selecione um departamento</option>
                 <option v-for="department in settingsStore.departments" :key="department.id" :value="department.id">{{ department.name }}</option>
               </select>
-              <span class="bot-field-help">Usado quando o bot está desligado ou excede o limite de tentativas.</span>
+              <span class="bot-field-help">Último recurso: usado quando a conta do WhatsApp não possui departamento dedicado nem padrão individual.</span>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
               <div>

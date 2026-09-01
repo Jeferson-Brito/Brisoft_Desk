@@ -112,22 +112,32 @@ function normalizeAccountRouting(config = {}) {
   const departmentName = routingMode === ROUTING_MODE_DEPARTMENT
     ? String(config.department_name || config.departmentName || '').trim().slice(0, 120) || null
     : null;
-  return { routingMode, departmentId, departmentName };
+  const fallbackDepartmentId = String(config.fallback_department_id || config.fallbackDepartmentId || '').trim() || null;
+  const fallbackDepartmentName = String(config.fallback_department_name || config.fallbackDepartmentName || '').trim().slice(0, 120) || null;
+  return { routingMode, departmentId, departmentName, fallbackDepartmentId, fallbackDepartmentName };
 }
 
 async function applyAccountRoutingWithPersistence(account, routing, persist) {
+  const hadFallbackDepartmentId = Object.prototype.hasOwnProperty.call(account, 'fallbackDepartmentId');
+  const hadFallbackDepartmentName = Object.prototype.hasOwnProperty.call(account, 'fallbackDepartmentName');
   const previousRouting = {
     routingMode: account.routingMode,
     departmentId: account.departmentId,
-    departmentName: account.departmentName
+    departmentName: account.departmentName,
+    fallbackDepartmentId: account.fallbackDepartmentId,
+    fallbackDepartmentName: account.fallbackDepartmentName
   };
   account.routingMode = routing.routingMode;
   account.departmentId = routing.departmentId;
   account.departmentName = routing.departmentName;
+  if (Object.prototype.hasOwnProperty.call(routing, 'fallbackDepartmentId')) account.fallbackDepartmentId = routing.fallbackDepartmentId;
+  if (Object.prototype.hasOwnProperty.call(routing, 'fallbackDepartmentName')) account.fallbackDepartmentName = routing.fallbackDepartmentName;
   try {
     await persist();
   } catch (error) {
     Object.assign(account, previousRouting);
+    if (!hadFallbackDepartmentId) delete account.fallbackDepartmentId;
+    if (!hadFallbackDepartmentName) delete account.fallbackDepartmentName;
     throw error;
   }
 }
@@ -438,6 +448,8 @@ class WhatsAppService {
       routing_mode: account.routingMode,
       department_id: account.departmentId || null,
       department_name: account.departmentName || null,
+      fallback_department_id: account.fallbackDepartmentId || null,
+      fallback_department_name: account.fallbackDepartmentName || null,
       created_at: account.createdAt,
       last_connected_at: account.lastConnectedAt || null
     }));
@@ -465,6 +477,8 @@ class WhatsAppService {
         routingMode: routing.routingMode,
         departmentId: routing.departmentId,
         departmentName: routing.departmentName,
+        fallbackDepartmentId: routing.fallbackDepartmentId,
+        fallbackDepartmentName: routing.fallbackDepartmentName,
         createdAt: config.created_at || new Date().toISOString(),
         lastConnectedAt: config.last_connected_at || null,
         status: 'disconnected',
@@ -492,11 +506,12 @@ class WhatsAppService {
     return this.accounts.get(id);
   }
 
-  async createAccount(name) {
+  async createAccount(name, value = {}) {
     const cleanName = String(name || '').trim();
     if (!cleanName) throw new Error('Informe um nome para identificar a conta.');
     if (this.accounts.size >= 20) throw new Error('Limite de 20 contas do WhatsApp atingido.');
-    const account = this.ensureAccount({ id: crypto.randomUUID(), name: cleanName, active: true });
+    const account = this.ensureAccount({ id: crypto.randomUUID(), name: cleanName, active: true, ...value });
+    if (account.fallbackDepartmentId) await this.validateFallbackDepartment(account);
     await this.saveConfigs();
     await this.initialize(account.id);
     return this.publicAccount(account, true);
@@ -520,6 +535,15 @@ class WhatsAppService {
       routing.departmentId = department.id;
       routing.departmentName = department.name;
     }
+    if (routing.fallbackDepartmentId) {
+      const { data: fallback, error } = await supabase.from('departments').select('id, name').eq('id', routing.fallbackDepartmentId).maybeSingle();
+      if (error) throw new Error(`Não foi possível validar o departamento padrão da conta: ${error.message}`);
+      if (!fallback) throw new Error('O departamento padrão individual não foi encontrado.');
+      routing.fallbackDepartmentId = fallback.id;
+      routing.fallbackDepartmentName = fallback.name;
+    } else {
+      routing.fallbackDepartmentName = null;
+    }
 
     await applyAccountRoutingWithPersistence(
       account,
@@ -528,6 +552,15 @@ class WhatsAppService {
     );
     this.emitAccounts();
     return this.publicAccount(account, true);
+  }
+
+  async validateFallbackDepartment(account) {
+    if (!account?.fallbackDepartmentId) return null;
+    const { data, error } = await supabase.from('departments').select('id, name').eq('id', account.fallbackDepartmentId).maybeSingle();
+    if (error || !data) throw new Error('O departamento padrão individual não foi encontrado.');
+    account.fallbackDepartmentId = data.id;
+    account.fallbackDepartmentName = data.name;
+    return data;
   }
 
   async initialize(accountId) {
@@ -846,7 +879,9 @@ class WhatsAppService {
       whatsappAccountId: account.id,
       whatsappRoutingMode: account.routingMode,
       whatsappDepartmentId: account.departmentId,
-      whatsappDepartmentName: account.departmentName
+      whatsappDepartmentName: account.departmentName,
+      whatsappFallbackDepartmentId: account.fallbackDepartmentId,
+      whatsappFallbackDepartmentName: account.fallbackDepartmentName
     }, this.io, scopedSender);
     if (media.type && !media.url && result?.ticket?.id) {
       this.retryMissingMedia(account, msg, downloadMediaMessage, downloadContentFromMessage, result.ticket.id).catch(error => {
@@ -897,7 +932,9 @@ class WhatsAppService {
       whatsappAccountName: account.name,
       whatsappRoutingMode: account.routingMode,
       whatsappDepartmentId: account.departmentId,
-      whatsappDepartmentName: account.departmentName
+      whatsappDepartmentName: account.departmentName,
+      whatsappFallbackDepartmentId: account.fallbackDepartmentId,
+      whatsappFallbackDepartmentName: account.fallbackDepartmentName
     }, this.io, this);
     if (media.type && !media.url && result?.ticket?.id) {
       this.retryMissingMedia(account, msg, downloadMediaMessage, downloadContentFromMessage, result.ticket.id).catch(error => {
@@ -1151,6 +1188,8 @@ class WhatsAppService {
       routingMode: account.routingMode,
       departmentId: account.departmentId,
       departmentName: account.departmentName,
+      fallbackDepartmentId: account.fallbackDepartmentId,
+      fallbackDepartmentName: account.fallbackDepartmentName,
       lastConnectedAt: account.lastConnectedAt,
       createdAt: account.createdAt,
       ...(includeQr ? { qrCode: account.qrCode } : {})

@@ -12,7 +12,7 @@ class WhatsAppController {
 
   async createAccount(req, res) {
     try {
-      const account = await whatsappService.createAccount(req.body?.name);
+      const account = await whatsappService.createAccount(req.body?.name, req.body || {});
       return res.status(201).json({ success: true, account });
     } catch (error) {
       return res.status(400).json({ success: false, error: error.message });

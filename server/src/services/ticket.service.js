@@ -327,7 +327,9 @@ class TicketService {
       whatsappAccountId,
       whatsappRoutingMode,
       whatsappDepartmentId,
-      whatsappDepartmentName
+      whatsappDepartmentName,
+      whatsappFallbackDepartmentId,
+      whatsappFallbackDepartmentName
     } = msgData;
     const targetJid = rawJid || from;
     if (!targetJid || targetJid === 'undefined') {
@@ -363,7 +365,15 @@ class TicketService {
         ? query.in('channel', ['whatsapp', whatsappChannel])
         : query.eq('channel', whatsappChannel);
       const optionsText = departmentOptions(deptList);
-      const defaultDepartment = deptList.find(dept => dept.id === botConfig.default_department_id) || deptList[0] || null;
+      const accountFallbackDepartment = deptList.find(dept =>
+        String(dept.id) === String(whatsappFallbackDepartmentId || '') ||
+        (whatsappFallbackDepartmentName && normalizeBotInput(dept.name) === normalizeBotInput(whatsappFallbackDepartmentName))
+      ) || null;
+      // Padrão individual do número tem prioridade. O padrão global do bot é
+      // usado somente quando a conta não possui um destino próprio.
+      const defaultDepartment = accountFallbackDepartment
+        || deptList.find(dept => dept.id === botConfig.default_department_id)
+        || deptList[0] || null;
       const botVariables = (extra = {}) => ({
         nome: cleanName,
         departamento: defaultDepartment?.name || 'fila de atendimento',
@@ -1306,7 +1316,9 @@ ${rendered}`,
       whatsappAccountName,
       whatsappRoutingMode,
       whatsappDepartmentId,
-      whatsappDepartmentName
+      whatsappDepartmentName,
+      whatsappFallbackDepartmentId,
+      whatsappFallbackDepartmentName
     } = msgData;
     try {
       await ensureConversationTrackingColumns();
@@ -1364,10 +1376,14 @@ ${rendered}`,
           ? departments.find(department => String(department.id) === String(whatsappDepartmentId)
             || normalizeBotInput(department.name) === normalizeBotInput(whatsappDepartmentName))
           : null;
+        const accountFallbackDepartment = departments.find(department =>
+          String(department.id) === String(whatsappFallbackDepartmentId || '') ||
+          (whatsappFallbackDepartmentName && normalizeBotInput(department.name) === normalizeBotInput(whatsappFallbackDepartmentName))
+        ) || null;
         const inheritedDepartment = previousTicket?.department_id
           ? departments.find(department => String(department.id) === String(previousTicket.department_id))
           : null;
-        const targetDepartment = dedicatedDepartment || inheritedDepartment
+        const targetDepartment = dedicatedDepartment || accountFallbackDepartment || inheritedDepartment
           || departments.find(department => String(department.id) === String(botConfig.default_department_id))
           || departments[0] || null;
         const clientName = knownContact?.name || previousTicket?.client_name || (phone ? `Cliente ${phone.slice(-4)}` : 'Cliente');
@@ -1430,6 +1446,20 @@ ${rendered}`,
           handled_via: mergeHandledVia(inferredCurrent, 'whatsapp_device'),
           direct_whatsapp_messages: (ticket.direct_whatsapp_messages || 0) + 1
         };
+        // Se esta conta possui destino individual, uma conversa feita pelo
+        // celular deve aparecer nesse setor, independentemente do histórico do
+        // mesmo contato em outro número do WhatsApp.
+        if (whatsappDepartmentId || whatsappFallbackDepartmentId) {
+          const departments = await getCachedDepartments();
+          const accountDepartment = departments.find(department =>
+            String(department.id) === String(whatsappDepartmentId || whatsappFallbackDepartmentId) ||
+            normalizeBotInput(department.name) === normalizeBotInput(whatsappDepartmentName || whatsappFallbackDepartmentName)
+          );
+          if (accountDepartment) {
+            updatePayload.department = accountDepartment.name;
+            updatePayload.department_id = accountDepartment.id;
+          }
+        }
         if (knownContact) {
           updatePayload.contact_id = knownContact.id;
           updatePayload.is_employee = Boolean(knownContact.is_employee);
