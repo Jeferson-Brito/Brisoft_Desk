@@ -149,7 +149,7 @@
         v-if="showScrollBottom"
         type="button"
         class="scroll-bottom-btn"
-        :style="{ bottom: canSend ? '88px' : '24px' }"
+        :style="{ bottom: metricsExpanded ? (canSend ? '138px' : '68px') : (canSend ? '88px' : '24px') }"
         title="Rolar para as mensagens recentes"
         @click="scrollToBottomSmooth"
       >
@@ -163,25 +163,39 @@
       class="chat-footer"
       id="chatFooter"
     >
-      <!-- Linha 1: Abas de Modo (Responder vs Observação) -->
+      <!-- Linha 1: Abas de Modo (Responder vs Observação) e Toggle de Indicadores -->
       <div class="chat-mode-tabs">
+        <div class="chat-mode-tabs-left">
+          <button
+            type="button"
+            class="chat-mode-btn"
+            :class="{ active: chatMode === 'responder' }"
+            id="chatModeResponder"
+            @click="setChatMode('responder')"
+          >
+            Responder
+          </button>
+          <button
+            type="button"
+            class="chat-mode-btn"
+            :class="{ active: chatMode === 'observacao' }"
+            id="chatModeObs"
+            @click="setChatMode('observacao')"
+          >
+            Observação
+          </button>
+        </div>
+
         <button
           type="button"
-          class="chat-mode-btn"
-          :class="{ active: chatMode === 'responder' }"
-          id="chatModeResponder"
-          @click="setChatMode('responder')"
+          class="chat-metrics-tab-btn"
+          :class="{ active: metricsExpanded }"
+          title="Alternar indicadores do atendente"
+          @click="toggleMetrics"
         >
-          Responder
-        </button>
-        <button
-          type="button"
-          class="chat-mode-btn"
-          :class="{ active: chatMode === 'observacao' }"
-          id="chatModeObs"
-          @click="setChatMode('observacao')"
-        >
-          Observação
+          <i class="fa-solid fa-chart-line"></i>
+          <span>Indicadores</span>
+          <i class="fa-solid" :class="metricsExpanded ? 'fa-chevron-down' : 'fa-chevron-up'" style="font-size:9.5px;"></i>
         </button>
       </div>
 
@@ -262,6 +276,59 @@
       </div>
     </div>
 
+    <!-- Barra de Indicadores KPIs no rodapé do ChatPanel -->
+    <div v-if="metricsExpanded && ticket" class="chat-kpi-bar">
+      <div class="kpi-mini-card">
+        <div class="kpi-mini-icon" style="background:#ecfdf5;color:#10b981;">
+          <i class="fa-regular fa-comment-dots"></i>
+        </div>
+        <div class="kpi-mini-info">
+          <span class="kpi-mini-label">Chats do setor</span>
+          <span class="kpi-mini-value">{{ performance?.today?.departmentReceived || 0 }}</span>
+        </div>
+      </div>
+
+      <div class="kpi-mini-card">
+        <div class="kpi-mini-icon" style="background:#eff6ff;color:#2563eb;">
+          <i class="fa-regular fa-clock"></i>
+        </div>
+        <div class="kpi-mini-info">
+          <span class="kpi-mini-label">Meus atendimentos</span>
+          <span class="kpi-mini-value">{{ performance?.today?.agentCompleted || 0 }}</span>
+        </div>
+      </div>
+
+      <div class="kpi-mini-card">
+        <div class="kpi-mini-icon" style="background:#ecfdf5;color:#059669;">
+          <i class="fa-solid fa-chart-pie"></i>
+        </div>
+        <div class="kpi-mini-info">
+          <span class="kpi-mini-label">TMA no mês</span>
+          <span class="kpi-mini-value">{{ performance?.metrics?.tma || '00:00:00' }}</span>
+        </div>
+      </div>
+
+      <div class="kpi-mini-card">
+        <div class="kpi-mini-icon" style="background:#f3e8ff;color:#7e22ce;">
+          <i class="fa-solid fa-gauge-high"></i>
+        </div>
+        <div class="kpi-mini-info">
+          <span class="kpi-mini-label">SLA no mês</span>
+          <span class="kpi-mini-value">{{ performance?.metrics?.slaPercent || 0 }}%</span>
+        </div>
+      </div>
+
+      <div class="kpi-mini-card">
+        <div class="kpi-mini-icon" style="background:#fffbeb;color:#d97706;">
+          <i class="fa-regular fa-star"></i>
+        </div>
+        <div class="kpi-mini-info">
+          <span class="kpi-mini-label">Média de avaliação</span>
+          <span class="kpi-mini-value">{{ ratingLabel }}</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal Transferir Atendimento -->
     <ModalTransferir
       v-if="showTransferModal && ticket"
@@ -288,11 +355,29 @@ const props = defineProps({
     type: Object,
     default: null
   },
+  performance: {
+    type: Object,
+    default: () => ({
+      today: { departmentReceived: 0, agentCompleted: 0 },
+      metrics: { tma: '00:00:00', slaPercent: 0, ratingAverage: null }
+    })
+  },
   isDetailsOpen: {
     type: Boolean,
     default: false
   }
 })
+
+const metricsExpanded = ref(localStorage.getItem('attendance_metrics_expanded') === 'true')
+
+function toggleMetrics() {
+  metricsExpanded.value = !metricsExpanded.value
+  localStorage.setItem('attendance_metrics_expanded', String(metricsExpanded.value))
+}
+
+const ratingLabel = computed(() => props.performance?.metrics?.ratingAverage == null
+  ? '—'
+  : `${Number(props.performance.metrics.ratingAverage).toFixed(1)} ★`)
 
 defineEmits(['toggle-details', 'go-back'])
 
@@ -878,8 +963,93 @@ watch(inputMsg, (newVal) => {
 
 .chat-mode-tabs {
   display: flex;
-  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
   padding: 0 2px 2px;
+}
+
+.chat-mode-tabs-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.chat-metrics-tab-btn {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chat-metrics-tab-btn:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.chat-metrics-tab-btn.active {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: var(--brand-primary, #2563eb);
+}
+
+.chat-kpi-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 14px 8px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  overflow-x: auto;
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.chat-kpi-bar .kpi-mini-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.chat-kpi-bar .kpi-mini-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.chat-kpi-bar .kpi-mini-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.chat-kpi-bar .kpi-mini-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.chat-kpi-bar .kpi-mini-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
 }
 
 .chat-mode-btn {
