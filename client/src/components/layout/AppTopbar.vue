@@ -30,7 +30,7 @@ const sidebar = useSidebarStore()
 const route   = useRoute()
 
 const VIEW_META = {
-  dashboard:         { title: 'Dashboard',               subtitle: 'Visão geral dos atendimentos e métricas operacionais.' },
+  dashboard:         { title: 'Dashboard',               subtitle: 'Saúde da empresa, departamentos e desempenho das equipes.' },
   atendimentos:      { title: 'Atendimentos',            subtitle: '' },
   historico:         { title: 'Conversas',                subtitle: 'Consulte e acompanhe conversas anteriores.' },
   clientes:          { title: 'Contatos',                subtitle: 'Cadastre clientes e identifique funcionários da empresa.' },

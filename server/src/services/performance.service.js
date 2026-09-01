@@ -211,10 +211,16 @@ class PerformanceService {
     if (!isSupabaseConfigured()) return null;
     const requestedPeriod = parseMonth(filters.month);
     const previousPeriod = parseMonth(requestedPeriod.previousKey);
-    const [{ data: users }, { data: departments }] = await Promise.all([
+    const [{ data: users }, { data: departments }, supervisorLinksResult] = await Promise.all([
       supabase.from('users').select('id, name, role, department_id, avatar_url, is_active').order('name'),
-      supabase.from('departments').select('id, name, color, sla_target_minutes').order('name')
+      supabase.from('departments').select('id, name, color, sla_target_minutes').order('name'),
+      supabase.from('supervisor_departments').select('user_id, department_id')
     ]);
+    const supervisorLinks = supervisorLinksResult.error ? [] : (supervisorLinksResult.data || []);
+    const memberDepartmentIds = member => [...new Set([
+      member?.department_id,
+      ...supervisorLinks.filter(link => String(link.user_id) === String(member?.id)).map(link => link.department_id)
+    ].filter(Boolean).map(String))];
 
     const admin = isAdmin(user);
     const supervisor = isSupervisor(user);
@@ -224,7 +230,7 @@ class PerformanceService {
       ? (filters.departmentId || null)
       : supervisor ? (filters.departmentId || null) : (user?.department_id || null);
     const requestedUser = (users || []).find(item => String(item.id) === String(filters.agentId || '')) || null;
-    if (supervisor && requestedUser && !allowedDepartmentIds.includes(String(requestedUser.department_id || ''))) throw new Error('Atendente fora do seu escopo de supervisão.');
+    if (supervisor && requestedUser && !memberDepartmentIds(requestedUser).some(id => allowedDepartmentIds.includes(id))) throw new Error('Atendente fora do seu escopo de supervisão.');
     const selectedUser = admin
       ? requestedUser
       : supervisor ? requestedUser : { id: user?.id, name: user?.name, department_id: user?.department_id };
@@ -260,11 +266,13 @@ class PerformanceService {
       agentCompleted: relevantClosed.filter(ticket => localDateKey(ticket.closed_at || ticket.updated_at) === todayKey).length
     } : { departmentReceived: 0, agentCompleted: 0 };
     const agentRows = (users || [])
-      .filter(item => item.role === 'Analista' && (!departmentId || String(item.department_id) === String(departmentId)) && (!supervisor || allowedDepartmentIds.includes(String(item.department_id || ''))))
+      .filter(item => item.is_active !== false && item.role !== 'Administrador'
+        && (!departmentId || memberDepartmentIds(item).includes(String(departmentId)))
+        && (!supervisor || memberDepartmentIds(item).some(id => allowedDepartmentIds.includes(id))))
       .map(agent => {
         const metrics = calculateMetrics({ ...{ createdTickets: currentData.created, closedTickets: currentData.closed, activeTickets: currentData.active, ratings: currentData.ratings, period: requestedPeriod }, agent });
         const oldMetrics = calculateMetrics({ ...{ createdTickets: previousData.created, closedTickets: previousData.closed, activeTickets: [], ratings: previousData.ratings, period: previousPeriod }, agent });
-        return { id: agent.id, name: agent.name, avatarUrl: agent.avatar_url, departmentId: agent.department_id, ...metrics, comparison: buildComparison(metrics, oldMetrics) };
+        return { id: agent.id, name: agent.name, role: agent.role, avatarUrl: agent.avatar_url, departmentId: departmentId || agent.department_id, departmentIds: memberDepartmentIds(agent), ...metrics, comparison: buildComparison(metrics, oldMetrics) };
       })
       .filter(item => !selectedUser || String(item.id) === String(selectedUser.id))
       .sort((a, b) => b.completed - a.completed);
@@ -276,7 +284,7 @@ class PerformanceService {
       const names = new Set(closedTickets.flatMap(ticket => [ticket.agent_name, ticket.encerrado_por]).filter(Boolean));
       const ratings = currentData.ratings.filter(rating => names.has(rating.agent_name));
       const metrics = calculateMetrics({ createdTickets, closedTickets, activeTickets, ratings, period: requestedPeriod });
-      const headcount = (users || []).filter(item => item.role === 'Analista' && String(item.department_id) === String(dept.id) && item.is_active !== false).length;
+      const headcount = (users || []).filter(item => item.role !== 'Administrador' && item.is_active !== false && memberDepartmentIds(item).includes(String(dept.id))).length;
       return { id: dept.id, name: dept.name, color: dept.color, headcount, averagePerAgent: headcount ? round(metrics.completed / headcount, 1) : 0, ...metrics };
     });
 
@@ -296,7 +304,7 @@ class PerformanceService {
       departments: departmentRows,
       filters: {
         departments: admin ? (departments || []) : (departments || []).filter(item => allowedDepartmentIds.includes(String(item.id))),
-        agents: (admin || supervisor) ? (users || []).filter(item => item.role === 'Analista' && item.is_active !== false && (admin || allowedDepartmentIds.includes(String(item.department_id || '')))) : []
+        agents: (admin || supervisor) ? (users || []).filter(item => item.role === 'Analista' && item.is_active !== false && (admin || memberDepartmentIds(item).some(id => allowedDepartmentIds.includes(id)))) : []
       },
       snapshotEnabled: snapshotTableAvailable === true || snapshotFallbackAvailable === true,
       snapshotStorage: snapshotTableAvailable === true ? 'monthly_table' : (snapshotFallbackAvailable === true ? 'system_settings' : 'pending_migration')
