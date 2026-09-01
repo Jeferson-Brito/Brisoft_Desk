@@ -86,4 +86,19 @@
   .chat-back-btn {
     display: flex !important;
   }
+
+  .chat-header {
+    padding: 0 10px !important;
+    gap: 6px;
+  }
+
+  .handling-channel-badge,
+  .employee-contact-badge {
+    display: none !important;
+  }
+
+  .contact-call-actions {
+    padding-right: 6px;
+    margin-right: 0;
+  }
 }

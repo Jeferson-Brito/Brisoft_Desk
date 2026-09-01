@@ -54,6 +54,9 @@
           <span v-if="ticket.unreadCount > 0" class="unread-count-pill">
             {{ ticket.unreadCount }}
           </span>
+          <span class="queue-item-open" aria-hidden="true">
+            <i class="fa-solid fa-arrow-right"></i>
+          </span>
         </div>
       </div>
     </div>
@@ -136,29 +139,35 @@ function cleanPreview(preview) {
 
 <style scoped>
 .queue-item-card {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 11px 12px;
-  margin: 2px 8px;
-  border-radius: 9px;
-  border: 1px solid transparent;
+  min-height: 72px;
+  padding: 11px 6px;
+  margin: 0 12px;
+  border-radius: 0;
+  border: 0;
+  border-bottom: 1px solid #e8edf3;
   cursor: pointer;
   background: #ffffff;
-  transition: all 0.12s ease;
+  transition: background-color 0.16s ease, padding 0.16s ease, transform 0.16s ease;
   user-select: none;
   box-sizing: border-box;
 }
 
 .queue-item-card:hover {
-  background-color: #f8fafc;
-  border-color:#eef2f7;
+  background-color: #f8fbff;
+  padding-left: 9px;
 }
 
 .queue-item-card.active {
   background-color: #eff6ff !important;
-  border-color:#dbeafe;
-  box-shadow:inset 3px 0 0 #2563eb;
+  margin: 5px 8px;
+  padding: 11px 10px;
+  border-bottom-color: transparent;
+  border-radius: 10px;
+  box-shadow: inset 4px 0 0 #2563eb, 0 4px 14px rgba(37, 99, 235, 0.08);
 }
 
 .avatar-wrap {
@@ -167,8 +176,8 @@ function cleanPreview(preview) {
 }
 
 .user-avatar {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   color: #ffffff;
   font-weight: 700;
@@ -176,6 +185,14 @@ function cleanPreview(preview) {
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 0 0 3px #f1f5f9;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.queue-item-card:hover .user-avatar,
+.queue-item-card.active .user-avatar {
+  transform: scale(1.04);
+  box-shadow: 0 0 0 3px #dbeafe;
 }
 
 .online-indicator {
@@ -300,5 +317,31 @@ function cleanPreview(preview) {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.queue-item-open {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: #e8f1ff;
+  color: #2563eb;
+  font-size: 9px;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 0.16s ease, transform 0.16s ease, background-color 0.16s ease;
+}
+
+.queue-item-card:hover .queue-item-open,
+.queue-item-card.active .queue-item-open {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.queue-item-card.active .queue-item-open {
+  background: #2563eb;
+  color: #ffffff;
 }
 </style>

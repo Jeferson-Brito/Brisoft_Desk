@@ -377,9 +377,9 @@ const filteredTickets = computed(() => {
 
 .queue-filter-btn,
 .queue-new-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   border: 1px solid #e2e8f0;
   background: #ffffff;
   color: #64748b;
@@ -389,7 +389,7 @@ const filteredTickets = computed(() => {
   font-size: 12px;
   cursor: pointer;
   position: relative;
-  transition: all 0.15s ease;
+  transition: transform 0.16s ease, color 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
 }
 
 .queue-filter-btn:hover,
@@ -397,6 +397,7 @@ const filteredTickets = computed(() => {
   color: #1f62d0;
   border-color: #bfdbfe;
   background: #eff6ff;
+  transform: translateY(-1px);
 }
 
 .queue-filter-btn.active {
@@ -629,7 +630,7 @@ const filteredTickets = computed(() => {
 .queue-cards-stream {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 12px;
+  padding: 2px 0 12px;
 }
 
 .queue-cards-wrapper {

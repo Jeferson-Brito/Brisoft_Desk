@@ -426,5 +426,6 @@ onBeforeUnmount(() => clearInterval(refreshTimer))
 .new-account-form select{width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#fff}
 .routing-badge.fallback{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
 .fallback-picker{background:#eff6ff;border-color:#bfdbfe;flex-wrap:wrap}.fallback-picker label{color:#1d4ed8}.fallback-picker small{width:100%;color:#64748b;font-size:10.5px}
-@media(max-width:900px){.server-info-grid,.account-data,.routing-modes-grid{grid-template-columns:1fr}}
+@media(max-width:900px){.server-info-grid,.account-data,.routing-modes-grid{grid-template-columns:1fr}.new-account-form{align-items:stretch;flex-direction:column}.new-account-form .btn-primary{width:100%;justify-content:center}.account-summary{align-items:flex-start}.connection-status{margin-left:auto}.account-actions,.routing-footer{flex-wrap:wrap}.department-picker-row{align-items:stretch;flex-direction:column}.dept-select{width:100%;box-sizing:border-box}}
+@media(max-width:520px){.connection-summary,.account-summary{padding:11px;gap:9px}.connection-summary>div:nth-child(2),.account-summary>div:nth-child(2){min-width:0}.connection-summary strong,.account-summary strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.account-actions>*{flex:1;justify-content:center}.log-entry{grid-template-columns:54px 37px minmax(0,1fr);font-size:9.5px}.qr-area img{width:min(220px,100%);height:auto}.routing-settings-box,.account-details,.connection-details{padding:11px}}
 </style>

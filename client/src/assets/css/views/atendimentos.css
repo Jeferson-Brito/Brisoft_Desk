@@ -33,14 +33,15 @@
 }
 
 .chat-header {
-  height: 54px;
-  min-height: 54px;
+  height: 58px;
+  min-height: 58px;
   padding: 0 16px;
   border-bottom: 1px solid #e5e7eb;
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: #ffffff;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
   flex-shrink: 0;
   box-sizing: border-box;
 }
@@ -81,6 +82,34 @@
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+
+.contact-call-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 4px;
+  padding-right: 9px;
+  border-right: 1px solid #e2e8f0;
+}
+
+.upcoming-action {
+  display: inline-flex;
+  cursor: help;
+}
+
+.header-call-btn {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 12px;
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 
 .sla-timer-pill {
@@ -141,9 +170,9 @@
 }
 
 .header-tool-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
   color: #64748b;

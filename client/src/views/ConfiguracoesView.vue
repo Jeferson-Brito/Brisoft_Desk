@@ -59,20 +59,23 @@
       <!-- ABA 1: GERAL -->
       <div v-else-if="activeTab === 'geral'" class="settings-section-card">
         <div class="settings-section-header">
-          <span class="settings-section-heading">Informações da Empresa</span>
+          <div>
+            <span class="settings-section-heading">Informações da empresa</span>
+            <div class="settings-section-description">Dados usados para identificar sua operação dentro da plataforma.</div>
+          </div>
           <button class="btn-primary" @click="saveGeneralSettings">
-            <i class="fa-solid fa-floppy-disk"></i> Salvar Alterações
+            <i class="fa-solid fa-floppy-disk"></i> Salvar alterações
           </button>
         </div>
 
         <div class="settings-form-grid-2">
-          <div>
-            <label style="font-size:11.5px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Nome da Empresa</label>
-            <input v-model="formGeneral.company_name" type="text" style="width:100%;font-size:12.5px;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;" />
+          <div class="settings-field">
+            <label>Nome da empresa</label>
+            <input v-model="formGeneral.company_name" type="text" />
           </div>
-          <div>
-            <label style="font-size:11.5px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">CNPJ Principal</label>
-            <input v-model="formGeneral.cnpj" type="text" style="width:100%;font-size:12.5px;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;" />
+          <div class="settings-field">
+            <label>CNPJ principal</label>
+            <input v-model="formGeneral.cnpj" type="text" />
           </div>
         </div>
       </div>
@@ -80,13 +83,16 @@
       <!-- ABA 2: DEPARTAMENTOS -->
       <div v-else-if="activeTab === 'departamentos'" class="settings-section-card">
         <div class="settings-section-header">
-          <span class="settings-section-heading">Departamentos de Atendimento</span>
+          <div>
+            <span class="settings-section-heading">Departamentos de atendimento</span>
+            <div class="settings-section-description">Organize filas, cores e responsabilidades da equipe.</div>
+          </div>
           <button class="btn-primary" @click="showModalDept = true">
-            <i class="fa-solid fa-plus"></i> Novo Departamento
+            <i class="fa-solid fa-plus"></i> Novo departamento
           </button>
         </div>
 
-        <table class="data-table" style="width:100%;">
+        <div class="settings-table-wrap"><table class="data-table" style="width:100%;">
           <thead>
             <tr>
               <th>Departamento</th>
@@ -112,7 +118,7 @@
               </td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
       </div>
 
       <!-- ABA 3: CHATBOT -->
@@ -127,13 +133,13 @@
           </button>
         </div>
 
-        <div style="display:flex;flex-direction:column;gap:18px;">
-          <div style="padding:14px;border:1px solid #dbeafe;background:#f8fbff;border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:16px;">
+        <div class="settings-content-stack">
+          <div class="bot-status-card">
             <div>
               <strong style="display:block;font-size:13px;color:#1e293b;">Bot automático</strong>
               <span style="font-size:11.5px;color:#64748b;">Quando desligado, novos contatos vão diretamente para o departamento padrão.</span>
             </div>
-            <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;cursor:pointer;">
+            <label class="bot-status-toggle">
               <input v-model="botConfig.enabled" type="checkbox" />
               {{ botConfig.enabled ? 'Ativado' : 'Desativado' }}
             </label>
@@ -148,7 +154,7 @@
               </select>
               <span class="bot-field-help">Último recurso: usado quando a conta do WhatsApp não possui departamento dedicado nem padrão individual.</span>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="bot-number-grid">
               <div>
                 <label class="bot-field-label">Retomar por até (horas)</label>
                 <input v-model.number="botConfig.resume_window_hours" class="bot-field-control" type="number" min="1" max="168" />
@@ -162,8 +168,8 @@
 
           <div>
             <div class="bot-field-label" style="margin-bottom:8px;">Regras e rotinas</div>
-            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 18px;padding:12px;border:1px solid #e2e8f0;border-radius:8px;">
-              <label v-for="option in botBehaviorOptions" :key="option.key" style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:#334155;cursor:pointer;">
+            <div class="bot-behavior-grid">
+              <label v-for="option in botBehaviorOptions" :key="option.key" class="bot-behavior-option">
                 <input v-model="botConfig[option.key]" type="checkbox" style="margin-top:2px;" />
                 <span><strong style="display:block;">{{ option.label }}</strong><small style="color:#64748b;">{{ option.help }}</small></span>
               </label>
@@ -212,7 +218,7 @@
             </div>
           </div>
 
-          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,260px));gap:12px;">
+          <div class="bot-compact-grid">
             <div v-if="botConfig.auto_route_after_invalid">
               <label class="bot-field-label">Tentativas inválidas antes de encaminhar</label>
               <input v-model.number="botConfig.invalid_attempt_limit" class="bot-field-control" type="number" min="1" max="10" />
@@ -224,13 +230,13 @@
             </div>
           </div>
 
-          <div v-if="botConfig.collect_customer_name" style="max-width:260px;">
+          <div v-if="botConfig.collect_customer_name" class="bot-single-field">
             <label class="bot-field-label">Tentativas para informar o nome</label>
             <input v-model.number="botConfig.customer_name_attempt_limit" class="bot-field-control" type="number" min="1" max="5" />
             <span class="bot-field-help">Após esse limite, o atendimento continua sem salvar um nome.</span>
           </div>
 
-          <div class="settings-form-grid-3" style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">
+          <div class="settings-form-grid-3">
             <div>
               <label class="bot-field-label">Palavras para reabrir o menu</label>
               <input v-model="botConfig.menu_keywords" class="bot-field-control" type="text" />
@@ -254,7 +260,7 @@
           </div>
 
           <div>
-            <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px;gap:12px;">
+            <div class="bot-messages-header">
               <div>
                 <div class="bot-field-label">Mensagens automáticas</div>
                 <span class="bot-field-help">Variáveis: <code>{nome}</code>, <code>{departamento}</code>, <code>{opcoes}</code>, <code>{atendente}</code>, <code>{tentativa}</code>, <code>{limite}</code> e <code>{estrelas}</code>. Formatação do WhatsApp: <code>*negrito*</code>, <code>_itálico_</code> e <code>~riscado~</code>.</span>
@@ -262,7 +268,7 @@
               <button class="btn-secondary" type="button" @click="restoreBotDefaults">Restaurar textos padrão</button>
             </div>
 
-            <div style="display:flex;flex-direction:column;gap:12px;">
+            <div class="bot-message-list">
               <div v-for="field in botMessageFields" :key="field.key">
                 <label class="bot-field-label">{{ field.label }}</label>
                 <textarea v-model="botConfig[field.key]" :rows="field.rows || 3" maxlength="4000" class="bot-field-control" style="resize:vertical;line-height:1.45;"></textarea>
@@ -474,18 +480,18 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.bot-field-label { font-size:11.5px;font-weight:700;color:#475569;display:block;margin-bottom:5px; }
-.bot-field-control { width:100%;font-size:12.5px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#1e293b; }
-.bot-field-control:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.1); }
+.bot-field-label { font-size:11px;font-weight:500;color:#475569;display:block;margin-bottom:6px; }
+.bot-field-control { width:100%;min-height:39px;box-sizing:border-box;font-size:12px;padding:8px 11px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#1e293b;transition:border-color .15s ease,box-shadow .15s ease; }
+.bot-field-control:focus { outline:none;border-color:#60a5fa;box-shadow:0 0 0 3px rgba(59,130,246,.1); }
 .bot-field-help { font-size:10.5px;color:#94a3b8;margin-top:4px;display:block;line-height:1.4; }
 button:disabled { opacity:.55;cursor:not-allowed; }
-.inactivity-settings-card { border:1px solid #dbeafe;border-radius:10px;background:#f8fbff;overflow:hidden; }
+.inactivity-settings-card { border:1px solid #dbeafe;border-radius:11px;background:#f8fbff;overflow:hidden; }
 .inactivity-settings-header { display:flex;align-items:center;gap:10px;padding:14px; }
 .inactivity-settings-icon { width:34px;height:34px;border-radius:8px;background:#e0edff;color:#2563eb;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
 .inactivity-settings-title { display:flex;flex-direction:column;gap:2px;flex:1;min-width:0; }
 .inactivity-settings-title strong { color:#1e293b;font-size:13px; }
 .inactivity-settings-title span { color:#64748b;font-size:11px;line-height:1.35; }
-.inactivity-toggle { display:flex;align-items:center;gap:7px;color:#334155;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap; }
+.inactivity-toggle { display:flex;align-items:center;gap:7px;color:#334155;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap; }
 .inactivity-settings-body { display:grid;grid-template-columns:minmax(220px,1fr) minmax(240px,1fr);gap:14px;padding:14px;border-top:1px solid #dbeafe;background:#fff; }
 .inactivity-time-input { display:flex;align-items:center;gap:8px; }
 .inactivity-time-input .bot-field-control { max-width:130px; }

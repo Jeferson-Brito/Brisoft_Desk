@@ -35,11 +35,44 @@
 
       <!-- Ações à Direita -->
       <div class="chat-header-tools">
+        <div class="contact-call-actions" aria-label="Recursos de chamada em desenvolvimento">
+          <span class="upcoming-action" title="Ligação — em desenvolvimento">
+            <button type="button" class="header-call-btn" disabled aria-label="Ligação em desenvolvimento">
+              <i class="fa-solid fa-phone"></i>
+            </button>
+          </span>
+          <span class="upcoming-action" title="Chamada de vídeo — em desenvolvimento">
+            <button type="button" class="header-call-btn" disabled aria-label="Chamada de vídeo em desenvolvimento">
+              <i class="fa-solid fa-video"></i>
+            </button>
+          </span>
+        </div>
+
         <!-- Conexão WhatsApp / Atendente Responsável -->
-        <span v-if="handlingChannel?.label" class="handling-channel-badge" :class="handlingChannel.kind" style="padding: 4px 8px; font-size: 11.5px; border-radius: 6px;">
+        <div
+          v-if="handlingChannel?.label"
+          class="handling-channel-indicator"
+          :class="handlingChannel.kind"
+          tabindex="0"
+          :aria-label="handlingChannel.label"
+        >
           <i :class="handlingChannel.icon"></i>
-          {{ handlingChannel.label }}
-        </span>
+          <div class="handling-channel-popover" role="tooltip">
+            <strong><i :class="handlingChannel.icon"></i>{{ handlingChannel.label }}</strong>
+            <p>{{ handlingChannel.description }}</p>
+            <div class="handling-channel-legend">
+              <div :class="{ current: handlingChannel.kind === 'device' }">
+                <i class="fa-brands fa-whatsapp"></i><span><b>WhatsApp</b>Respondido diretamente pelo aplicativo.</span>
+              </div>
+              <div :class="{ current: handlingChannel.kind === 'platform' }">
+                <i class="fa-solid fa-headset"></i><span><b>Site</b>Respondido dentro do Brisoft Desk.</span>
+              </div>
+              <div :class="{ current: handlingChannel.kind === 'mixed' }">
+                <i class="fa-solid fa-shuffle"></i><span><b>Misto</b>Teve respostas pelos dois canais.</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <button
           v-if="canAssume"
@@ -51,6 +84,17 @@
         >
           <i class="fa-solid" :class="isAssuming ? 'fa-spinner fa-spin' : 'fa-hand-pointer'"></i>
           <span>{{ isAssuming ? 'Assumindo...' : 'Assumir' }}</span>
+        </button>
+
+        <button
+          type="button"
+          class="header-tool-btn"
+          :class="{ active: showMessageSearch }"
+          title="Pesquisar mensagens nesta conversa"
+          aria-label="Pesquisar mensagens nesta conversa"
+          @click="toggleMessageSearch"
+        >
+          <i class="fa-solid fa-magnifying-glass"></i>
         </button>
 
         <!-- 3 Pontinhos Dropdown (Menu de Ações) -->
@@ -92,6 +136,27 @@
       </div>
     </div>
 
+    <Transition name="chat-search-slide">
+      <div v-if="ticket && showMessageSearch" class="chat-message-searchbar">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input
+          ref="messageSearchInputRef"
+          v-model="messageSearchQuery"
+          type="search"
+          autocomplete="off"
+          placeholder="Pesquisar nesta conversa..."
+          @keydown.enter.prevent="goToNextSearchResult"
+          @keydown.esc="closeMessageSearch"
+        />
+        <span class="chat-search-counter">
+          {{ messageSearchQuery ? (messageSearchMatches.length ? `${activeSearchIndex + 1} de ${messageSearchMatches.length}` : 'Nenhum resultado') : 'Digite para pesquisar' }}
+        </span>
+        <button type="button" :disabled="!messageSearchMatches.length" title="Resultado anterior" @click="goToPreviousSearchResult"><i class="fa-solid fa-chevron-up"></i></button>
+        <button type="button" :disabled="!messageSearchMatches.length" title="Próximo resultado" @click="goToNextSearchResult"><i class="fa-solid fa-chevron-down"></i></button>
+        <button type="button" title="Fechar pesquisa" @click="closeMessageSearch"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </Transition>
+
     <!-- Mensagens do Chat -->
     <div class="chat-messages-container" id="chatMessagesBox" ref="msgBoxRef">
       <!-- Empty state se não tiver ticket -->
@@ -125,13 +190,21 @@
           <div class="chat-date-sticky-wrapper">
             <div class="chat-date-pill">{{ group.dateLabel }}</div>
           </div>
-          <ChatBubble
+          <div
             v-for="(m, mIdx) in group.messages"
             :key="m.id || `${gIdx}_${mIdx}`"
-            :msg="m"
-            :initials="ticket.initials"
-            :avatar-color="ticket.avatarColor"
-          />
+            class="chat-message-search-anchor"
+            :class="{
+              'search-hit': isSearchMatch(m),
+              'search-hit-active': isActiveSearchMessage(m)
+            }"
+          >
+            <ChatBubble
+              :msg="m"
+              :initials="ticket.initials"
+              :avatar-color="ticket.avatarColor"
+            />
+          </div>
         </div>
 
         <div
@@ -447,6 +520,10 @@ const msgBoxRef = ref(null)
 const chatInputRef = ref(null)
 const fileInputRef = ref(null)
 const showScrollBottom = ref(false)
+const showMessageSearch = ref(false)
+const messageSearchQuery = ref('')
+const activeSearchIndex = ref(0)
+const messageSearchInputRef = ref(null)
 const showQuickMessages = ref(false)
 const showBotInteractions = ref(false)
 const showEmojiPicker = ref(false)
@@ -508,10 +585,25 @@ const whatsappAccountLabel = computed(() => {
 const handlingChannel = computed(() => {
   let source = props.ticket?.handled_via || 'pending'
   if (source === 'pending' && String(props.ticket?.agent_name || '').startsWith('WhatsApp (')) source = 'whatsapp_device'
-  if (source === 'whatsapp_device') return { label: 'Atendido pelo WhatsApp', kind: 'device', icon: 'fa-brands fa-whatsapp' }
-  if (source === 'mixed') return { label: 'Atendimento misto', kind: 'mixed', icon: 'fa-solid fa-shuffle' }
-  if (source === 'platform') return { label: 'Atendido pela plataforma', kind: 'platform', icon: 'fa-solid fa-desktop' }
-  return { label: '', kind: '', icon: '' }
+  if (source === 'whatsapp_device') return {
+    label: 'Atendimento por WhatsApp',
+    description: 'A conversa foi conduzida diretamente pelo aplicativo WhatsApp conectado.',
+    kind: 'device',
+    icon: 'fa-brands fa-whatsapp'
+  }
+  if (source === 'mixed') return {
+    label: 'Atendimento misto',
+    description: 'A conversa teve respostas enviadas tanto pelo Brisoft Desk quanto pelo WhatsApp.',
+    kind: 'mixed',
+    icon: 'fa-solid fa-shuffle'
+  }
+  if (source === 'platform') return {
+    label: 'Atendimento pelo site',
+    description: 'A conversa foi atendida pela equipe dentro da plataforma Brisoft Desk.',
+    kind: 'platform',
+    icon: 'fa-solid fa-headset'
+  }
+  return { label: '', description: '', kind: '', icon: '' }
 })
 
 const visibleMessages = computed(() => {
@@ -521,6 +613,72 @@ const visibleMessages = computed(() => {
     return true
   })
 })
+
+function normalizeSearchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR')
+}
+
+function searchableMessageText(message) {
+  return [
+    message?.text,
+    message?.caption,
+    message?.file_name,
+    message?.fileName,
+    message?.sender_name,
+    message?.senderName
+  ].filter(Boolean).join(' ')
+}
+
+const normalizedMessageSearchQuery = computed(() => normalizeSearchText(messageSearchQuery.value.trim()))
+const messageSearchMatches = computed(() => {
+  const query = normalizedMessageSearchQuery.value
+  if (!query) return []
+  return visibleMessages.value.filter(message => normalizeSearchText(searchableMessageText(message)).includes(query))
+})
+const activeSearchMessage = computed(() => messageSearchMatches.value[activeSearchIndex.value] || null)
+
+function isSearchMatch(message) {
+  return messageSearchMatches.value.includes(message)
+}
+
+function isActiveSearchMessage(message) {
+  return activeSearchMessage.value === message
+}
+
+function scrollToActiveSearchResult() {
+  nextTick(() => {
+    const target = msgBoxRef.value?.querySelector('.chat-message-search-anchor.search-hit-active')
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  })
+}
+
+function goToNextSearchResult() {
+  if (!messageSearchMatches.value.length) return
+  activeSearchIndex.value = (activeSearchIndex.value + 1) % messageSearchMatches.value.length
+  scrollToActiveSearchResult()
+}
+
+function goToPreviousSearchResult() {
+  const total = messageSearchMatches.value.length
+  if (!total) return
+  activeSearchIndex.value = (activeSearchIndex.value - 1 + total) % total
+  scrollToActiveSearchResult()
+}
+
+function toggleMessageSearch() {
+  showMessageSearch.value = !showMessageSearch.value
+  if (showMessageSearch.value) nextTick(() => messageSearchInputRef.value?.focus())
+  else messageSearchQuery.value = ''
+}
+
+function closeMessageSearch() {
+  showMessageSearch.value = false
+  messageSearchQuery.value = ''
+  activeSearchIndex.value = 0
+}
 
 function parseValidDate(val) {
   if (!val) return null
@@ -671,9 +829,15 @@ onUnmounted(() => {
 
 watch(() => props.ticket?.id, () => {
   showBotInteractions.value = false
+  closeMessageSearch()
   scrollToBottom()
   focusInput()
 }, { immediate: true })
+
+watch(messageSearchMatches, (matches) => {
+  activeSearchIndex.value = 0
+  if (matches.length) scrollToActiveSearchResult()
+})
 
 watch(canSend, (val) => {
   if (val) focusInput()
@@ -957,23 +1121,155 @@ watch(inputMsg, (newVal) => {
   white-space: nowrap;
 }
 
-.handling-channel-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: 8px;
-  padding: 2px 6px;
+.handling-channel-indicator {
+  position: relative;
+  width: 30px;
+  height: 30px;
   border: 1px solid #bfdbfe;
-  border-radius: 4px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex: none;
   background: #eff6ff;
   color: #1f62d0;
-  font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
+  font-size: 13px;
+  cursor: help;
+  outline: none;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
 }
 
-.handling-channel-badge.device { border-color: #a7f3d0; background: #ecfdf5; color: #047857; }
-.handling-channel-badge.mixed { border-color: #ddd6fe; background: #f5f3ff; color: #6d28d9; }
+.handling-channel-indicator:hover,
+.handling-channel-indicator:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(37, 99, 235, .12);
+}
+
+.handling-channel-indicator.device { border-color: #a7f3d0; background: #ecfdf5; color: #047857; }
+.handling-channel-indicator.mixed { border-color: #ddd6fe; background: #f5f3ff; color: #6d28d9; }
+
+.handling-channel-popover {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 9px);
+  right: 0;
+  width: 286px;
+  padding: 11px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #334155;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .14);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity .14s ease, transform .14s ease, visibility .14s ease;
+}
+
+.handling-channel-popover::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  right: 10px;
+  width: 9px;
+  height: 9px;
+  border-left: 1px solid #e2e8f0;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+  transform: rotate(45deg);
+}
+
+.handling-channel-indicator:hover .handling-channel-popover,
+.handling-channel-indicator:focus .handling-channel-popover {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.handling-channel-popover strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #0f172a;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.handling-channel-popover p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 10.5px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.handling-channel-legend {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid #eef2f7;
+  display: grid;
+  gap: 4px;
+}
+.handling-channel-legend > div {
+  padding: 5px 6px;
+  border-radius: 7px;
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  align-items: center;
+  gap: 6px;
+  color: #94a3b8;
+}
+.handling-channel-legend > div.current { background: #f1f5f9; color: #2563eb; }
+.handling-channel-legend > div > i { text-align: center; font-size: 11px; }
+.handling-channel-legend span { display: flex; flex-direction: column; color: #64748b; font-size: 9.5px; line-height: 1.3; }
+.handling-channel-legend b { color: #334155; font-size: 10px; font-weight: 600; }
+
+.chat-message-searchbar {
+  min-height: 42px;
+  padding: 6px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  background: #f8fafc;
+  color: #94a3b8;
+}
+
+.chat-message-searchbar > i { font-size: 11px; }
+.chat-message-searchbar input {
+  min-width: 120px;
+  flex: 1;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid #dbe3ec;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 11.5px;
+  outline: none;
+}
+.chat-message-searchbar input:focus { border-color: #93c5fd; box-shadow: 0 0 0 2px rgba(59, 130, 246, .1); }
+.chat-search-counter { min-width: 102px; color: #64748b; font-size: 10.5px; text-align: right; }
+.chat-message-searchbar button {
+  width: 27px;
+  height: 27px;
+  border: 0;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+.chat-message-searchbar button:hover:not(:disabled) { background: #e8f1ff; color: #2563eb; }
+.chat-message-searchbar button:disabled { opacity: .35; cursor: default; }
+.chat-search-slide-enter-active,.chat-search-slide-leave-active { transition: opacity .14s ease, transform .14s ease; }
+.chat-search-slide-enter-from,.chat-search-slide-leave-to { opacity: 0; transform: translateY(-5px); }
+.chat-message-search-anchor { border-radius: 10px; transition: background-color .16s ease; }
+.chat-message-search-anchor.search-hit { background: rgba(250, 204, 21, .08); }
+.chat-message-search-anchor.search-hit-active { background: rgba(250, 204, 21, .16); }
+.chat-message-search-anchor.search-hit-active :deep(.chat-bubble) { box-shadow: 0 0 0 2px rgba(234, 179, 8, .45), 0 5px 15px rgba(15, 23, 42, .08); }
 
 .bot-history-toolbar {
   display: flex;
