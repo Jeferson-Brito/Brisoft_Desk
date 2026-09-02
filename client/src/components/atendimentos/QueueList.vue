@@ -164,8 +164,25 @@
 
     <!-- Lista de Tickets -->
     <div class="queue-cards-stream" id="queueListContainer">
-      <div v-if="ticketStore.loading && filteredTickets.length === 0" class="queue-loading">
-        <i class="fa-solid fa-circle-notch fa-spin"></i>
+      <div v-if="ticketStore.loading && filteredTickets.length === 0" class="queue-skeleton-list">
+        <div v-for="n in 6" :key="n" class="queue-skeleton-card">
+          <div class="skel-avatar"></div>
+          <div class="skel-body">
+            <!-- linha 1: nome + hora -->
+            <div class="skel-row">
+              <div class="skel-line skel-name"></div>
+              <div class="skel-line skel-time"></div>
+            </div>
+            <!-- linha 2: contexto (cargo + departamento) -->
+            <div class="skel-context">
+              <div class="skel-line skel-dept"></div>
+            </div>
+            <!-- linha 3: preview da mensagem -->
+            <div class="skel-row">
+              <div class="skel-line skel-preview"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div v-else-if="filteredTickets.length === 0" class="queue-empty-msg">
@@ -658,7 +675,6 @@ const filteredTickets = computed(() => {
   flex-direction: column;
 }
 
-.queue-loading,
 .queue-empty-msg {
   padding: 36px 16px;
   text-align: center;
@@ -672,5 +688,106 @@ const filteredTickets = computed(() => {
 
 .queue-empty-msg i {
   font-size: 24px;
+}
+
+/* ── Skeleton loading ─────────────────────────────────────────────────────── */
+/*
+  Dimensões espelhadas diretamente do QueueItem:
+    card:    min-height 72px | padding 11px 6px | margin 0 12px | gap 11px
+    avatar:  38 × 38 px | border-radius 50%
+    body:    gap 4px entre linhas
+    ctx:     height 16px  (queue-item-context)
+*/
+@keyframes skel-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+.queue-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0;
+}
+
+.queue-skeleton-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 72px;
+  padding: 11px 6px;
+  margin: 0 12px;
+  border-bottom: 1px solid #e8edf3;
+  box-sizing: border-box;
+}
+
+.skel-avatar {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 600px 100%;
+  animation: skel-shimmer 1.4s ease-in-out infinite;
+}
+
+.skel-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.skel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Replica a altura fixa da linha de contexto do QueueItem */
+.skel-context {
+  height: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.skel-line {
+  border-radius: 4px;
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 600px 100%;
+  animation: skel-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Tamanhos que espelham as dimensões de fonte do item real */
+.skel-name    { height: 13px; width: 54%; }     /* font-size: 13px */
+.skel-time    { height: 11px; width: 13%; flex-shrink: 0; }  /* font-size: 11px */
+.skel-dept    { height: 10px; width: 42%; }     /* chip de departamento */
+.skel-preview { height: 11px; width: 76%; }     /* font-size: 11.5px */
+
+/* Cascata: cada card começa o shimmer com 80 ms de atraso */
+.queue-skeleton-card:nth-child(1) .skel-line,
+.queue-skeleton-card:nth-child(1) .skel-avatar { animation-delay: 0s; }
+.queue-skeleton-card:nth-child(2) .skel-line,
+.queue-skeleton-card:nth-child(2) .skel-avatar { animation-delay: 0.08s; }
+.queue-skeleton-card:nth-child(3) .skel-line,
+.queue-skeleton-card:nth-child(3) .skel-avatar { animation-delay: 0.16s; }
+.queue-skeleton-card:nth-child(4) .skel-line,
+.queue-skeleton-card:nth-child(4) .skel-avatar { animation-delay: 0.24s; }
+.queue-skeleton-card:nth-child(5) .skel-line,
+.queue-skeleton-card:nth-child(5) .skel-avatar { animation-delay: 0.32s; }
+.queue-skeleton-card:nth-child(6) .skel-line,
+.queue-skeleton-card:nth-child(6) .skel-avatar { animation-delay: 0.40s; }
+
+/* Dark mode (prefers-color-scheme) */
+@media (prefers-color-scheme: dark) {
+  .queue-skeleton-card {
+    border-bottom-color: #1e293b;
+  }
+  .skel-avatar,
+  .skel-line {
+    background: linear-gradient(90deg, #1e293b 25%, #273549 50%, #1e293b 75%);
+    background-size: 600px 100%;
+  }
 }
 </style>

@@ -531,7 +531,7 @@ ${rendered}`,
           text: `[Chatbot] Atendimento reservado fora do expediente • ${department.name}`,
           time: t
         });
-        const template = department.after_hours_message || '🕒 *Estamos fora do horário de atendimento*\n\n{nome}, o departamento *{departamento}* atende em:\n{horario}\n\nSua conversa ficou reservada e entrará automaticamente na fila em *{proxima_abertura}*. Você não precisa enviar outra mensagem.';
+        const template = department.after_hours_message || '🕒 *Estamos fora do horário de atendimento*\n\nOlá, {nome}! Infelizmente o departamento *{departamento}* não está disponível no momento.\n\n📅 *Horários de atendimento:*\n{horario}\n\nSua conversa ficou reservada e entrará automaticamente na fila em *{proxima_abertura}*.\n\nVocê não precisa enviar outra mensagem. Entraremos em contato assim que o atendimento for retomado. ✅';
         await sendBotText(targetTicket.id, template, {
           departamento: department.name,
           horario: availability.scheduleLabel,

@@ -71,7 +71,7 @@ function formatSchedule(scheduleInput) {
     const intervals = schedule.days[day] || [];
     if (intervals.length) lines.push(`${DAY_NAMES[day]}: ${intervals.map(item => `${item.start} às ${item.end}`).join(' e ')}`);
   }
-  return lines.length ? lines.join('; ') : 'Sem horário de atendimento configurado';
+  return lines.length ? lines.join('\n') : 'Sem horário de atendimento configurado';
 }
 
 function getDepartmentAvailability(department, at = new Date()) {
