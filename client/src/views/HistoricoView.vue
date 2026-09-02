@@ -760,6 +760,7 @@ onBeforeUnmount(() => {
 .history-toolbar-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
 }
@@ -882,7 +883,7 @@ onBeforeUnmount(() => {
 .history-filter-popover {
   position: absolute;
   top: calc(100% + 8px);
-  left: 0;
+  right: 0;
   width: 340px;
   background: #ffffff;
   border: 1px solid #dbe2ea;
@@ -1039,7 +1040,8 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  margin-left: 4px;
+  margin-right: auto;
+  order: -1;
 }
 
 .history-chip {
