@@ -77,6 +77,14 @@ function onTicketSelected() {
   mobilePanel.value = 'chat'
 }
 
+function minimizeActiveChat(event) {
+  if (event.key !== 'Escape' || !ticketStore.activeTicket) return
+  if (document.querySelector('.modal-overlay.active')) return
+  ticketStore.minimizeActiveTicket()
+  isDetailsOpen.value = false
+  mobilePanel.value = 'queue'
+}
+
 async function fetchPerformance() {
   const requestId = ++performanceRequestId
   try {
@@ -120,12 +128,14 @@ onMounted(async () => {
   await Promise.all([ticketStore.fetchQueue(), fetchPerformance()])
   refreshTimer = setInterval(syncLiveData, 5000)
   document.addEventListener('visibilitychange', syncLiveData)
+  document.addEventListener('keydown', minimizeActiveChat)
 })
 
 onBeforeUnmount(() => {
   clearInterval(refreshTimer)
   clearTimeout(queueRefreshTimer)
   document.removeEventListener('visibilitychange', syncLiveData)
+  document.removeEventListener('keydown', minimizeActiveChat)
 })
 </script>
 

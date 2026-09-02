@@ -19,6 +19,10 @@
         :title="ticket.is_group ? 'Grupo do WhatsApp' : 'Clique para ver os detalhes do contato'"
         @click="!ticket.is_group && $emit('toggle-details')"
       >
+        <div class="chat-header-avatar" :style="{ background: ticket.avatarColor || '#2563eb' }">
+          <img v-if="ticket.avatar_url && !headerAvatarFailed" :src="ticket.avatar_url" alt="Foto do contato" referrerpolicy="no-referrer" @error="headerAvatarFailed = true" />
+          <span v-else>{{ ticket.initials || 'CL' }}</span>
+        </div>
         <div class="chat-contact-copy">
           <div class="chat-contact-name-line">
             <h2 class="chat-contact-title">{{ headerPerson.name || 'Cliente' }}</h2>
@@ -205,6 +209,7 @@
               :msg="m"
               :initials="ticket.initials"
               :avatar-color="ticket.avatarColor"
+              :avatar-url="ticket.avatar_url"
               :current-user-id="authStore.user?.id"
               :is-group="Boolean(ticket.is_group)"
               :allow-device-message-mutations="ticket.departments?.allow_device_message_mutations === true"
@@ -589,6 +594,7 @@ const sendingMedia = ref(false)
 const isAssuming = ref(false)
 const pendingUploads = ref([])
 const pastedImage = ref(null)
+const headerAvatarFailed = ref(false)
 const isRecording = ref(false)
 const recordingSeconds = ref(0)
 let mediaRecorder = null
@@ -905,12 +911,15 @@ onUnmounted(() => {
 })
 
 watch(() => props.ticket?.id, () => {
+  headerAvatarFailed.value = false
   clearPastedImage()
   showBotInteractions.value = false
   closeMessageSearch()
   scrollToBottom()
   focusInput()
 }, { immediate: true })
+
+watch(() => props.ticket?.avatar_url, () => { headerAvatarFailed.value = false })
 
 watch(messageSearchQuery, () => {
   activeSearchIndex.value = 0
@@ -1313,6 +1322,19 @@ watch(inputMsg, (newVal) => {
 </script>
 
 <style scoped>
+.chat-header-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  overflow: hidden;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.chat-header-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .employee-contact-badge {
   display: inline-flex;
   align-items: center;

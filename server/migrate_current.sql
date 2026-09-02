@@ -4,6 +4,9 @@
 alter table if exists public.departments
   add column if not exists allow_device_message_mutations boolean not null default false;
 
+alter table if exists public.contacts
+  add column if not exists avatar_url text;
+
 alter table if exists public.messages
   add column if not exists user_id uuid references public.users(id) on delete set null,
   add column if not exists media_url text,

@@ -129,7 +129,8 @@
             class="contact-avatar-lg"
             :style="{ backgroundColor: ticket?.avatarColor || '#2563eb' }"
           >
-            {{ ticket?.initials || 'CL' }}
+            <img v-if="ticket?.avatar_url" :src="ticket.avatar_url" alt="Foto do cliente" referrerpolicy="no-referrer" />
+            <span v-else>{{ ticket?.initials || 'CL' }}</span>
           </div>
           <div class="contact-profile-text">
             <strong class="contact-profile-name" :title="ticket?.clientName || ticket?.client_name">
@@ -696,6 +697,8 @@ async function saveContact(isEmployee = false) {
   background: #fef3c7;
   color: #b45309;
 }
+.contact-avatar-lg { overflow:hidden; }
+.contact-avatar-lg img { width:100%; height:100%; object-fit:cover; }
 
 .contact-type-control {
   display: flex;

@@ -132,7 +132,7 @@
                         <i class="fa-solid fa-building-user"></i>
                         <span>Atendimento Dedicado (Fila Direta)</span>
                       </div>
-                      <p class="mode-desc">O cliente entra direto na fila do departamento vinculado a este número, sem passar por menu de opções.</p>
+                      <p class="mode-desc">O bot identifica o cliente e encaminha para o departamento vinculado, sem pedir que ele escolha outro setor.</p>
                     </div>
                   </label>
                 </div>
@@ -254,12 +254,15 @@ async function loadDepartments() {
   }
 }
 
-async function loadAccounts() {
+async function loadAccounts({ forceDraftSync = false } = {}) {
+  const modifiedDraftIds = new Set(
+    accounts.value.filter(account => isRoutingModified(account)).map(account => String(account.id))
+  )
   const { data } = await connectionsApi.listWhatsApp()
   if (data.success) {
     ui.whatsappAccounts = data.accounts || []
     for (const account of ui.whatsappAccounts) {
-      initDraft(account)
+      if (forceDraftSync || !routingDrafts.value[account.id] || !modifiedDraftIds.has(String(account.id))) initDraft(account)
     }
   }
 }
@@ -321,7 +324,7 @@ async function saveRouting(account) {
     const { data } = await connectionsApi.updateWhatsApp(account.id, payload)
     if (data.success) {
       ui.showToast('Roteamento do WhatsApp atualizado com sucesso!')
-      await loadAccounts()
+      await loadAccounts({ forceDraftSync: true })
     }
   } catch (error) {
     ui.showToast(error.response?.data?.error || 'Erro ao atualizar roteamento do WhatsApp.', 'error')

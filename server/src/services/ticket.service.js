@@ -459,9 +459,14 @@ class TicketService {
         String(dept.id) === String(whatsappFallbackDepartmentId || '') ||
         (whatsappFallbackDepartmentName && normalizeBotInput(dept.name) === normalizeBotInput(whatsappFallbackDepartmentName))
       ) || null;
+      const dedicatedDepartment = whatsappRoutingMode === 'department'
+        ? deptList.find(dept => String(dept.id) === String(whatsappDepartmentId || '')
+          || (whatsappDepartmentName && normalizeBotInput(dept.name) === normalizeBotInput(whatsappDepartmentName))) || null
+        : null;
       // Padrão individual do número tem prioridade. O padrão global do bot é
       // usado somente quando a conta não possui um destino próprio.
-      const defaultDepartment = accountFallbackDepartment
+      const defaultDepartment = dedicatedDepartment
+        || accountFallbackDepartment
         || deptList.find(dept => dept.id === botConfig.default_department_id)
         || deptList[0] || null;
       const botVariables = (extra = {}) => ({
@@ -518,6 +523,10 @@ ${rendered}`,
         if (!defaultDepartment) throw new Error('Nenhum departamento disponível para o roteamento automático.');
         const updatePayload = {
           status: 'aguardando',
+          assumed: false,
+          user_id: null,
+          agent_name: null,
+          assumed_at: null,
           department: defaultDepartment.name,
           department_id: defaultDepartment.id,
           time: t,
@@ -570,6 +579,42 @@ ${rendered}`,
         return { type: 'chatbot_asking_name', ticket: targetTicket };
       };
       const startDepartmentRouting = async targetTicket => {
+        // O número dedicado define o destino, mas continua passando pelo bot e
+        // chega à fila sem responsável. Somente grupos são permanentes/assumidos.
+        if (dedicatedDepartment) {
+          const updatePayload = {
+            status: 'aguardando',
+            assumed: false,
+            user_id: null,
+            agent_name: null,
+            assumed_at: null,
+            department: dedicatedDepartment.name,
+            department_id: dedicatedDepartment.id,
+            time: t,
+            preview: String(targetTicket.preview || text || '').slice(0, 50),
+            unread_count: Math.max(1, Number(targetTicket.unread_count || 0)),
+            updated_at: now.toISOString()
+          };
+          assertSupabase(await supabase.from('tickets').update(updatePayload).eq('id', targetTicket.id), 'Falha ao encaminhar ticket dedicado');
+          Object.assign(targetTicket, updatePayload);
+          await supabase.from('messages').insert({
+            ticket_id: targetTicket.id,
+            sender: 'system',
+            type: 'divider',
+            text: `[Chatbot] Atendimento encaminhado para: ${dedicatedDepartment.name}`,
+            time: t
+          });
+          if (botConfig.send_queue_confirmation) {
+            await sendBotText(targetTicket.id, botConfig.queue_confirmation_message, { departamento: dedicatedDepartment.name });
+          }
+          const fullTicket = await this.getFullTicket(targetTicket.id);
+          if (io && fullTicket) {
+            emitTicketEvent(io, 'ticket_created', { ticket: fullTicket }, fullTicket);
+            scheduleKpiUpdate(io);
+          }
+          return { type: 'dedicated_routed', ticket: fullTicket || targetTicket };
+        }
+
         const since = new Date(Date.now() - botConfig.resume_window_hours * 60 * 60 * 1000).toISOString();
         let lastClosedTicket = null;
         try {
@@ -649,6 +694,7 @@ ${rendered}`,
         const updatedIdentity = {
           contact_id: knownContact.id,
           is_employee: isEmployee,
+          ...(knownContact.avatar_url ? { avatar_url: knownContact.avatar_url } : {}),
           ...(knownContact.name && isGeneratedCustomerName(ticket.client_name) ? {
             client_name: knownContact.name,
             initials: knownContact.name.substring(0, 2).toUpperCase()
@@ -661,7 +707,17 @@ ${rendered}`,
       // Uma conversa atendida pelo celular permanece humana enquanto estiver
       // ativa. Ela volta ao bot somente por encerramento, inatividade ou quando
       // o próprio cliente pede explicitamente um novo atendimento/menu.
+      const legacyUnassignedExternalTicket = ticket && ticket.status === 'em_atendimento'
+        && !ticket.user_id
+        && (['whatsapp_device', 'mixed'].includes(ticket.handled_via) || String(ticket.agent_name || '').startsWith('WhatsApp ('));
+      if (legacyUnassignedExternalTicket) {
+        const waitingPayload = { status: 'aguardando', assumed: false, assumed_at: null, agent_name: null, user_id: null };
+        const resetResult = await supabase.from('tickets').update(waitingPayload).eq('id', ticket.id);
+        if (!resetResult.error) Object.assign(ticket, waitingPayload);
+      }
+
       const isExternalHumanTicket = ticket && ticket.status === 'em_atendimento'
+        && Boolean(ticket.user_id)
         && (['whatsapp_device', 'mixed'].includes(ticket.handled_via) || String(ticket.agent_name || '').startsWith('WhatsApp ('));
       if (isExternalHumanTicket) {
         const inactiveForMs = Date.now() - new Date(ticket.updated_at || ticket.created_at || now).getTime();
@@ -763,74 +819,6 @@ ${rendered}`,
 
       // 3. Se ainda não tem ticket ativo, cria o atendimento e inicia a identificação/roteamento.
       if (!ticket) {
-        const isDedicated = whatsappRoutingMode === 'department' && Boolean(whatsappDepartmentId);
-        const dedicatedDept = isDedicated
-          ? deptList.find(d => String(d.id) === String(whatsappDepartmentId) || (whatsappDepartmentName && d.name.toLowerCase() === whatsappDepartmentName.toLowerCase()))
-          : null;
-
-        if (isDedicated && dedicatedDept) {
-          const newTicketPayload = {
-            id: crypto.randomUUID(),
-            client_name: cleanName,
-            initials: cleanName.substring(0, 2).toUpperCase(),
-            phone,
-            jid: outboundJid,
-            raw_jid: rawJid,
-            time: t,
-            preview: text.slice(0, 50),
-            status: 'aguardando',
-            department: dedicatedDept.name,
-            channel: whatsappChannel,
-            unread_count: 1,
-            is_employee: isEmployee
-          };
-          if (dedicatedDept.id && dedicatedDept.id.length > 10) {
-            newTicketPayload.department_id = dedicatedDept.id;
-          }
-          const { data: insertedTicket, error: insertError } = await supabase.from('tickets').insert(newTicketPayload).select().single();
-          if (insertError) throw insertError;
-          ticket = insertedTicket;
-
-          // Auto-salva o contato no banco se ainda não existe cadastro e o nome não for genérico
-          if (!knownContact && !isGeneratedCustomerName(cleanName)) {
-            try {
-              const saved = await saveConfirmedContact(phone, cleanName);
-              if (saved?.id) {
-                await supabase.from('tickets').update({ contact_id: saved.id }).eq('id', ticket.id);
-                ticket.contact_id = saved.id;
-              }
-            } catch (_) {}
-          }
-
-          assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(ticket.id, 'bot')), 'Falha ao registrar mensagem inicial');
-
-          const dedicatedHandoffPayload = {
-            ticket_id: ticket.id,
-            sender: 'system',
-            type: 'divider',
-            text: `[Chatbot] WhatsApp dedicado encaminhou diretamente para a fila: ${dedicatedDept.name}`,
-            time: t
-          };
-          if (conversationTrackingColumnsAvailable === true) Object.assign(dedicatedHandoffPayload, {
-            sender_type: 'bot', sender_name: 'Bot', message_context: 'bot'
-          });
-          await supabase.from('messages').insert(dedicatedHandoffPayload);
-
-          if (whatsappService && botConfig.send_queue_confirmation) {
-            try {
-              await sendBotText(ticket.id, botConfig.queue_confirmation_message, { departamento: dedicatedDept.name });
-            } catch(e) {}
-          }
-
-          const fullTicket = await this.getFullTicket(ticket.id);
-          if (io && fullTicket) {
-            emitTicketEvent(io, 'ticket_created', { ticket: fullTicket }, fullTicket);
-            scheduleKpiUpdate(io);
-          }
-
-          return { type: 'dedicated_routed', ticket: fullTicket || ticket };
-        }
-
         const { data: insertedTicket, error: insertError } = await supabase.from('tickets').insert({
           id: crypto.randomUUID(),
           client_name: cleanName,
@@ -841,8 +829,13 @@ ${rendered}`,
           time: t,
           preview: text.slice(0, 50),
           status: botConfig.enabled ? 'chatbot' : 'aguardando',
+          assumed: false,
+          user_id: null,
+          agent_name: null,
+          assumed_at: null,
           channel: whatsappChannel,
           unread_count: 0,
+          avatar_url: knownContact?.avatar_url || null,
           is_employee: isEmployee
         }).select().single();
         if (insertError) throw insertError;
@@ -869,54 +862,6 @@ ${rendered}`,
 
       // Processa resposta ao Chatbot
       if (ticket.status === 'chatbot') {
-         const isDedicated = whatsappRoutingMode === 'department' && Boolean(whatsappDepartmentId);
-         const dedicatedDept = isDedicated
-           ? deptList.find(d => String(d.id) === String(whatsappDepartmentId) || (whatsappDepartmentName && d.name.toLowerCase() === whatsappDepartmentName.toLowerCase()))
-           : null;
-
-         if (isDedicated && dedicatedDept) {
-           let updatePayload = {
-             status: 'aguardando',
-             department: dedicatedDept.name,
-             time: t,
-             preview: text.slice(0, 50),
-             updated_at: now.toISOString(),
-             unread_count: Math.max(1, (ticket.unread_count || 0) + 1)
-           };
-           if (dedicatedDept.id && dedicatedDept.id.length > 10) {
-             updatePayload.department_id = dedicatedDept.id;
-           }
-           await supabase.from('tickets').update(updatePayload).eq('id', ticket.id);
-           Object.assign(ticket, updatePayload);
-
-           assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(ticket.id, 'bot')), 'Falha ao registrar mensagem recebida');
-
-           const dedicatedHandoffPayload = {
-             ticket_id: ticket.id,
-             sender: 'system',
-             type: 'divider',
-             text: `[Chatbot] WhatsApp dedicado encaminhou diretamente para a fila: ${dedicatedDept.name}`,
-             time: t
-           };
-           if (conversationTrackingColumnsAvailable === true) Object.assign(dedicatedHandoffPayload, {
-             sender_type: 'bot', sender_name: 'Bot', message_context: 'bot'
-           });
-           await supabase.from('messages').insert(dedicatedHandoffPayload);
-
-           if (whatsappService && botConfig.send_queue_confirmation) {
-             try {
-               await sendBotText(ticket.id, botConfig.queue_confirmation_message, { departamento: dedicatedDept.name });
-             } catch (e) {}
-           }
-
-           const fullTicket = await this.getFullTicket(ticket.id);
-           if (io && fullTicket) {
-             emitTicketEvent(io, 'ticket_created', { ticket: fullTicket }, fullTicket);
-             scheduleKpiUpdate(io);
-           }
-           return { type: 'dedicated_routed', ticket: fullTicket || ticket };
-         }
-
          if (!botConfig.enabled) return routeWithoutBot(ticket, text);
          const cleanText = text.trim();
          assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(ticket.id, 'bot')), 'Falha ao registrar resposta ao bot');
@@ -1114,7 +1059,17 @@ ${rendered}`,
          }
 
          if (selectedDept) {
-            let updatePayload = { status: 'aguardando', time: t, preview: text.slice(0, 50), updated_at: now.toISOString(), unread_count: 1 };
+            let updatePayload = {
+              status: 'aguardando',
+              assumed: false,
+              user_id: null,
+              agent_name: null,
+              assumed_at: null,
+              time: t,
+              preview: text.slice(0, 50),
+              updated_at: now.toISOString(),
+              unread_count: 1
+            };
             // Só adiciona department_id se for um UUID real (length > 10)
             if (selectedDept.id && selectedDept.id.length > 10) {
                 updatePayload.department_id = selectedDept.id;
@@ -1488,11 +1443,11 @@ ${rendered}`,
           raw_jid: rawJid || targetJid,
           time,
           preview: `WhatsApp: ${previewText.slice(0, 70)}`,
-          status: 'em_atendimento',
-          assumed: true,
-          assumed_at: now.toISOString(),
-          first_response_at: createdAt,
-          agent_name: senderLabel,
+          status: 'aguardando',
+          assumed: false,
+          assumed_at: null,
+          first_response_at: null,
+          agent_name: null,
           channel,
           unread_count: 0,
           handled_via: 'whatsapp_device',
@@ -1524,12 +1479,14 @@ ${rendered}`,
           }
         }
         const inferredCurrent = ticket.handled_via || (ticket.agent_name && !String(ticket.agent_name).startsWith('WhatsApp (') ? 'platform' : 'pending');
+        const remainsAssigned = ticket.status === 'em_atendimento' && Boolean(ticket.user_id);
         const updatePayload = {
-          status: 'em_atendimento',
-          assumed: true,
-          assumed_at: ticket.assumed_at || now.toISOString(),
-          first_response_at: ticket.first_response_at || createdAt,
-          agent_name: ticket.agent_name || senderLabel,
+          status: remainsAssigned ? 'em_atendimento' : 'aguardando',
+          assumed: remainsAssigned,
+          assumed_at: remainsAssigned ? (ticket.assumed_at || now.toISOString()) : null,
+          first_response_at: remainsAssigned ? (ticket.first_response_at || createdAt) : null,
+          agent_name: remainsAssigned ? ticket.agent_name : null,
+          user_id: remainsAssigned ? ticket.user_id : null,
           time,
           preview: `WhatsApp: ${previewText.slice(0, 70)}`,
           updated_at: now.toISOString(),
@@ -1897,7 +1854,10 @@ ${rendered}`,
           .select('*')
           .eq('id', ticket.contact_id)
           .maybeSingle();
-        if (!contactError && contact) ticket.contact = contact;
+        if (!contactError && contact) {
+          ticket.contact = contact;
+          if (!ticket.avatar_url && contact.avatar_url) ticket.avatar_url = contact.avatar_url;
+        }
       }
       ticket.collaborators = await this.getCollaborators(ticket.id, user, { skipAccessCheck: true });
       return ticket;
@@ -2067,7 +2027,33 @@ ${rendered}`,
 
   async updateTicketAvatar(ticketId, avatarUrl, io = null) {
     if (!isSupabaseConfigured() || !ticketId || !avatarUrl) return false;
-    const { data: ticket, error } = await supabase.from('tickets').update({ avatar_url: avatarUrl }).eq('id', ticketId).select().single();
+    const currentResult = await supabase.from('tickets')
+      .select('id, contact_id, client_name, phone, is_group')
+      .eq('id', ticketId)
+      .maybeSingle();
+    if (currentResult.error || !currentResult.data) return false;
+    const current = currentResult.data;
+
+    let contactId = current.contact_id || null;
+    if (!current.is_group && current.phone) {
+      try {
+        const contact = await ensureWhatsAppContact(current.phone, current.client_name);
+        contactId = contact?.id || contactId;
+        if (contactId) {
+          await supabase.from('contacts').update({ avatar_url: avatarUrl }).eq('id', contactId);
+          await supabase.from('tickets').update({ avatar_url: avatarUrl, contact_id: contactId }).eq('contact_id', contactId);
+          await supabase.from('tickets').update({ avatar_url: avatarUrl, contact_id: contactId }).eq('phone', current.phone);
+        } else {
+          await supabase.from('contacts').update({ avatar_url: avatarUrl }).eq('phone', current.phone);
+          await supabase.from('tickets').update({ avatar_url: avatarUrl }).eq('phone', current.phone);
+        }
+      } catch (error) {
+        console.warn(`Não foi possível salvar a foto no contato ${current.phone}: ${error.message}`);
+      }
+    }
+
+    const update = { avatar_url: avatarUrl, ...(contactId ? { contact_id: contactId } : {}) };
+    const { data: ticket, error } = await supabase.from('tickets').update(update).eq('id', ticketId).select().single();
     if (error || !ticket) return false;
     if (io) emitTicketEvent(io, 'ticket_updated', { ticket }, ticket);
     return true;
@@ -3178,6 +3164,7 @@ ${rendered}`,
         channel: existingContact?.channel || 'WhatsApp',
         status: existingContact?.status || 'Ativo',
         notes: note !== undefined ? (note || null) : (existingContact?.notes || null),
+        avatar_url: existingContact?.avatar_url || existingTicket.avatar_url || null,
         is_employee: isEmployee
       };
 
@@ -3194,17 +3181,18 @@ ${rendered}`,
         initials: contactPayload.name.substring(0, 2).toUpperCase(),
         phone: normalizedPhone || existingTicket.phone,
         contact_id: savedContact.id,
+        avatar_url: savedContact.avatar_url || existingTicket.avatar_url || null,
         is_employee: isEmployee,
         updated_at: new Date().toISOString()
       };
       assertSupabase(await supabase.from('tickets').update(updatePayload).eq('id', ticketId), 'Falha ao atualizar contato do atendimento');
       assertSupabase(
-        await supabase.from('tickets').update({ is_employee: isEmployee }).eq('contact_id', savedContact.id),
+        await supabase.from('tickets').update({ is_employee: isEmployee, avatar_url: savedContact.avatar_url || existingTicket.avatar_url || null }).eq('contact_id', savedContact.id),
         'Falha ao sincronizar classificação do contato'
       );
       if (normalizedPhone) {
         assertSupabase(
-          await supabase.from('tickets').update({ contact_id: savedContact.id, is_employee: isEmployee }).eq('phone', normalizedPhone),
+          await supabase.from('tickets').update({ contact_id: savedContact.id, is_employee: isEmployee, avatar_url: savedContact.avatar_url || existingTicket.avatar_url || null }).eq('phone', normalizedPhone),
           'Falha ao sincronizar classificação pelo telefone'
         );
       }

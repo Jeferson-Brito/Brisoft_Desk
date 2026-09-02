@@ -14,7 +14,8 @@
       style="width:28px;height:28px;font-size:10px;flex-shrink:0;"
       :style="{ backgroundColor: avatarColor || '#2563eb' }"
     >
-      {{ initials || 'CL' }}
+      <img v-if="avatarUrl && !avatarFailed" :src="avatarUrl" alt="Foto do cliente" referrerpolicy="no-referrer" @error="avatarFailed = true" />
+      <span v-else>{{ initials || 'CL' }}</span>
     </div>
     <div class="message-bubble-shell incoming-shell">
       <button v-if="msg.id" ref="actionsTriggerRef" type="button" class="message-actions-trigger" aria-label="Opções da mensagem" @click.stop="toggleActions">
@@ -238,6 +239,10 @@ const props = defineProps({
     type: String,
     default: '#2563eb'
   },
+  avatarUrl: {
+    type: String,
+    default: ''
+  },
   currentUserId: {
     type: [String, Number],
     default: null
@@ -260,6 +265,9 @@ const actionsTriggerRef = ref(null)
 const actionsMenuStyle = ref({})
 const mediaLoading = ref(false)
 const mediaLoadError = ref(false)
+const avatarFailed = ref(false)
+
+watch(() => props.avatarUrl, () => { avatarFailed.value = false })
 
 const displayTime = computed(() => {
   const timestamp = props.msg?.created_at || props.msg?.createdAt
@@ -495,6 +503,9 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.initial-avatar { overflow: hidden; }
+.initial-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
 .direct-whatsapp-label {
   display: inline-flex;
   align-items: center;

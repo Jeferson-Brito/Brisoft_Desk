@@ -218,6 +218,11 @@ export const useTicketStore = defineStore('tickets', () => {
     }
   }
 
+  function minimizeActiveTicket() {
+    activeTicketId.value = null
+    requireExplicitSelection = true
+  }
+
   async function assume(ticketId) {
     // Um clique duplo ou dois componentes reagindo ao mesmo evento compartilham
     // a mesma requisição. Isso evita que a segunda tentativa reverta a primeira.
@@ -297,6 +302,6 @@ export const useTicketStore = defineStore('tickets', () => {
     visibleTickets, waitingTickets, inProgressTickets, chatbotTickets, groupTickets, activeTicket,
     // actions
     fetchQueue, fetchTickets: fetchQueue, receiveTicket, appendMessage, patchMessage, removeTicket, patchTicket, notifyKpisUpdated, isLoadingMessages, loadTicketMessages,
-    selectTicket, assume, close
+    selectTicket, minimizeActiveTicket, assume, close
   }
 })

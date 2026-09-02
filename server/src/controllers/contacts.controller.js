@@ -44,7 +44,7 @@ class ContactsController {
 
   async createContact(req, res) {
     if (!isSupabaseConfigured()) return res.status(503).json({ success: false, error: 'Banco de dados indisponivel.' });
-    const { name, phone, email, cnpj, status, channel, notes, is_employee } = req.body;
+    const { name, phone, email, cnpj, status, channel, notes, is_employee, avatar_url } = req.body;
     if (!name?.trim()) return res.status(400).json({ success: false, error: 'Nome obrigatorio.' });
     const normalizedPhone = normalizePhone(phone);
     if (normalizeEmployee(is_employee) && !normalizedPhone) {
@@ -60,6 +60,7 @@ class ContactsController {
         status: status || 'Ativo',
         channel: channel || 'Web',
         notes: notes || null,
+        avatar_url: avatar_url || null,
         is_employee: normalizeEmployee(is_employee)
       };
       let existing = null;
@@ -71,7 +72,7 @@ class ContactsController {
       }
       const { id: _newId, ...existingContactPayload } = contactPayload;
       const operation = existing
-        ? supabase.from('contacts').update(existingContactPayload).eq('id', existing.id)
+        ? supabase.from('contacts').update({ ...existingContactPayload, avatar_url: avatar_url || existing.avatar_url || null }).eq('id', existing.id)
         : supabase.from('contacts').insert(contactPayload);
       const { data, error } = await operation.select().single();
       if (error) throw error;
@@ -157,7 +158,7 @@ class ContactsController {
     if (!id) return res.status(400).json({ success: false, error: 'ID invalido.' });
     if (!isSupabaseConfigured()) return res.status(503).json({ success: false, error: 'Banco de dados indisponivel.' });
 
-    const allowed = ['name', 'phone', 'email', 'cnpj', 'status', 'channel', 'notes', 'is_employee'];
+    const allowed = ['name', 'phone', 'email', 'cnpj', 'status', 'channel', 'notes', 'is_employee', 'avatar_url'];
     const payload = {};
     for (const field of allowed) {
       if (req.body[field] !== undefined) payload[field] = req.body[field];

@@ -131,7 +131,8 @@
                       style="width:34px;height:34px;font-size:12px;flex-shrink:0;"
                       :style="{ background: item.avatarColor || '#2563eb' }"
                     >
-                      {{ item.initials || 'CL' }}
+                      <img v-if="item.avatar_url" :src="item.avatar_url" alt="Foto do cliente" referrerpolicy="no-referrer" class="history-avatar-image" />
+                      <span v-else>{{ item.initials || 'CL' }}</span>
                     </div>
                     <div class="contact-cell-meta">
                       <span class="contact-cell-name">
@@ -275,7 +276,8 @@
                 style="width:40px;height:40px;font-size:14px;flex-shrink:0;"
                 :style="{ background: selectedTicketModal.avatarColor || '#2563eb' }"
               >
-                {{ selectedTicketModal.initials || 'CL' }}
+                <img v-if="selectedTicketModal.avatar_url" :src="selectedTicketModal.avatar_url" alt="Foto do cliente" referrerpolicy="no-referrer" class="history-avatar-image" />
+                <span v-else>{{ selectedTicketModal.initials || 'CL' }}</span>
               </div>
               <div>
                 <span class="modal-title" style="font-size:15px;display:flex;align-items:center;gap:8px;">
@@ -319,6 +321,7 @@
                     :msg="m"
                     :initials="selectedTicketModal.initials"
                     :avatar-color="selectedTicketModal.avatarColor"
+                    :avatar-url="selectedTicketModal.avatar_url"
                   />
                 </template>
               </div>
@@ -614,3 +617,8 @@ onMounted(() => {
   fetchHistory()
 })
 </script>
+
+<style scoped>
+.initial-avatar { overflow:hidden; }
+.history-avatar-image { width:100%; height:100%; object-fit:cover; }
+</style>

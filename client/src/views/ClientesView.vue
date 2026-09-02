@@ -67,7 +67,8 @@
                 <td>
                   <div class="contact-cell">
                     <div class="initial-avatar" :style="{ background: avatarColor(c.name) }" style="width:32px;height:32px;font-size:11px;">
-                      {{ initials(c.name) }}
+                      <img v-if="c.avatar_url" :src="c.avatar_url" alt="Foto do contato" referrerpolicy="no-referrer" class="contact-avatar-image" />
+                      <span v-else>{{ initials(c.name) }}</span>
                     </div>
                     <div class="contact-cell-meta">
                       <span class="contact-cell-name">{{ normalizePersonName(c.name) }}</span>
@@ -117,6 +118,10 @@
             <button type="button" class="btn-icon" title="Fechar" @click="closeModal"><i class="fa-solid fa-xmark"></i></button>
           </div>
           <div class="modal-body">
+            <div v-if="form.avatar_url" class="contact-modal-profile">
+              <img :src="form.avatar_url" alt="Foto do contato" referrerpolicy="no-referrer" />
+              <span><strong>Foto do WhatsApp</strong><small>Sincronizada automaticamente com o contato.</small></span>
+            </div>
             <div class="form-grid">
               <div class="form-group form-group-full">
                 <label>Tipo de contato</label>
@@ -237,7 +242,7 @@ const importInput = ref(null)
 const importing = ref(false)
 const importSummary = ref('')
 
-const emptyForm = () => ({ name: '', phone: '', email: '', cnpj: '', channel: 'WhatsApp', status: 'Ativo', notes: '', is_employee: false })
+const emptyForm = () => ({ name: '', phone: '', email: '', cnpj: '', channel: 'WhatsApp', status: 'Ativo', notes: '', is_employee: false, avatar_url: null })
 const form = ref(emptyForm())
 let editingId = null
 
@@ -283,7 +288,7 @@ async function loadContacts() {
 function openEdit(c) {
   isNew.value = false
   editingId = c.id
-  form.value = { name: c.name || '', phone: c.phone || '', email: c.email || '', cnpj: c.cnpj || '', channel: c.channel || 'WhatsApp', status: c.status || 'Ativo', notes: c.notes || '', is_employee: Boolean(c.is_employee) }
+  form.value = { name: c.name || '', phone: c.phone || '', email: c.email || '', cnpj: c.cnpj || '', channel: c.channel || 'WhatsApp', status: c.status || 'Ativo', notes: c.notes || '', is_employee: Boolean(c.is_employee), avatar_url: c.avatar_url || null }
   saveError.value = ''
   showModal.value = true
 }
@@ -391,6 +396,13 @@ onMounted(loadContacts)
 </script>
 
 <style scoped>
+.initial-avatar { overflow:hidden; }
+.contact-avatar-image { width:100%; height:100%; object-fit:cover; }
+.contact-modal-profile { display:flex; align-items:center; gap:10px; margin-bottom:14px; padding:10px; border:1px solid #e2e8f0; border-radius:9px; background:#f8fafc; }
+.contact-modal-profile img { width:44px; height:44px; border-radius:50%; object-fit:cover; }
+.contact-modal-profile span { display:grid; gap:2px; }
+.contact-modal-profile strong { color:#1e293b; font-size:12px; }
+.contact-modal-profile small { color:#64748b; font-size:10.5px; }
 .table-view-layout {
   box-sizing: border-box;
   gap: 12px;

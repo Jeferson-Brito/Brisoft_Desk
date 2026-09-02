@@ -4,6 +4,9 @@
 alter table if exists public.departments
   add column if not exists allow_device_message_mutations boolean not null default false;
 
+alter table if exists public.contacts
+  add column if not exists avatar_url text;
+
 alter table if exists public.tickets
   add column if not exists is_group boolean not null default false,
   add column if not exists group_jid text,

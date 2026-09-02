@@ -40,7 +40,7 @@ export function useSocket() {
     socket.on('connect', () => {
       ui.serverOnline = true
       tickets.fetchQueue({ silent: true }).catch(() => {})
-      if (!ticket?.is_group) tickets.notifyKpisUpdated()
+      tickets.notifyKpisUpdated()
     })
 
     socket.on('disconnect', () => {

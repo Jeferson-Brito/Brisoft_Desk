@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS contacts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
     name VARCHAR(255) NOT NULL,
+    avatar_url TEXT,
     phone VARCHAR(30) NOT NULL,
     email VARCHAR(150),
     role VARCHAR(100),
@@ -136,6 +137,7 @@ CREATE TABLE IF NOT EXISTS tickets (
 ALTER TABLE departments ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE departments ADD COLUMN IF NOT EXISTS sort_order INT;
 ALTER TABLE departments ADD COLUMN IF NOT EXISTS allow_device_message_mutations BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
 CREATE TABLE IF NOT EXISTS ticket_collaborators (
     ticket_id TEXT NOT NULL,
