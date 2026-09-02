@@ -149,6 +149,7 @@ io.on('connection', (socket) => {
   const socketDepartments = [...new Set([...(socket.user.department_ids || []), socket.user.department_id].filter(Boolean))];
   socketDepartments.forEach(departmentId => socket.join(`department:${departmentId}`));
   if (socket.user.role === 'Administrador') socket.join('admins');
+  io.emit('presence_updated', { departmentIds: socketDepartments });
 
   // Envia status atual do WhatsApp assim que o cliente conecta
   socket.emit('whatsapp_status', socket.user.role === 'Administrador'
@@ -158,6 +159,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     if (socket.authExpiryTimer) clearTimeout(socket.authExpiryTimer);
     console.log(`❌ Cliente desconectado: ${socket.id}`);
+    io.emit('presence_updated', { departmentIds: socketDepartments });
   });
 });
 

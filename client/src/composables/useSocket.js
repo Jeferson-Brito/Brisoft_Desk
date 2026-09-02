@@ -4,6 +4,7 @@ import { useTicketStore } from '@/stores/tickets.store'
 import { useUiStore }     from '@/stores/ui.store'
 
 let socket = null
+const incomingCallTimers = new Map()
 
 /**
  * Composable que gerencia a conexão Socket.io.
@@ -120,6 +121,26 @@ export function useSocket() {
       const auth = useAuthStore()
       if (data.agentName && auth.user?.name === data.agentName) {
         ui.showToast(`⭐ Cliente avaliou seu atendimento com ${data.rating} estrelas!`)
+      }
+    })
+
+    socket.on('incoming_whatsapp_call', (data = {}) => {
+      const active = data.status === 'ringing'
+      const icon = data.isVideo ? '📹' : '📞'
+      if (data.ticketId) tickets.patchTicket(data.ticketId, { incomingCall: data })
+
+      clearTimeout(incomingCallTimers.get(data.callId))
+      if (active) {
+        ui.showToast(`${icon} ${data.clientName || 'Cliente'} está ${data.isVideo ? 'fazendo uma chamada de vídeo' : 'ligando'}...`)
+        incomingCallTimers.set(data.callId, setTimeout(() => {
+          if (data.ticketId) tickets.patchTicket(data.ticketId, { incomingCall: null })
+          incomingCallTimers.delete(data.callId)
+        }, 45000))
+      } else {
+        incomingCallTimers.set(data.callId, setTimeout(() => {
+          if (data.ticketId) tickets.patchTicket(data.ticketId, { incomingCall: null })
+          incomingCallTimers.delete(data.callId)
+        }, 2500))
       }
     })
 

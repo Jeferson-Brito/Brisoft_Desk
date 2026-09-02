@@ -60,14 +60,14 @@
 
       <section class="tv-content-grid">
         <article class="tv-panel tv-queue-panel">
-          <div class="tv-panel-head"><div><span>Fila de espera</span><small>Sem exibição de dados pessoais</small></div><strong>{{ realtime.waiting }}</strong></div>
+          <div class="tv-panel-head"><div><span>Fila de espera</span><small>Clientes aguardando atendimento</small></div><strong>{{ realtime.waiting }}</strong></div>
           <div v-if="!realtime.queue.length" class="tv-empty queue-empty">
             <i class="fa-solid fa-circle-check"></i><strong>Nenhum cliente aguardando</strong><span>A fila está em dia.</span>
           </div>
           <div v-else class="tv-queue-list">
             <div v-for="(item, index) in realtime.queue" :key="item.protocol" class="tv-queue-item" :class="item.state">
               <span class="tv-queue-position">{{ index + 1 }}</span>
-              <div><strong>Chamado #{{ item.protocol }}</strong><small>{{ item.state === 'critical' ? 'SLA vencido' : item.state === 'warning' ? 'Próximo do SLA' : 'Dentro do prazo' }}</small></div>
+              <div><strong :title="item.clientName">{{ item.clientName }}</strong><small>Chamado #{{ item.protocol }} · {{ item.state === 'critical' ? 'SLA vencido' : item.state === 'warning' ? 'Próximo do SLA' : 'Dentro do prazo' }}</small></div>
               <span class="tv-queue-time">{{ item.wait }}</span>
               <div class="tv-sla-track"><i :style="{ width: `${Math.min(100, item.slaProgress)}%` }"></i></div>
             </div>
@@ -94,7 +94,7 @@
           <div class="tv-panel-head"><div><span>Ordens de serviço</span><small>Integração futura</small></div></div>
           <div class="tv-os-placeholder"><i class="fa-solid fa-screwdriver-wrench"></i><div><strong>—</strong><span>OSs abertas</span></div><small>Ainda não há uma fonte de ordens de serviço integrada.</small></div>
           <div class="tv-ranking">
-            <div class="tv-ranking-title"><span>Ranking de atendentes</span><small>{{ monthLabel }}</small></div>
+            <div class="tv-ranking-title"><span>Ranking de atendentes</span><small>Hoje</small></div>
             <div v-if="!agents.length" class="tv-ranking-empty">Sem atendimentos concluídos no período.</div>
             <div v-for="(agent, index) in agents.slice(0, 5)" :key="agent.id" class="tv-ranking-row">
               <b>{{ index + 1 }}º</b><span>{{ agent.name }}</span><strong>{{ agent.completed }}</strong>
@@ -105,7 +105,7 @@
       </section>
 
       <footer class="tv-footer">
-        <span><i class="fa-solid fa-lock"></i> Painel protegido · dados pessoais ocultos</span>
+        <span><i class="fa-solid fa-lock"></i> Painel protegido · acesso restrito à equipe</span>
         <span :class="{ stale: dataIsStale }"><i class="fa-solid fa-arrows-rotate" :class="{ 'fa-spin': refreshing }"></i> Atualizado {{ updatedAgo }}</span>
       </footer>
     </template>
@@ -164,6 +164,8 @@ let wakeLock = null
 let audioContext = null
 let waitingSnapshotReady = false
 let lastWaitingCount = 0
+let refreshQueued = false
+let queuedForceRefresh = false
 
 const health = computed(() => data.value?.health || { level: 'warning', label: 'Carregando', reason: 'Atualizando indicadores' })
 const realtime = computed(() => data.value?.realtime || { waiting: 0, handling: 0, oldestWait: '00:00', slaAtRisk: 0, slaBreached: 0, connectedUsers: 0, queue: [], whatsapp: {} })
@@ -175,7 +177,6 @@ const chartMaximum = computed(() => Math.max(1, ...trend.value.flatMap(point => 
 const healthIcon = computed(() => health.value.level === 'healthy' ? 'fa-solid fa-heart-pulse' : health.value.level === 'warning' ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-circle-exclamation')
 const clock = computed(() => now.value.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }))
 const dateLabel = computed(() => now.value.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }))
-const monthLabel = computed(() => now.value.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }))
 const updatedAgo = computed(() => { const seconds = Math.max(0, Math.floor((now.value - new Date(data.value?.generatedAt || now.value)) / 1000)); return seconds < 5 ? 'agora' : `há ${seconds}s` })
 const dataIsStale = computed(() => now.value - new Date(data.value?.generatedAt || now.value) > 60000)
 
@@ -192,7 +193,11 @@ async function loadDepartments() {
 
 async function fetchData(force = false) {
   if (!selectedDepartmentId.value) return
-  if (refreshing.value && !force) return
+  if (refreshing.value) {
+    refreshQueued = true
+    queuedForceRefresh ||= force
+    return
+  }
   refreshing.value = true
   try {
     const { data: response } = await ticketsApi.wallboard({ departmentId: selectedDepartmentId.value, force })
@@ -210,6 +215,12 @@ async function fetchData(force = false) {
   } finally {
     loading.value = false
     refreshing.value = false
+    if (refreshQueued) {
+      const forceQueuedRequest = queuedForceRefresh
+      refreshQueued = false
+      queuedForceRefresh = false
+      scheduleRefresh(forceQueuedRequest)
+    }
   }
 }
 
@@ -222,8 +233,17 @@ async function changeDepartment() {
 }
 
 function scheduleRefresh(force = true) {
+  queuedForceRefresh ||= force
+  if (refreshing.value) {
+    refreshQueued = true
+    return
+  }
   clearTimeout(refreshTimer)
-  refreshTimer = setTimeout(() => fetchData(force), 500)
+  refreshTimer = setTimeout(() => {
+    const forceScheduledRequest = queuedForceRefresh
+    queuedForceRefresh = false
+    fetchData(forceScheduledRequest)
+  }, 0)
 }
 
 function showNewTicket() {
@@ -306,12 +326,14 @@ function bindSocket() {
   socket.on('ticket_created', onTicketCreated)
   socket.on('ticket_updated', onTicketChanged); socket.on('queue_updated', onTicketChanged)
   socket.on('kpis_updated', onKpisUpdated); socket.on('whatsapp_status', onWhatsappStatus)
+  socket.on('presence_updated', onPresenceUpdated)
 }
 function unbindSocket() {
   const socket = getSocket(); if (!socket) return
   socket.off('connect', onConnect); socket.off('disconnect', onDisconnect)
   socket.off('ticket_created', onTicketCreated); socket.off('ticket_updated', onTicketChanged); socket.off('queue_updated', onTicketChanged)
   socket.off('kpis_updated', onKpisUpdated); socket.off('whatsapp_status', onWhatsappStatus)
+  socket.off('presence_updated', onPresenceUpdated)
 }
 function onConnect() { serverConnected.value = true; scheduleRefresh(true) }
 function onDisconnect() { serverConnected.value = false }
@@ -326,6 +348,9 @@ function onTicketCreated({ ticket }) {
 function onTicketChanged({ ticket }) { if (matchesDepartment(ticket)) scheduleRefresh(true) }
 function onKpisUpdated() { scheduleRefresh(true) }
 function onWhatsappStatus() { scheduleRefresh(false) }
+function onPresenceUpdated({ departmentIds = [] } = {}) {
+  if (departmentIds.some(id => String(id) === String(selectedDepartmentId.value))) scheduleRefresh(false)
+}
 function onFullscreenChange() { isFullscreen.value = Boolean(document.fullscreenElement) }
 async function onVisibilityChange() { if (document.visibilityState === 'visible' && audioReady.value) await requestWakeLock() }
 
@@ -333,7 +358,9 @@ onMounted(async () => {
   try { await loadDepartments(); await fetchData(true); bindSocket() }
   catch (mountError) { error.value = mountError.message; loading.value = false }
   clockTimer = setInterval(() => { now.value = new Date() }, 1000)
-  pollTimer = setInterval(() => fetchData(false), 2000)
+  // Recuperação eventual caso a conexão perca algum evento; a atualização
+  // normal acontece imediatamente pelos eventos WebSocket acima.
+  pollTimer = setInterval(() => fetchData(false), 30000)
   document.addEventListener('fullscreenchange', onFullscreenChange)
   document.addEventListener('visibilitychange', onVisibilityChange)
 })

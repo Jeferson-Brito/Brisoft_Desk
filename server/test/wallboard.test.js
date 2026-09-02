@@ -14,10 +14,10 @@ test('normaliza limites configuráveis do painel TV', () => {
   });
 });
 
-test('classifica fila por proximidade e estouro do SLA sem expor clientes', () => {
+test('classifica fila por proximidade e estouro do SLA exibindo o nome do cliente', () => {
   const now = new Date('2026-08-28T15:00:00Z').getTime();
   const queue = calculateQueueState([
-    { id: 'abc-123', status: 'aguardando', created_at: '2026-08-28T14:50:00Z', sla_minutes_target: 15 },
+    { id: 'abc-123', client_name: 'Maria Oliveira', status: 'aguardando', created_at: '2026-08-28T14:50:00Z', sla_minutes_target: 15 },
     { id: 'def-456', status: 'aguardando', created_at: '2026-08-28T14:40:00Z', sla_minutes_target: 15 },
     { id: 'ghi-789', status: 'em_atendimento', created_at: '2026-08-28T14:55:00Z' }
   ], 15, normalizeConfig({ warningSlaPercent: 60 }), now);
@@ -25,7 +25,7 @@ test('classifica fila por proximidade e estouro do SLA sem expor clientes', () =
   assert.equal(queue.handling, 1);
   assert.equal(queue.slaAtRisk, 1);
   assert.equal(queue.slaBreached, 1);
-  assert.equal('clientName' in queue.queue[0], false);
+  assert.equal(queue.queue[1].clientName, 'Maria Oliveira');
 });
 
 test('prioriza falha de conexão e estouro de SLA na saúde operacional', () => {

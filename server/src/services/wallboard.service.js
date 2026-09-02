@@ -46,8 +46,10 @@ function calculateQueueState(tickets, slaMinutes, config, now = Date.now()) {
     const waitSeconds = secondsSince(ticket.queued_at || ticket.created_at, now);
     const targetSeconds = Math.max(60, Number(ticket.sla_minutes_target || slaMinutes || 15) * 60);
     const progress = Math.round((waitSeconds / targetSeconds) * 100);
+    const protocol = String(ticket.protocol || ticket.id || '').replace(/-/g, '').slice(0, 8).toUpperCase();
     return {
-      protocol: String(ticket.protocol || ticket.id || '').replace(/-/g, '').slice(0, 8).toUpperCase(),
+      protocol,
+      clientName: String(ticket.client_name || '').trim() || `Cliente ${protocol}`,
       waitSeconds,
       wait: formatDuration(waitSeconds),
       slaProgress: progress,
@@ -150,7 +152,7 @@ class WallboardService {
     const config = await this.getConfig(department.id);
     let [activeResult, performance, connectedUsers] = await Promise.all([
       supabase.from('tickets')
-        .select('id, status, created_at, queued_at')
+        .select('id, client_name, status, created_at, queued_at')
         .eq('department_id', department.id)
         .in('status', ['aguardando', 'em_atendimento'])
         .order('created_at', { ascending: true })
@@ -160,7 +162,7 @@ class WallboardService {
     ]);
     if (activeResult.error && /queued_at|schema cache|does not exist/i.test(String(activeResult.error.message || ''))) {
       activeResult = await supabase.from('tickets')
-        .select('id, status, created_at')
+        .select('id, client_name, status, created_at')
         .eq('department_id', department.id)
         .in('status', ['aguardando', 'em_atendimento'])
         .order('created_at', { ascending: true })
@@ -195,7 +197,10 @@ class WallboardService {
         target: config.monthlyTarget,
         targetProgress: monthlyProgress
       },
-      agents: (performance?.agents || []).slice(0, 8).map(agent => ({ id: agent.id, name: agent.name, completed: agent.completed, active: agent.active, slaPercent: agent.slaPercent })),
+      agents: (performance?.agents || [])
+        .map(agent => ({ id: agent.id, name: agent.name, completed: agent.todayCompleted || 0, active: agent.active, slaPercent: agent.slaPercent }))
+        .sort((a, b) => b.completed - a.completed || a.name.localeCompare(b.name, 'pt-BR'))
+        .slice(0, 8),
       trend: (performance?.trend || []).slice(-14),
       generatedAt: new Date().toISOString()
     };

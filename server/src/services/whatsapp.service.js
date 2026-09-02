@@ -117,6 +117,22 @@ function normalizeAccountRouting(config = {}) {
   return { routingMode, departmentId, departmentName, fallbackDepartmentId, fallbackDepartmentName };
 }
 
+function normalizeCallEvent(call = {}) {
+  const from = String(call.from || call.chatId || call.peerJid || '').trim();
+  const rawStatus = String(call.status || 'offer').toLowerCase();
+  const status = ['offer', 'ringing'].includes(rawStatus)
+    ? 'ringing'
+    : (['accept', 'accepted'].includes(rawStatus) ? 'answered' : 'ended');
+  return {
+    callId: String(call.id || call.callId || `${from}:${call.date || Date.now()}`),
+    from,
+    status,
+    isVideo: Boolean(call.isVideo || call.video),
+    isGroup: Boolean(call.isGroup),
+    timestamp: call.date || call.timestamp || Date.now()
+  };
+}
+
 async function applyAccountRoutingWithPersistence(account, routing, persist) {
   const hadFallbackDepartmentId = Object.prototype.hasOwnProperty.call(account, 'fallbackDepartmentId');
   const hadFallbackDepartmentName = Object.prototype.hasOwnProperty.call(account, 'fallbackDepartmentName');
@@ -641,6 +657,7 @@ class WhatsAppService {
       this.bindContacts(account);
       this.bindConnection(account, baileys.DisconnectReason);
       this.bindMessages(account, baileys.downloadMediaMessage, baileys.downloadContentFromMessage);
+      this.bindCalls(account);
       return this.publicAccount(account, true);
     } catch (error) {
       account.initializing = false;
@@ -807,6 +824,25 @@ class WhatsAppService {
           this.recentMessageIds.delete(messageKey);
           console.error(`[WhatsApp:${account.name}] falha ao processar mensagem: ${error.message}`);
         });
+      }
+    });
+  }
+
+  bindCalls(account) {
+    account.sock.ev.on('call', calls => {
+      for (const rawCall of calls || []) {
+        const call = normalizeCallEvent(rawCall);
+        if (!call.from || call.isGroup) continue;
+        this.messageQueue.enqueue(`${account.id}:call:${call.from}`, async () => {
+          const phone = await this.extractPhone(account, call.from);
+          return ticketService.processWhatsAppCall({
+            ...call,
+            phone,
+            whatsappAccountId: account.id,
+            whatsappAccountName: account.name,
+            whatsappDepartmentId: account.departmentId || account.fallbackDepartmentId || null
+          }, this.io);
+        }).catch(error => console.warn(`[WhatsApp:${account.name}] falha ao identificar chamada: ${error.message}`));
       }
     });
   }
@@ -1222,6 +1258,7 @@ whatsappService._test = {
   unwrapMessageContent,
   safeFileToken,
   normalizeAccountRouting,
+  normalizeCallEvent,
   applyAccountRoutingWithPersistence,
   getPhoneFromJid,
   phoneJidFromMessageMetadata,

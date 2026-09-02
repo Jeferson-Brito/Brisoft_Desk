@@ -44,6 +44,14 @@ test('mantém habilitados os eventos de mensagens enviadas por outros dispositiv
   assert.equal(whatsappService._test.EMIT_OWN_EVENTS, true);
 });
 
+test('normaliza chamadas recebidas de voz e vídeo do WhatsApp', () => {
+  assert.deepEqual(
+    whatsappService._test.normalizeCallEvent({ id: 'CALL-1', from: '558399999999@s.whatsapp.net', status: 'offer', isVideo: true, date: 123 }),
+    { callId: 'CALL-1', from: '558399999999@s.whatsapp.net', status: 'ringing', isVideo: true, isGroup: false, timestamp: 123 }
+  );
+  assert.equal(whatsappService._test.normalizeCallEvent({ id: 'CALL-1', status: 'timeout' }).status, 'ended');
+});
+
 test('não mantém a sessão artificialmente online para preservar o celular principal', () => {
   assert.equal(whatsappService._test.MARK_ONLINE_ON_CONNECT, false);
 });

@@ -1861,6 +1861,52 @@ ${rendered}`,
     }
   }
 
+  async processWhatsAppCall(callData, io) {
+    if (!io || !callData) return { success: false, error: 'Evento de chamada inválido.' };
+    const phone = String(callData.phone || '').replace(/\D/g, '');
+    const rawJid = String(callData.from || '').trim();
+    let ticket = null;
+
+    if (isSupabaseConfigured()) {
+      const baseQuery = () => supabase.from('tickets')
+        .select('id, client_name, phone, department, department_id, status')
+        .in('status', ['chatbot', 'aguardando', 'em_atendimento'])
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (phone) {
+        const result = await baseQuery().eq('phone', phone);
+        if (result.error) throw result.error;
+        ticket = result.data?.[0] || null;
+      }
+      if (!ticket && rawJid) {
+        const byJid = await baseQuery().or(`jid.eq.${rawJid},raw_jid.eq.${rawJid}`);
+        if (!byJid.error) ticket = byJid.data?.[0] || null;
+      }
+    }
+
+    const payload = {
+      ticketId: ticket?.id || null,
+      callId: callData.callId,
+      status: callData.status || 'ringing',
+      isVideo: Boolean(callData.isVideo),
+      phone,
+      clientName: ticket?.client_name || (phone ? `Cliente ${phone.slice(-4)}` : 'Contato do WhatsApp'),
+      department: ticket?.department || null,
+      timestamp: new Date().toISOString(),
+      whatsappAccountId: callData.whatsappAccountId || null,
+      whatsappAccountName: callData.whatsappAccountName || null
+    };
+
+    if (ticket) {
+      emitTicketEvent(io, 'incoming_whatsapp_call', payload, ticket);
+    } else {
+      let target = io.to('admins');
+      if (callData.whatsappDepartmentId) target = target.to(`department:${callData.whatsappDepartmentId}`);
+      target.emit('incoming_whatsapp_call', payload);
+    }
+    return { success: true, ticketId: payload.ticketId };
+  }
+
   async getCollaborators(ticketId, user, options = {}) {
     if (!isSupabaseConfigured()) return [];
     const { data: ticket } = await supabase.from('tickets').select('id, department_id, department, status, user_id, agent_name, encerrado_por').eq('id', ticketId).maybeSingle();

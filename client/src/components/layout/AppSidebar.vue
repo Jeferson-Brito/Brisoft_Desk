@@ -54,7 +54,7 @@
       </RouterLink>
 
       <!-- Painel TV -->
-      <RouterLink class="nav-item" to="/painel-tv" active-class="active" title="Painel TV (Tempo Real)">
+      <RouterLink class="nav-item" to="/painel-tv" target="_blank" rel="noopener noreferrer" title="Abrir Painel TV em nova guia" @click="closeMobile">
         <i class="fa-solid fa-tv"></i>
         <span class="nav-label">Painel TV</span>
       </RouterLink>

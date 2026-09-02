@@ -272,7 +272,13 @@ class PerformanceService {
       .map(agent => {
         const metrics = calculateMetrics({ ...{ createdTickets: currentData.created, closedTickets: currentData.closed, activeTickets: currentData.active, ratings: currentData.ratings, period: requestedPeriod }, agent });
         const oldMetrics = calculateMetrics({ ...{ createdTickets: previousData.created, closedTickets: previousData.closed, activeTickets: [], ratings: previousData.ratings, period: previousPeriod }, agent });
-        return { id: agent.id, name: agent.name, role: agent.role, avatarUrl: agent.avatar_url, departmentId: departmentId || agent.department_id, departmentIds: memberDepartmentIds(agent), ...metrics, comparison: buildComparison(metrics, oldMetrics) };
+        const todayCompleted = requestedPeriod.isCurrent
+          ? currentData.closed
+            .filter(isCustomerTicket)
+            .filter(ticket => ticketMatchesAgent(ticket, agent))
+            .filter(ticket => localDateKey(ticket.closed_at || ticket.updated_at) === todayKey).length
+          : 0;
+        return { id: agent.id, name: agent.name, role: agent.role, avatarUrl: agent.avatar_url, departmentId: departmentId || agent.department_id, departmentIds: memberDepartmentIds(agent), todayCompleted, ...metrics, comparison: buildComparison(metrics, oldMetrics) };
       })
       .filter(item => !selectedUser || String(item.id) === String(selectedUser.id))
       .sort((a, b) => b.completed - a.completed);

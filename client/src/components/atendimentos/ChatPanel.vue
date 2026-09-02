@@ -125,6 +125,18 @@
       </div>
     </div>
 
+    <Transition name="incoming-call-slide">
+      <div v-if="ticket?.incomingCall" class="incoming-call-banner" :class="{ video: ticket.incomingCall.isVideo, ended: ticket.incomingCall.status !== 'ringing' }">
+        <span class="incoming-call-pulse"><i :class="ticket.incomingCall.isVideo ? 'fa-solid fa-video' : 'fa-solid fa-phone'"></i></span>
+        <div>
+          <strong>{{ ticket.incomingCall.status === 'ringing' ? (ticket.incomingCall.isVideo ? 'Chamada de vídeo recebida' : 'Ligação recebida') : 'Chamada finalizada' }}</strong>
+          <small>{{ headerPerson.name }} {{ ticket.incomingCall.status === 'ringing' ? 'está tentando entrar em contato pelo WhatsApp' : 'encerrou a tentativa de chamada' }}</small>
+        </div>
+        <span class="incoming-call-time">{{ callTime(ticket.incomingCall.timestamp) }}</span>
+        <button type="button" title="Fechar aviso" @click="dismissIncomingCall"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </Transition>
+
     <Transition name="chat-search-slide">
       <div v-if="ticket && showMessageSearch" class="chat-message-searchbar">
         <i class="fa-solid fa-magnifying-glass"></i>
@@ -532,6 +544,11 @@ let recordingTimer = null
 
 function openCollaborators() { showActionsMenu.value = false; showCollaboratorsModal.value = true }
 function updateCollaborators(collaborators) { ticketStore.patchTicket(props.ticket.id, { collaborators }) }
+function dismissIncomingCall() { if (props.ticket?.id) ticketStore.patchTicket(props.ticket.id, { incomingCall: null }) }
+function callTime(value) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 'agora' : date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
 
 const inputMsg = ref('')
 const chatMode = ref('responder') // 'responder' | 'observacao'
@@ -1212,6 +1229,15 @@ watch(inputMsg, (newVal) => {
   background: #f8fafc;
   color: #94a3b8;
 }
+.incoming-call-banner { flex:none;display:flex;align-items:center;gap:10px;min-height:52px;padding:8px 14px;border-bottom:1px solid #bbf7d0;background:linear-gradient(90deg,#ecfdf5,#f0fdf4);color:#166534;position:relative;z-index:25; }
+.incoming-call-banner.video { border-bottom-color:#bfdbfe;background:linear-gradient(90deg,#eff6ff,#f5f8ff);color:#1d4ed8; }
+.incoming-call-banner.ended { border-bottom-color:#e2e8f0;background:#f8fafc;color:#64748b; }
+.incoming-call-pulse { width:34px;height:34px;flex:none;border-radius:50%;display:grid;place-items:center;background:#16a34a;color:#fff;box-shadow:0 0 0 0 rgba(22,163,74,.35);animation:incoming-call-pulse 1.35s infinite; }
+.incoming-call-banner.video .incoming-call-pulse { background:#2563eb;box-shadow:0 0 0 0 rgba(37,99,235,.35); }.incoming-call-banner.ended .incoming-call-pulse { background:#94a3b8;animation:none;box-shadow:none; }
+.incoming-call-banner>div { min-width:0;flex:1;display:flex;flex-direction:column;gap:2px; }.incoming-call-banner strong { font-size:11.5px; }.incoming-call-banner small { overflow:hidden;color:currentColor;font-size:9.5px;opacity:.78;white-space:nowrap;text-overflow:ellipsis; }.incoming-call-time { font-size:9px;opacity:.72; }
+.incoming-call-banner>button { width:27px;height:27px;border:0;border-radius:7px;background:transparent;color:currentColor;cursor:pointer; }.incoming-call-banner>button:hover { background:rgba(255,255,255,.75); }
+.incoming-call-slide-enter-active,.incoming-call-slide-leave-active { transition:opacity .18s ease,transform .18s ease; }.incoming-call-slide-enter-from,.incoming-call-slide-leave-to { opacity:0;transform:translateY(-7px); }
+@keyframes incoming-call-pulse { 70% { box-shadow:0 0 0 8px transparent; } 100% { box-shadow:0 0 0 0 transparent; } }
 
 .chat-message-searchbar > i { font-size: 11px; }
 .chat-message-searchbar input {
