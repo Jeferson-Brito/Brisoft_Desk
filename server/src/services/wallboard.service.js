@@ -146,7 +146,7 @@ class WallboardService {
     };
   }
 
-  async getData(user, { departmentId, force = false } = {}, io = null, whatsappService = null) {
+  async getData(user, { departmentId, force = false, includeAvatars = false } = {}, io = null, whatsappService = null) {
     if (!isSupabaseConfigured()) throw new Error('Supabase não configurado.');
     const department = await this.resolveDepartment(user, departmentId);
     const config = await this.getConfig(department.id);
@@ -198,8 +198,17 @@ class WallboardService {
         targetProgress: monthlyProgress
       },
       agents: (performance?.agents || [])
-        .map(agent => ({ id: agent.id, name: agent.name, completed: agent.todayCompleted || 0, active: agent.active, slaPercent: agent.slaPercent }))
-        .sort((a, b) => b.completed - a.completed || a.name.localeCompare(b.name, 'pt-BR'))
+        .map(agent => ({
+          id: agent.id,
+          name: agent.name,
+          ...(includeAvatars ? { avatarUrl: agent.avatarUrl || null } : {}),
+          completed: agent.todayCompleted || 0,
+          ratingAverage: agent.todayRatingAverage,
+          ratingCount: agent.todayRatingCount || 0,
+          active: agent.active,
+          slaPercent: agent.slaPercent
+        }))
+        .sort((a, b) => b.completed - a.completed || (b.ratingAverage || 0) - (a.ratingAverage || 0) || a.name.localeCompare(b.name, 'pt-BR'))
         .slice(0, 8),
       trend: (performance?.trend || []).slice(-14),
       generatedAt: new Date().toISOString()

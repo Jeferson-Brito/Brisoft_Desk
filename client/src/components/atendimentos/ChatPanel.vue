@@ -126,11 +126,11 @@
     </div>
 
     <Transition name="incoming-call-slide">
-      <div v-if="ticket?.incomingCall" class="incoming-call-banner" :class="{ video: ticket.incomingCall.isVideo, ended: ticket.incomingCall.status !== 'ringing' }">
+      <div v-if="ticket?.incomingCall" class="incoming-call-banner" :class="{ video: ticket.incomingCall.isVideo, ended: ticket.incomingCall.status !== 'ringing' }" role="status" aria-live="assertive">
         <span class="incoming-call-pulse"><i :class="ticket.incomingCall.isVideo ? 'fa-solid fa-video' : 'fa-solid fa-phone'"></i></span>
         <div>
-          <strong>{{ ticket.incomingCall.status === 'ringing' ? (ticket.incomingCall.isVideo ? 'Chamada de vídeo recebida' : 'Ligação recebida') : 'Chamada finalizada' }}</strong>
-          <small>{{ headerPerson.name }} {{ ticket.incomingCall.status === 'ringing' ? 'está tentando entrar em contato pelo WhatsApp' : 'encerrou a tentativa de chamada' }}</small>
+          <strong>{{ ticket.incomingCall.status === 'ringing' ? (ticket.incomingCall.isVideo ? 'Chamada de vídeo do WhatsApp' : 'Ligação do WhatsApp') : 'Chamada finalizada' }}</strong>
+          <small>{{ headerPerson.name }} {{ ticket.incomingCall.status === 'ringing' ? (ticket.incomingCall.isVideo ? 'está fazendo uma chamada de vídeo agora' : 'está ligando agora') : 'encerrou a tentativa de chamada' }}</small>
         </div>
         <span class="incoming-call-time">{{ callTime(ticket.incomingCall.timestamp) }}</span>
         <button type="button" title="Fechar aviso" @click="dismissIncomingCall"><i class="fa-solid fa-xmark"></i></button>
@@ -452,6 +452,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useTicketStore } from '@/stores/tickets.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useSocket } from '@/composables/useSocket'
 import { ticketsApi } from '@/api/tickets.api'
 import { quickMessagesApi } from '@/api/quick-messages.api'
 import { classifyBotInteractions } from '@/utils/chat-message-visibility'
@@ -512,6 +513,7 @@ defineEmits(['toggle-details', 'go-back'])
 const ticketStore = useTicketStore()
 const authStore = useAuthStore()
 const ui = useUiStore()
+const { stopIncomingCallAlert } = useSocket()
 
 const showTransferModal = ref(false)
 const showCollaboratorsModal = ref(false)
@@ -544,7 +546,11 @@ let recordingTimer = null
 
 function openCollaborators() { showActionsMenu.value = false; showCollaboratorsModal.value = true }
 function updateCollaborators(collaborators) { ticketStore.patchTicket(props.ticket.id, { collaborators }) }
-function dismissIncomingCall() { if (props.ticket?.id) ticketStore.patchTicket(props.ticket.id, { incomingCall: null }) }
+function dismissIncomingCall() {
+  if (!props.ticket?.id) return
+  stopIncomingCallAlert(props.ticket.incomingCall?.callId)
+  ticketStore.patchTicket(props.ticket.id, { incomingCall: null })
+}
 function callTime(value) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? 'agora' : date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })

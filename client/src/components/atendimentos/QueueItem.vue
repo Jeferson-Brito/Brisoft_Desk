@@ -3,7 +3,9 @@
     class="queue-item-card"
     :class="{
       active: ticket.id === ticketStore.activeTicketId,
-      unread: ticket.unreadCount > 0
+      unread: ticket.unreadCount > 0,
+      'incoming-call': isIncomingCall,
+      'incoming-video-call': isIncomingCall && ticket.incomingCall.isVideo
     }"
     @click="handleClick"
   >
@@ -28,6 +30,14 @@
           </strong>
           <span v-if="ticket.is_employee" class="employee-tag" title="Funcionário">
             <i class="fa-solid fa-id-badge"></i>
+          </span>
+          <span
+            v-if="isIncomingCall"
+            class="incoming-call-queue-badge"
+            :class="{ video: ticket.incomingCall.isVideo }"
+            :title="ticket.incomingCall.isVideo ? 'Cliente está fazendo uma chamada de vídeo' : 'Cliente está ligando agora'"
+          >
+            <i :class="ticket.incomingCall.isVideo ? 'fa-solid fa-video' : 'fa-solid fa-phone'"></i>
           </span>
         </div>
         <span class="queue-item-time">{{ relativeTime }}</span>
@@ -93,6 +103,7 @@ const displayName = computed(() => person.value.name || 'Cliente')
 const deptName = computed(() => props.ticket.department || props.ticket.departments?.name || props.ticket.deptInitial || '')
 const deptColor = computed(() => props.ticket.departmentColor || '#1f62d0')
 const isWhatsapp = computed(() => true)
+const isIncomingCall = computed(() => props.ticket.incomingCall?.status === 'ringing')
 
 const relativeTime = computed(() => {
   const t = props.ticket.time
@@ -236,6 +247,44 @@ function cleanPreview(preview) {
 .employee-tag {
   color: #047857;
   font-size: 11px;
+}
+
+.incoming-call-queue-badge {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #16a34a;
+  color: #ffffff;
+  font-size: 9px;
+  box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.36);
+  animation: queue-call-ring 1.15s ease-in-out infinite;
+}
+
+.incoming-call-queue-badge.video {
+  background: #2563eb;
+  box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.34);
+}
+
+.queue-item-card.incoming-call {
+  background: #f0fdf4;
+  box-shadow: inset 3px 0 0 #16a34a;
+}
+
+.queue-item-card.incoming-video-call {
+  background: #eff6ff;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+@keyframes queue-call-ring {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  15% { transform: rotate(-13deg) scale(1.08); }
+  30% { transform: rotate(13deg) scale(1.08); }
+  45% { transform: rotate(-8deg) scale(1.05); }
+  60% { transform: rotate(8deg) scale(1.05); }
+  75% { transform: rotate(0deg) scale(1); box-shadow: 0 0 0 7px transparent; }
 }
 
 .queue-item-time {

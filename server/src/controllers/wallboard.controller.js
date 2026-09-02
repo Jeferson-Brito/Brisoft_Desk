@@ -6,7 +6,8 @@ class WallboardController {
     try {
       const wallboard = await wallboardService.getData(req.user, {
         departmentId: req.query.departmentId,
-        force: req.query.force === 'true'
+        force: req.query.force === 'true',
+        includeAvatars: req.query.includeAvatars === 'true'
       }, req.app.get('io'), whatsappService);
       return res.json({ success: true, wallboard });
     } catch (error) {

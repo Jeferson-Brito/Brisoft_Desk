@@ -94,10 +94,14 @@
           <div class="tv-panel-head"><div><span>Ordens de serviço</span><small>Integração futura</small></div></div>
           <div class="tv-os-placeholder"><i class="fa-solid fa-screwdriver-wrench"></i><div><strong>—</strong><span>OSs abertas</span></div><small>Ainda não há uma fonte de ordens de serviço integrada.</small></div>
           <div class="tv-ranking">
-            <div class="tv-ranking-title"><span>Ranking de atendentes</span><small>Hoje</small></div>
+            <div class="tv-ranking-title"><span>Ranking de atendentes</span><small>Hoje · atend. / nota</small></div>
             <div v-if="!agents.length" class="tv-ranking-empty">Sem atendimentos concluídos no período.</div>
             <div v-for="(agent, index) in agents.slice(0, 5)" :key="agent.id" class="tv-ranking-row">
-              <b>{{ index + 1 }}º</b><span>{{ agent.name }}</span><strong>{{ agent.completed }}</strong>
+              <b>{{ index + 1 }}º</b>
+              <span class="tv-ranking-avatar"><img v-if="agent.avatarUrl" :src="agent.avatarUrl" :alt="`Foto de ${agent.name}`" /><b v-else>{{ agentInitials(agent.name) }}</b></span>
+              <span class="tv-ranking-name" :title="agent.name">{{ agent.name }}</span>
+              <span class="tv-ranking-rating" :title="agent.ratingCount ? `${agent.ratingCount} avaliação(ões) recebida(s) hoje` : 'Nenhuma avaliação recebida hoje'"><i class="fa-solid fa-star"></i>{{ agent.ratingAverage == null ? '—' : agent.ratingAverage }}</span>
+              <strong :title="`${agent.completed} atendimento(s) concluído(s) hoje`">{{ agent.completed }}</strong>
             </div>
           </div>
           <div class="tv-whatsapp-status" :class="{ connected: realtime.whatsapp.connected }"><i class="fa-brands fa-whatsapp"></i><span><strong>{{ realtime.whatsapp.connected ? 'WhatsApp conectado' : 'WhatsApp desconectado' }}</strong><small>{{ realtime.whatsapp.connectedCount }} de {{ realtime.whatsapp.configuredCount }} conta(s) disponível(is)</small></span></div>
@@ -164,8 +168,9 @@ let wakeLock = null
 let audioContext = null
 let waitingSnapshotReady = false
 let lastWaitingCount = 0
-let refreshQueued = false
-let queuedForceRefresh = false
+let avatarDepartmentId = ''
+let lastAvatarSyncAt = 0
+const agentAvatarCache = new Map()
 
 const health = computed(() => data.value?.health || { level: 'warning', label: 'Carregando', reason: 'Atualizando indicadores' })
 const realtime = computed(() => data.value?.realtime || { waiting: 0, handling: 0, oldestWait: '00:00', slaAtRisk: 0, slaBreached: 0, connectedUsers: 0, queue: [], whatsapp: {} })
@@ -182,6 +187,7 @@ const dataIsStale = computed(() => now.value - new Date(data.value?.generatedAt 
 
 function compactTime(value = '00:00:00') { const parts = value.split(':'); return parts[0] === '00' ? `${parts[1]}:${parts[2]}` : value }
 function chartHeight(value) { return `${Math.max(value ? 8 : 2, (Number(value) / chartMaximum.value) * 100)}%` }
+function agentInitials(name = '') { return String(name).trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'AT' }
 function matchesDepartment(ticket) { return String(ticket?.department_id || '') === String(selectedDepartmentId.value) || String(ticket?.department || '').toLocaleLowerCase('pt-BR') === String(data.value?.department?.name || '').toLocaleLowerCase('pt-BR') }
 
 async function loadDepartments() {
@@ -193,15 +199,26 @@ async function loadDepartments() {
 
 async function fetchData(force = false) {
   if (!selectedDepartmentId.value) return
-  if (refreshing.value) {
-    refreshQueued = true
-    queuedForceRefresh ||= force
-    return
-  }
+  if (refreshing.value && !force) return
   refreshing.value = true
   try {
-    const { data: response } = await ticketsApi.wallboard({ departmentId: selectedDepartmentId.value, force })
+    const departmentKey = String(selectedDepartmentId.value)
+    const includeAvatars = avatarDepartmentId !== departmentKey || Date.now() - lastAvatarSyncAt >= 60000
+    const { data: response } = await ticketsApi.wallboard({ departmentId: selectedDepartmentId.value, force, includeAvatars })
     if (!response.success) throw new Error(response.error || 'Não foi possível carregar o painel.')
+    for (const agent of response.wallboard?.agents || []) {
+      const cacheKey = `${departmentKey}:${agent.id}`
+      if (Object.prototype.hasOwnProperty.call(agent, 'avatarUrl')) {
+        if (agent.avatarUrl) agentAvatarCache.set(cacheKey, agent.avatarUrl)
+        else agentAvatarCache.delete(cacheKey)
+      } else {
+        agent.avatarUrl = agentAvatarCache.get(cacheKey) || null
+      }
+    }
+    if (includeAvatars) {
+      avatarDepartmentId = departmentKey
+      lastAvatarSyncAt = Date.now()
+    }
     const nextWaitingCount = Number(response.wallboard?.realtime?.waiting || 0)
     const queueIncreased = waitingSnapshotReady && nextWaitingCount > lastWaitingCount
     lastWaitingCount = nextWaitingCount
@@ -215,12 +232,6 @@ async function fetchData(force = false) {
   } finally {
     loading.value = false
     refreshing.value = false
-    if (refreshQueued) {
-      const forceQueuedRequest = queuedForceRefresh
-      refreshQueued = false
-      queuedForceRefresh = false
-      scheduleRefresh(forceQueuedRequest)
-    }
   }
 }
 
@@ -233,17 +244,8 @@ async function changeDepartment() {
 }
 
 function scheduleRefresh(force = true) {
-  queuedForceRefresh ||= force
-  if (refreshing.value) {
-    refreshQueued = true
-    return
-  }
   clearTimeout(refreshTimer)
-  refreshTimer = setTimeout(() => {
-    const forceScheduledRequest = queuedForceRefresh
-    queuedForceRefresh = false
-    fetchData(forceScheduledRequest)
-  }, 0)
+  refreshTimer = setTimeout(() => fetchData(force), 500)
 }
 
 function showNewTicket() {
@@ -326,14 +328,12 @@ function bindSocket() {
   socket.on('ticket_created', onTicketCreated)
   socket.on('ticket_updated', onTicketChanged); socket.on('queue_updated', onTicketChanged)
   socket.on('kpis_updated', onKpisUpdated); socket.on('whatsapp_status', onWhatsappStatus)
-  socket.on('presence_updated', onPresenceUpdated)
 }
 function unbindSocket() {
   const socket = getSocket(); if (!socket) return
   socket.off('connect', onConnect); socket.off('disconnect', onDisconnect)
   socket.off('ticket_created', onTicketCreated); socket.off('ticket_updated', onTicketChanged); socket.off('queue_updated', onTicketChanged)
   socket.off('kpis_updated', onKpisUpdated); socket.off('whatsapp_status', onWhatsappStatus)
-  socket.off('presence_updated', onPresenceUpdated)
 }
 function onConnect() { serverConnected.value = true; scheduleRefresh(true) }
 function onDisconnect() { serverConnected.value = false }
@@ -348,9 +348,6 @@ function onTicketCreated({ ticket }) {
 function onTicketChanged({ ticket }) { if (matchesDepartment(ticket)) scheduleRefresh(true) }
 function onKpisUpdated() { scheduleRefresh(true) }
 function onWhatsappStatus() { scheduleRefresh(false) }
-function onPresenceUpdated({ departmentIds = [] } = {}) {
-  if (departmentIds.some(id => String(id) === String(selectedDepartmentId.value))) scheduleRefresh(false)
-}
 function onFullscreenChange() { isFullscreen.value = Boolean(document.fullscreenElement) }
 async function onVisibilityChange() { if (document.visibilityState === 'visible' && audioReady.value) await requestWakeLock() }
 
@@ -358,9 +355,7 @@ onMounted(async () => {
   try { await loadDepartments(); await fetchData(true); bindSocket() }
   catch (mountError) { error.value = mountError.message; loading.value = false }
   clockTimer = setInterval(() => { now.value = new Date() }, 1000)
-  // Recuperação eventual caso a conexão perca algum evento; a atualização
-  // normal acontece imediatamente pelos eventos WebSocket acima.
-  pollTimer = setInterval(() => fetchData(false), 30000)
+  pollTimer = setInterval(() => fetchData(false), 1000)
   document.addEventListener('fullscreenchange', onFullscreenChange)
   document.addEventListener('visibilitychange', onVisibilityChange)
 })

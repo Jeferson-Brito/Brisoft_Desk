@@ -77,3 +77,26 @@ test('atendimentos de funcionários não entram nos indicadores de clientes', ()
   assert.equal(metrics.ratingAverage, 5);
   assert.equal(metrics.ratingCount, 1);
 });
+
+test('calcula atendimentos e média de avaliação diária por atendente', () => {
+  const daily = performanceService._test.calculateDailyAgentStats({
+    closedTickets: [
+      { id: 'today-1', user_id: 'agent-1', status: 'finalizado', closed_at: '2026-09-02T13:00:00Z' },
+      { id: 'today-2', agent_name: 'Ana', status: 'finalizado', closed_at: '2026-09-02T16:00:00Z' },
+      { id: 'yesterday', agent_name: 'Ana', status: 'finalizado', closed_at: '2026-09-01T16:00:00Z' },
+      { id: 'employee', agent_name: 'Ana', is_employee: true, status: 'finalizado', closed_at: '2026-09-02T17:00:00Z' }
+    ],
+    ratings: [
+      { ticket_id: 'today-1', agent_name: 'Ana', score: 5, created_at: '2026-09-02T14:00:00Z' },
+      { ticket_id: 'today-2', agent_name: 'Ana', score: 3, created_at: '2026-09-02T17:00:00Z' },
+      { ticket_id: 'yesterday', agent_name: 'Ana', score: 1, created_at: '2026-09-01T17:00:00Z' },
+      { ticket_id: 'employee', agent_name: 'Ana', score: 1, created_at: '2026-09-02T18:00:00Z' }
+    ],
+    agent: { id: 'agent-1', name: 'Ana' },
+    dateKey: '2026-09-02'
+  });
+
+  assert.equal(daily.completed, 2);
+  assert.equal(daily.ratingAverage, 4);
+  assert.equal(daily.ratingCount, 2);
+});

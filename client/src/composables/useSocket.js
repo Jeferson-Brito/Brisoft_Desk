@@ -5,6 +5,8 @@ import { useUiStore }     from '@/stores/ui.store'
 
 let socket = null
 const incomingCallTimers = new Map()
+const incomingCallRingtoneTimers = new Map()
+const incomingCallAudioContexts = new Map()
 
 /**
  * Composable que gerencia a conexão Socket.io.
@@ -126,20 +128,21 @@ export function useSocket() {
 
     socket.on('incoming_whatsapp_call', (data = {}) => {
       const active = data.status === 'ringing'
-      const icon = data.isVideo ? '📹' : '📞'
+      const callKey = _incomingCallKey(data)
       if (data.ticketId) tickets.patchTicket(data.ticketId, { incomingCall: data })
 
-      clearTimeout(incomingCallTimers.get(data.callId))
+      clearTimeout(incomingCallTimers.get(callKey))
       if (active) {
-        ui.showToast(`${icon} ${data.clientName || 'Cliente'} está ${data.isVideo ? 'fazendo uma chamada de vídeo' : 'ligando'}...`)
-        incomingCallTimers.set(data.callId, setTimeout(() => {
+        _startCallRingtone(callKey, data.isVideo)
+        incomingCallTimers.set(callKey, setTimeout(() => {
           if (data.ticketId) tickets.patchTicket(data.ticketId, { incomingCall: null })
-          incomingCallTimers.delete(data.callId)
+          stopIncomingCallAlert(callKey)
         }, 45000))
       } else {
-        incomingCallTimers.set(data.callId, setTimeout(() => {
+        _stopCallRingtone(callKey)
+        incomingCallTimers.set(callKey, setTimeout(() => {
           if (data.ticketId) tickets.patchTicket(data.ticketId, { incomingCall: null })
-          incomingCallTimers.delete(data.callId)
+          incomingCallTimers.delete(callKey)
         }, 2500))
       }
     })
@@ -152,16 +155,77 @@ export function useSocket() {
   function disconnect() {
     socket?.disconnect()
     socket = null
+    for (const timer of incomingCallTimers.values()) clearTimeout(timer)
+    incomingCallTimers.clear()
+    for (const callKey of incomingCallRingtoneTimers.keys()) _stopCallRingtone(callKey)
   }
 
   function sendEvent(event, payload) {
     socket?.emit(event, payload)
   }
 
-  return { connect, disconnect, sendEvent, getSocket: () => socket }
+  return { connect, disconnect, sendEvent, stopIncomingCallAlert, getSocket: () => socket }
 }
 
 // ─── Helpers privados ─────────────────────────────────────────────────────────
+
+function _incomingCallKey(data = {}) {
+  return String(data.callId || data.ticketId || data.phone || 'incoming-call')
+}
+
+function stopIncomingCallAlert(callId) {
+  const callKey = String(callId || 'incoming-call')
+  clearTimeout(incomingCallTimers.get(callKey))
+  incomingCallTimers.delete(callKey)
+  _stopCallRingtone(callKey)
+}
+
+function _stopCallRingtone(callKey) {
+  clearInterval(incomingCallRingtoneTimers.get(callKey))
+  incomingCallRingtoneTimers.delete(callKey)
+  incomingCallAudioContexts.get(callKey)?.close?.().catch(() => {})
+  incomingCallAudioContexts.delete(callKey)
+}
+
+function _startCallRingtone(callKey, isVideo = false) {
+  _stopCallRingtone(callKey)
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext
+    const context = new AudioContext()
+    incomingCallAudioContexts.set(callKey, context)
+
+    const tone = (frequency, start, duration, volume = 0.16) => {
+      const oscillator = context.createOscillator()
+      const gain = context.createGain()
+      oscillator.connect(gain); gain.connect(context.destination)
+      oscillator.type = 'sine'
+      oscillator.frequency.setValueAtTime(frequency, start)
+      gain.gain.setValueAtTime(0.001, start)
+      gain.gain.exponentialRampToValueAtTime(volume, start + 0.025)
+      gain.gain.setValueAtTime(volume, start + duration - 0.06)
+      gain.gain.exponentialRampToValueAtTime(0.001, start + duration)
+      oscillator.start(start); oscillator.stop(start + duration + 0.02)
+    }
+
+    const ring = () => {
+      context.resume?.().catch(() => {})
+      const start = context.currentTime + 0.04
+      if (isVideo) {
+        tone(659, start, 0.22)
+        tone(784, start + 0.25, 0.22)
+        tone(988, start + 0.5, 0.32)
+      } else {
+        for (const offset of [0, 0.82]) {
+          tone(440, start + offset, 0.58, 0.13)
+          tone(480, start + offset, 0.58, 0.13)
+        }
+      }
+    }
+
+    ring()
+    incomingCallRingtoneTimers.set(callKey, setInterval(ring, isVideo ? 2100 : 2600))
+  } catch {}
+}
 
 function _isForMe(ticket) {
   const auth = useAuthStore()

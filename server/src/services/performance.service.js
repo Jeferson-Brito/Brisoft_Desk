@@ -80,6 +80,28 @@ function isCustomerTicket(ticket) {
   return ticket?.is_employee !== true;
 }
 
+function calculateDailyAgentStats({ closedTickets = [], ratings = [], agent, dateKey = localDateKey() }) {
+  const agentCustomerTickets = closedTickets
+    .filter(isCustomerTicket)
+    .filter(ticket => ticketMatchesAgent(ticket, agent));
+  const eligibleTicketIds = new Set(agentCustomerTickets.map(ticket => String(ticket.id)).filter(Boolean));
+  const completed = agentCustomerTickets
+    .filter(ticket => localDateKey(ticket.closed_at || ticket.updated_at) === dateKey).length;
+  const scores = ratings
+    .filter(rating => localDateKey(rating.created_at) === dateKey)
+    .filter(rating => rating.ticket_id
+      ? eligibleTicketIds.has(String(rating.ticket_id))
+      : Boolean(agent?.name && rating.agent_name === agent.name))
+    .map(rating => Number(rating.score))
+    .filter(Number.isFinite);
+
+  return {
+    completed,
+    ratingAverage: scores.length ? round(average(scores), 1) : null,
+    ratingCount: scores.length
+  };
+}
+
 function ticketDepartment(ticket) {
   return ticket.departments || {
     id: ticket.department_id || null,
@@ -272,13 +294,22 @@ class PerformanceService {
       .map(agent => {
         const metrics = calculateMetrics({ ...{ createdTickets: currentData.created, closedTickets: currentData.closed, activeTickets: currentData.active, ratings: currentData.ratings, period: requestedPeriod }, agent });
         const oldMetrics = calculateMetrics({ ...{ createdTickets: previousData.created, closedTickets: previousData.closed, activeTickets: [], ratings: previousData.ratings, period: previousPeriod }, agent });
-        const todayCompleted = requestedPeriod.isCurrent
-          ? currentData.closed
-            .filter(isCustomerTicket)
-            .filter(ticket => ticketMatchesAgent(ticket, agent))
-            .filter(ticket => localDateKey(ticket.closed_at || ticket.updated_at) === todayKey).length
-          : 0;
-        return { id: agent.id, name: agent.name, role: agent.role, avatarUrl: agent.avatar_url, departmentId: departmentId || agent.department_id, departmentIds: memberDepartmentIds(agent), todayCompleted, ...metrics, comparison: buildComparison(metrics, oldMetrics) };
+        const daily = requestedPeriod.isCurrent
+          ? calculateDailyAgentStats({ closedTickets: currentData.closed, ratings: currentData.ratings, agent, dateKey: todayKey })
+          : { completed: 0, ratingAverage: null, ratingCount: 0 };
+        return {
+          id: agent.id,
+          name: agent.name,
+          role: agent.role,
+          avatarUrl: agent.avatar_url,
+          departmentId: departmentId || agent.department_id,
+          departmentIds: memberDepartmentIds(agent),
+          todayCompleted: daily.completed,
+          todayRatingAverage: daily.ratingAverage,
+          todayRatingCount: daily.ratingCount,
+          ...metrics,
+          comparison: buildComparison(metrics, oldMetrics)
+        };
       })
       .filter(item => !selectedUser || String(item.id) === String(selectedUser.id))
       .sort((a, b) => b.completed - a.completed);
@@ -359,6 +390,6 @@ class PerformanceService {
 }
 
 const performanceService = new PerformanceService();
-performanceService._test = { parseMonth, calculateMetrics, buildComparison, formatDuration, localDateKey, isCustomerTicket };
+performanceService._test = { parseMonth, calculateMetrics, calculateDailyAgentStats, buildComparison, formatDuration, localDateKey, isCustomerTicket };
 
 module.exports = performanceService;

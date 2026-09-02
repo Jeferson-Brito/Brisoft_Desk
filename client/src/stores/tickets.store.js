@@ -11,6 +11,7 @@ export const useTicketStore = defineStore('tickets', () => {
   const loadingMessageIds = ref([])
   const kpiRevision    = ref(0)
   const assumeRequests = new Map()
+  let requireExplicitSelection = false
 
   // ─── Getters ─────────────────────────────────────────────────────────────────
 
@@ -68,7 +69,7 @@ export const useTicketStore = defineStore('tickets', () => {
           }
         })
         // Seleciona o primeiro ticket relevante dentro dos visíveis
-        if (!activeTicketId.value || !visibleTickets.value.find(t => t.id === activeTicketId.value)) {
+        if ((!activeTicketId.value || !visibleTickets.value.find(t => t.id === activeTicketId.value)) && !requireExplicitSelection) {
           const first = inProgressTickets.value[0] ?? waitingTickets.value[0] ?? null
           activeTicketId.value = first?.id ?? null
         }
@@ -186,7 +187,8 @@ export const useTicketStore = defineStore('tickets', () => {
     const idx = queue.value.findIndex(t => t.id === ticketId)
     if (idx !== -1) queue.value.splice(idx, 1)
     if (activeTicketId.value === ticketId) {
-      activeTicketId.value = visibleTickets.value[0]?.id ?? null
+      activeTicketId.value = null
+      requireExplicitSelection = true
     }
   }
 
@@ -197,6 +199,7 @@ export const useTicketStore = defineStore('tickets', () => {
   }
 
   async function selectTicket(ticketId) {
+    requireExplicitSelection = false
     activeTicketId.value = ticketId
     // Marca como lido imediatamente local e no servidor
     const ticket = queue.value.find(t => t.id === ticketId)
@@ -255,10 +258,14 @@ export const useTicketStore = defineStore('tickets', () => {
 
     const ticketIdx = queue.value.findIndex(t => t.id === ticketId)
     const snapshot  = { ...ticket, messages: [...(ticket.messages || [])] }
+    const wasActive = activeTicketId.value === ticketId
 
     // Remoção otimista
     queue.value.splice(ticketIdx, 1)
-    activeTicketId.value = visibleTickets.value[0]?.id ?? null
+    if (wasActive) {
+      activeTicketId.value = null
+      requireExplicitSelection = true
+    }
 
     try {
       const { data } = await ticketsApi.close(ticketId)
@@ -266,10 +273,12 @@ export const useTicketStore = defineStore('tickets', () => {
       // Rollback: reinsere na posição original
       queue.value.splice(ticketIdx, 0, snapshot)
       activeTicketId.value = ticketId
+      requireExplicitSelection = false
       return { success: false, error: data.error || 'Erro ao encerrar' }
     } catch (e) {
       queue.value.splice(ticketIdx, 0, snapshot)
       activeTicketId.value = ticketId
+      requireExplicitSelection = false
       return { success: false, error: 'Sem conexão com o servidor' }
     }
   }
