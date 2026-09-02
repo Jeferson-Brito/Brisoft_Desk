@@ -219,8 +219,8 @@
               <label class="inactivity-action-option">
                 <input v-model="botConfig.send_rating_on_external_inactivity" type="checkbox" />
                 <span>
-                  <strong>Enviar pesquisa de satisfação ao encerrar</strong>
-                  <small>Aplica-se somente a clientes. Funcionários nunca recebem pesquisa de satisfação.</small>
+                  <strong>Enviar avaliação ao encerrar por inatividade</strong>
+                  <small>O administrador pode ativar ou desativar este envio. Aplica-se somente a clientes; funcionários nunca recebem a pesquisa.</small>
                 </span>
               </label>
 

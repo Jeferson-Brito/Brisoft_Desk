@@ -46,7 +46,7 @@
       </div>
 
       <div class="queue-item-context">
-        <span v-if="ticket.is_group" class="contact-role">Grupo permanente</span>
+        <span v-if="ticket.is_group" class="contact-role">{{ groupParticipantLabel }}</span>
         <span v-else-if="person.role" class="contact-role" :title="person.role">{{ person.role }}</span>
         <span v-else-if="ticket.is_employee" class="contact-role">Funcionário da empresa</span>
         <span v-if="deptName" class="department-chip" :title="deptName">
@@ -114,6 +114,10 @@ const deptName = computed(() => props.ticket.department || props.ticket.departme
 const deptColor = computed(() => props.ticket.departmentColor || '#1f62d0')
 const isWhatsapp = computed(() => true)
 const isIncomingCall = computed(() => props.ticket.incomingCall?.status === 'ringing')
+const groupParticipantLabel = computed(() => {
+  const count = Number(props.ticket.group_participant_count || 0)
+  return count ? `${count} ${count === 1 ? 'participante' : 'participantes'}` : 'Participantes indisponíveis'
+})
 
 const relativeTime = computed(() => {
   const t = props.ticket.time

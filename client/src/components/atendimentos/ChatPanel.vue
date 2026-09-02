@@ -27,7 +27,7 @@
           <div class="chat-contact-name-line">
             <h2 class="chat-contact-title">{{ headerPerson.name || 'Cliente' }}</h2>
             <i v-if="!ticket.is_group" class="fa-solid chat-contact-chevron" :class="isDetailsOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-            <span v-if="ticket.is_group" class="group-contact-badge"><i class="fa-solid fa-users"></i> Grupo</span>
+            <span v-if="ticket.is_group" class="group-contact-badge"><i class="fa-solid fa-users"></i> {{ groupParticipantLabel }}</span>
             <span v-if="ticket?.is_employee" class="employee-contact-badge" title="Funcionário da empresa"><i class="fa-solid fa-id-badge"></i> Funcionário</span>
           </div>
           <div v-if="headerPerson.role || ticket?.department" class="chat-contact-subtitle">
@@ -40,7 +40,7 @@
 
       <!-- Ações à Direita -->
       <div class="chat-header-tools">
-        <div v-if="!ticket.is_group" class="contact-call-actions" aria-label="Recursos de chamada em desenvolvimento">
+        <div class="contact-call-actions" aria-label="Recursos de chamada em desenvolvimento">
           <span class="upcoming-action" title="Ligação — em desenvolvimento">
             <button type="button" class="header-call-btn" disabled aria-label="Ligação em desenvolvimento">
               <i class="fa-solid fa-phone"></i>
@@ -560,6 +560,11 @@ const displaySla = computed(() => {
 })
 const displayTme = computed(() => props.performance?.metrics?.tme || '00:00:00')
 const headerPerson = computed(() => splitPersonLabel(props.ticket?.clientName || props.ticket?.client_name || 'Cliente'))
+const groupParticipantLabel = computed(() => {
+  const count = Number(props.ticket?.group_participant_count || 0)
+  if (!count) return 'Participantes indisponíveis'
+  return `${count} ${count === 1 ? 'participante' : 'participantes'}`
+})
 
 defineEmits(['toggle-details', 'go-back'])
 

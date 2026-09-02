@@ -10,6 +10,7 @@ alter table if exists public.contacts
 alter table if exists public.tickets
   add column if not exists is_group boolean not null default false,
   add column if not exists group_jid text,
+  add column if not exists group_participant_count integer not null default 0,
   add column if not exists avatar_url text;
 
 alter table if exists public.messages

@@ -37,6 +37,7 @@ test('entende respostas naturais para opções e retomada', () => {
   assert.equal(extractMenuOption('número 3', 5), 3);
   assert.equal(resolveResumeChoice('quero continuar no mesmo'), 'resume');
   assert.equal(resolveResumeChoice('prefiro outro departamento'), 'other');
+  assert.equal(resolveResumeChoice('6'), null, 'número de departamento não é válido no menu de retomada');
   assert.equal(resolveNameConfirmation('sim, está certo'), 'confirm');
   assert.equal(resolveNameConfirmation('não, quero corrigir'), 'correct');
 });

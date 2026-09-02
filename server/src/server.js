@@ -15,6 +15,7 @@ installConsoleCapture();
 
 const apiRoutes = require('./routes/api');
 const whatsappService = require('./services/whatsapp.service');
+const ticketService = require('./services/ticket.service');
 const { initTempAdmin } = require('./controllers/auth.controller');
 const { resolveAuthenticatedUser } = require('./middleware/auth.middleware');
 const { supabase, isSupabaseConfigured } = require('./config/supabase');
@@ -163,6 +164,7 @@ io.on('connection', (socket) => {
 
 // Inicialização do Servidor
 const PORT = process.env.PORT || 3000;
+let businessHoursTimer = null;
 async function startServer() {
   await initTempAdmin();
   server.listen(PORT, () => {
@@ -175,6 +177,12 @@ async function startServer() {
   if (process.env.WHATSAPP_AUTO_RECONNECT !== 'false') {
     whatsappService.initializeAll();
   }
+  const releaseReserved = () => ticketService.releaseScheduledTickets(io, whatsappService)
+    .then(count => { if (count) console.log(`🕒 ${count} atendimento(s) liberado(s) no início do expediente.`); })
+    .catch(error => console.warn(`Falha na liberação de atendimentos reservados: ${error.message}`));
+  releaseReserved();
+  businessHoursTimer = setInterval(releaseReserved, 30 * 1000);
+  businessHoursTimer.unref?.();
   });
 }
 
@@ -186,6 +194,7 @@ startServer().catch((error) => {
 async function gracefulShutdown(signal) {
   console.log(`Encerramento solicitado (${signal}). Salvando sessões...`);
   let backupTimeout;
+  if (businessHoursTimer) clearInterval(businessHoursTimer);
   await Promise.race([
     whatsappService.backupAllSessions(),
     new Promise(resolve => {

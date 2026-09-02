@@ -867,6 +867,7 @@ class WhatsAppService {
     const groups = await Promise.all(metadata.map(async group => ({
       jid: group.id,
       subject: group.subject || 'Grupo do WhatsApp',
+      participantCount: Array.isArray(group.participants) ? group.participants.length : 0,
       avatarUrl: await this.profilePictureUrl(account, group.id)
     })));
     const accountInfo = {
@@ -912,6 +913,7 @@ class WhatsAppService {
     const result = await ticketService.processWhatsAppGroupMessage({
       groupJid,
       groupName: metadata.subject,
+      participantCount: Array.isArray(metadata.participants) ? metadata.participants.length : 0,
       avatarUrl: await this.profilePictureUrl(account, groupJid),
       participantJid,
       senderName: msg.pushName || (participantJid ? participantJid.replace(/@.*$/, '') : null),

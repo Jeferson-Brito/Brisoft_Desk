@@ -144,7 +144,7 @@ function calculateMetrics({ createdTickets, closedTickets, activeTickets, rating
   }).filter(value => value !== null);
   const ratingScores = visibleRatings.map(item => Number(item.score)).filter(Number.isFinite);
   const solvedSameDay = closed.filter(ticket => {
-    const start = new Date(ticket.created_at);
+    const start = new Date(ticket.queued_at || ticket.created_at);
     const end = new Date(ticket.closed_at || ticket.finished_at || ticket.updated_at);
     return start.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === end.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   }).length;
@@ -182,7 +182,7 @@ function buildComparison(current, previous) {
 function buildTrend(tickets, period) {
   const values = Array.from({ length: period.days }, (_, index) => ({ day: index + 1, created: 0, completed: 0 }));
   for (const ticket of tickets.created.filter(isCustomerTicket)) {
-    const day = Number(new Intl.DateTimeFormat('pt-BR', { day: 'numeric', timeZone: 'America/Sao_Paulo' }).format(new Date(ticket.created_at)));
+    const day = Number(new Intl.DateTimeFormat('pt-BR', { day: 'numeric', timeZone: 'America/Sao_Paulo' }).format(new Date(ticket.queued_at || ticket.created_at)));
     if (values[day - 1]) values[day - 1].created += 1;
   }
   for (const ticket of tickets.closed.filter(isCustomerTicket)) {
@@ -205,6 +205,14 @@ class PerformanceService {
       : (departmentId ? query.eq('department_id', departmentId) : query);
     
     try {
+      const loadCreated = async () => {
+        if (!useFull) return fetchAll(() => applyDepartment(supabase.from('tickets').select(select).neq('status', 'fora_horario').gte('created_at', period.start).lt('created_at', period.end).order('created_at')));
+        const [queued, legacy] = await Promise.all([
+          fetchAll(() => applyDepartment(supabase.from('tickets').select(select).gte('queued_at', period.start).lt('queued_at', period.end).order('queued_at'))),
+          fetchAll(() => applyDepartment(supabase.from('tickets').select(select).is('queued_at', null).neq('status', 'fora_horario').gte('created_at', period.start).lt('created_at', period.end).order('created_at')))
+        ]);
+        return [...queued, ...legacy];
+      };
       const closedQuery = () => applyDepartment(
         supabase.from('tickets').select(select).eq('status', 'finalizado')
           .gte('updated_at', period.start).lt('updated_at', period.end)
@@ -212,7 +220,7 @@ class PerformanceService {
       );
 
       const [created, closed, active, ratings] = await Promise.all([
-        fetchAll(() => applyDepartment(supabase.from('tickets').select(select).gte('created_at', period.start).lt('created_at', period.end).order('created_at'))),
+        loadCreated(),
         fetchAll(closedQuery),
         fetchAll(() => applyDepartment(supabase.from('tickets').select(select).in('status', ['aguardando', 'em_atendimento']).order('created_at'))),
         fetchAll(() => supabase.from('ratings').select('id, ticket_id, agent_name, score, created_at').gte('created_at', period.start).lt('created_at', period.end).order('created_at')).catch(() => [])
@@ -284,7 +292,7 @@ class PerformanceService {
     const relevantCreated = currentData.created.filter(isCustomerTicket).filter(ticket => ticketMatchesAgent(ticket, selectedUser));
     const todayKey = localDateKey();
     const today = requestedPeriod.isCurrent ? {
-      departmentReceived: currentData.created.filter(isCustomerTicket).filter(ticket => localDateKey(ticket.created_at) === todayKey).length,
+      departmentReceived: currentData.created.filter(isCustomerTicket).filter(ticket => localDateKey(ticket.queued_at || ticket.created_at) === todayKey).length,
       agentCompleted: relevantClosed.filter(ticket => localDateKey(ticket.closed_at || ticket.updated_at) === todayKey).length
     } : { departmentReceived: 0, agentCompleted: 0 };
     const agentRows = (users || [])

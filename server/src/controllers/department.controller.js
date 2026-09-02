@@ -5,6 +5,7 @@
 const { supabase } = require('../config/supabase');
 const ticketService = require('../services/ticket.service');
 const { isSupervisor, departmentIds } = require('../services/access-control.service');
+const { normalizeBusinessHours } = require('../services/business-hours.service');
 
 function findLinkedWhatsAppAccounts(settingsValue, departmentId, departmentName = '') {
   if (!Array.isArray(settingsValue)) return [];
@@ -17,7 +18,7 @@ function findLinkedWhatsAppAccounts(settingsValue, departmentId, departmentName 
 }
 
 function isMissingDepartmentOrderColumn(error) {
-  return /sort_order|description|allow_device_message_mutations|schema cache|column .* does not exist/i.test(`${error?.message || ''} ${error?.details || ''}`);
+  return /sort_order|description|allow_device_message_mutations|business_hours|after_hours_message|schema cache|column .* does not exist/i.test(`${error?.message || ''} ${error?.details || ''}`);
 }
 
 class DepartmentController {
@@ -57,10 +58,15 @@ class DepartmentController {
   // Criar ou atualizar departamento
   async saveDepartment(req, res) {
     try {
-      const { id, name, color, description, sla_target_minutes, sort_order, allow_device_message_mutations } = req.body;
+      const { id, name, color, description, sla_target_minutes, sort_order, allow_device_message_mutations, business_hours, after_hours_message } = req.body;
       
       if (!name) {
         return res.status(400).json({ success: false, error: 'Nome do departamento é obrigatório' });
+      }
+
+      const normalizedHours = normalizeBusinessHours(business_hours);
+      if (normalizedHours.enabled && !Object.values(normalizedHours.days).some(intervals => intervals.length)) {
+        return res.status(400).json({ success: false, error: 'Defina pelo menos um período de atendimento ou selecione atendimento 24 horas.' });
       }
 
       let payload = {
@@ -68,6 +74,8 @@ class DepartmentController {
         color: color || '#2563eb',
         description: String(description || '').trim() || null,
         allow_device_message_mutations: allow_device_message_mutations === true,
+        business_hours: normalizedHours,
+        after_hours_message: String(after_hours_message || '').trim() || null,
         ...(Number.isInteger(Number(sort_order)) && Number(sort_order) > 0 ? { sort_order: Number(sort_order) } : {}),
         sla_target_minutes: sla_target_minutes ? parseInt(sla_target_minutes, 10) : 15
       };

@@ -23,6 +23,7 @@ const {
 } = require('./bot-intent.service');
 const { normalizeOutgoingMedia } = require('./media-transcode.service');
 const cloudStorage = require('./cloud-storage.service');
+const { getDepartmentAvailability } = require('./business-hours.service');
 const {
   isGeneratedCustomerName,
   extractAndValidateName,
@@ -166,7 +167,7 @@ async function getCachedDepartments() {
       try {
         let { data, error } = await supabase
           .from('departments')
-          .select('id, name, sort_order')
+          .select('id, name, sort_order, business_hours, after_hours_message')
           .order('sort_order', { ascending: true })
           .order('name', { ascending: true });
         if (error && /sort_order|schema cache|column .* does not exist/i.test(`${error.message || ''} ${error.details || ''}`)) {
@@ -499,6 +500,45 @@ ${rendered}`,
         }
         return sent;
       };
+      const holdOutsideBusinessHours = async (targetTicket, department, incomingText, storeIncomingMessage = false) => {
+        const availability = getDepartmentAvailability(department, now);
+        if (availability.isOpen) return null;
+        const scheduledQueueAt = availability.nextOpenAt?.toISOString() || null;
+        const updatePayload = {
+          status: 'fora_horario',
+          assumed: false,
+          user_id: null,
+          agent_name: null,
+          assumed_at: null,
+          queued_at: null,
+          scheduled_queue_at: scheduledQueueAt,
+          department: department.name,
+          department_id: department.id,
+          time: t,
+          preview: String(incomingText || targetTicket.preview || '').slice(0, 50),
+          unread_count: Math.max(1, Number(targetTicket.unread_count || 0) + 1),
+          updated_at: now.toISOString()
+        };
+        assertSupabase(await supabase.from('tickets').update(updatePayload).eq('id', targetTicket.id), 'Falha ao reservar atendimento fora do expediente');
+        if (storeIncomingMessage) {
+          assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(targetTicket.id, 'bot')), 'Falha ao registrar mensagem recebida');
+        }
+        Object.assign(targetTicket, updatePayload);
+        await supabase.from('messages').insert({
+          ticket_id: targetTicket.id,
+          sender: 'system',
+          type: 'divider',
+          text: `[Chatbot] Atendimento reservado fora do expediente • ${department.name}`,
+          time: t
+        });
+        const template = department.after_hours_message || '🕒 *Estamos fora do horário de atendimento*\n\n{nome}, o departamento *{departamento}* atende em:\n{horario}\n\nSua conversa ficou reservada e entrará automaticamente na fila em *{proxima_abertura}*. Você não precisa enviar outra mensagem.';
+        await sendBotText(targetTicket.id, template, {
+          departamento: department.name,
+          horario: availability.scheduleLabel,
+          proxima_abertura: availability.nextOpenLabel
+        });
+        return { type: 'after_hours_held', ticket: targetTicket, scheduledQueueAt };
+      };
       const incomingMessagePayload = (ticketId, messageContext = 'service') => {
         const payload = { ticket_id: ticketId, sender: 'client', text, time: t };
         if (conversationTrackingColumnsAvailable === true) {
@@ -521,12 +561,16 @@ ${rendered}`,
       };
       const routeWithoutBot = async (targetTicket, incomingText, storeIncomingMessage = true, noticeTemplate = botConfig.disabled_routing_message) => {
         if (!defaultDepartment) throw new Error('Nenhum departamento disponível para o roteamento automático.');
+        const held = await holdOutsideBusinessHours(targetTicket, defaultDepartment, incomingText, storeIncomingMessage);
+        if (held) return held;
         const updatePayload = {
           status: 'aguardando',
           assumed: false,
           user_id: null,
           agent_name: null,
           assumed_at: null,
+          queued_at: now.toISOString(),
+          scheduled_queue_at: null,
           department: defaultDepartment.name,
           department_id: defaultDepartment.id,
           time: t,
@@ -582,12 +626,16 @@ ${rendered}`,
         // O número dedicado define o destino, mas continua passando pelo bot e
         // chega à fila sem responsável. Somente grupos são permanentes/assumidos.
         if (dedicatedDepartment) {
+          const held = await holdOutsideBusinessHours(targetTicket, dedicatedDepartment, text);
+          if (held) return held;
           const updatePayload = {
             status: 'aguardando',
             assumed: false,
             user_id: null,
             agent_name: null,
             assumed_at: null,
+            queued_at: now.toISOString(),
+            scheduled_queue_at: null,
             department: dedicatedDepartment.name,
             department_id: dedicatedDepartment.id,
             time: t,
@@ -673,7 +721,7 @@ ${rendered}`,
         .from('tickets')
         .select('*')
         .or(lookupConditions.join(','))
-        .in('status', ['aguardando', 'em_atendimento', 'chatbot']);
+        .in('status', ['aguardando', 'em_atendimento', 'chatbot', 'fora_horario']);
       activeTicketQuery = scopeWhatsAppChannel(activeTicketQuery);
       let { data: ticket } = await activeTicketQuery
         .order('created_at', { ascending: false })
@@ -860,6 +908,18 @@ ${rendered}`,
         return startDepartmentRouting(ticket);
       }
 
+      if (ticket.status === 'fora_horario') {
+        assertSupabase(await supabase.from('messages').insert(incomingMessagePayload(ticket.id, 'bot')), 'Falha ao registrar mensagem fora do expediente');
+        const updatePayload = {
+          preview: text.slice(0, 50),
+          unread_count: Math.max(1, Number(ticket.unread_count || 0) + 1),
+          updated_at: now.toISOString()
+        };
+        await supabase.from('tickets').update(updatePayload).eq('id', ticket.id);
+        Object.assign(ticket, updatePayload);
+        return { type: 'after_hours_message_saved', ticket };
+      }
+
       // Processa resposta ao Chatbot
       if (ticket.status === 'chatbot') {
          if (!botConfig.enabled) return routeWithoutBot(ticket, text);
@@ -1044,10 +1104,11 @@ ${rendered}`,
            } else if (arrivedBeforePrompt(botState)) {
              return ignoreEarlyMessage(botState);
            } else {
-             // Uma resposta diferente de 1/2 pode ser o nome direto de outro setor.
-             // A partir daqui seguimos pelo reconhecedor do menu completo.
-             isWaitingResume = false;
-             resumeTargetDept = null;
+             // Nesta etapa somente 1 ou 2 são válidos. Números de departamentos
+             // só podem ser interpretados depois que o menu completo for aberto.
+             await saveBotState(ticket.id, { step: 'awaiting_resume', department: resumeTargetDept, promptedAt: new Date().toISOString() });
+             await sendBotText(ticket.id, botConfig.resume_message, { departamento: resumeTargetDept });
+             return { type: 'chatbot_resume_invalid', ticket };
            }
          }
 
@@ -1059,12 +1120,16 @@ ${rendered}`,
          }
 
          if (selectedDept) {
+            const held = await holdOutsideBusinessHours(ticket, selectedDept, text);
+            if (held) return held;
             let updatePayload = {
               status: 'aguardando',
               assumed: false,
               user_id: null,
               agent_name: null,
               assumed_at: null,
+              queued_at: now.toISOString(),
+              scheduled_queue_at: null,
               time: t,
               preview: text.slice(0, 50),
               updated_at: now.toISOString(),
@@ -1590,6 +1655,63 @@ ${rendered}`,
     }
   }
 
+  async releaseScheduledTickets(io, whatsappService) {
+    if (!isSupabaseConfigured()) return 0;
+    const now = new Date();
+    const { data: heldTickets, error } = await supabase
+      .from('tickets')
+      .select('*, departments(id, name, business_hours, after_hours_message)')
+      .eq('status', 'fora_horario')
+      .lte('scheduled_queue_at', now.toISOString())
+      .limit(100);
+    if (error) {
+      if (!/scheduled_queue_at|business_hours|schema cache|does not exist/i.test(error.message || '')) console.warn(`Falha ao verificar atendimentos reservados: ${error.message}`);
+      return 0;
+    }
+    const config = await getBotConfig();
+    let released = 0;
+    for (const ticket of heldTickets || []) {
+      try {
+        const department = ticket.departments || { id: ticket.department_id, name: ticket.department };
+        const availability = getDepartmentAvailability(department, now);
+        if (!availability.isOpen) {
+          await supabase.from('tickets').update({ scheduled_queue_at: availability.nextOpenAt?.toISOString() || null }).eq('id', ticket.id).eq('status', 'fora_horario');
+          continue;
+        }
+        const queueAt = now.toISOString();
+        const releasePayload = { status: 'aguardando', assumed: false, user_id: null, agent_name: null, assumed_at: null, queued_at: queueAt, scheduled_queue_at: null, updated_at: queueAt };
+        const result = await supabase.from('tickets').update(releasePayload).eq('id', ticket.id).eq('status', 'fora_horario').select().maybeSingle();
+        if (result.error || !result.data) continue;
+        await supabase.from('messages').insert({ ticket_id: ticket.id, sender: 'system', type: 'divider', text: `✅ Horário de atendimento iniciado • Encaminhado para ${department.name || ticket.department}`, time: makeTimeStr(now) });
+        if (config.send_queue_confirmation && whatsappService) {
+          const targetJid = preferredWhatsAppJid(ticket.phone, ticket.jid || ticket.raw_jid);
+          const accountId = ticket.channel?.startsWith('whatsapp:') ? ticket.channel.slice('whatsapp:'.length) : null;
+          const confirmation = renderBotMessage(config.queue_confirmation_message, { nome: ticket.client_name || 'Cliente', departamento: department.name || ticket.department }).trim();
+          if (targetJid && confirmation) {
+            const sent = await whatsappService.sendMessage(targetJid, confirmation, accountId);
+            if (sent) await supabase.from('messages').insert({
+              ticket_id: ticket.id,
+              sender: 'bot',
+              text: `*Bot:*\n\n${confirmation}`,
+              time: makeTimeStr(now),
+              remote_message_id: sent?.key?.id || null,
+              whatsapp_account_id: accountId || null
+            });
+          }
+        }
+        const fullTicket = await this.getFullTicket(ticket.id);
+        if (io && fullTicket) {
+          emitTicketEvent(io, 'ticket_created', { ticket: fullTicket }, fullTicket);
+          scheduleKpiUpdate(io);
+        }
+        released += 1;
+      } catch (releaseError) {
+        console.warn(`Falha ao liberar atendimento reservado ${ticket.id}: ${releaseError.message}`);
+      }
+    }
+    return released;
+  }
+
   async finalizeExternalTicket(ticket, { io, whatsappService = null, botConfig = null, sendRating = true, reason = 'Inatividade no WhatsApp' } = {}) {
     if (!ticket?.id) return false;
     const now = new Date();
@@ -1898,6 +2020,7 @@ ${rendered}`,
       jid: group.jid,
       raw_jid: group.jid,
       group_jid: group.jid,
+      group_participant_count: Math.max(0, Number(group.participantCount) || 0),
       avatar_url: group.avatarUrl || existing?.avatar_url || null,
       status: 'grupo',
       assumed: true,
@@ -1967,7 +2090,7 @@ ${rendered}`,
         departmentName: data.whatsappDepartmentName,
         fallbackDepartmentId: data.whatsappFallbackDepartmentId,
         fallbackDepartmentName: data.whatsappFallbackDepartmentName
-      }, { jid: data.groupJid, subject: data.groupName, avatarUrl: data.avatarUrl }, io);
+      }, { jid: data.groupJid, subject: data.groupName, avatarUrl: data.avatarUrl, participantCount: data.participantCount }, io);
       if (!ticket) return null;
 
       const dateMs = whatsappTimestampMs(data.timestamp);
