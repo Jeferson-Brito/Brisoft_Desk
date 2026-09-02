@@ -1,21 +1,5 @@
 <template>
   <div class="qm-page">
-    <section class="qm-summary">
-      <div class="qm-summary-copy">
-        <span class="qm-eyebrow"><i class="fa-solid fa-bolt"></i> Respostas padronizadas</span>
-        <h2>Responda com mais agilidade</h2>
-        <p>Organize textos frequentes por categoria e use-os diretamente durante os atendimentos.</p>
-      </div>
-      <div class="qm-stats">
-        <div class="qm-stat"><strong>{{ messages.length }}</strong><span>Total</span></div>
-        <div class="qm-stat"><strong>{{ activeCount }}</strong><span>Ativas</span></div>
-        <div class="qm-stat"><strong>{{ categories.length }}</strong><span>Categorias</span></div>
-      </div>
-      <button v-if="auth.canManageTeam" class="btn-primary qm-create-btn" @click="openCreate">
-        <i class="fa-solid fa-plus"></i> Nova mensagem
-      </button>
-    </section>
-
     <section class="qm-toolbar">
       <div class="search-input-wrap qm-search">
         <i class="fa-solid fa-magnifying-glass"></i>
@@ -24,23 +8,73 @@
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
-      <div class="qm-filter-controls">
-        <label v-if="auth.canManageTeam" class="qm-select-wrap" title="Filtrar por status">
-          <i class="fa-solid fa-filter"></i>
-          <select v-model="statusFilter" class="qm-select" aria-label="Filtrar por status">
-            <option value="all">Todas</option>
-            <option value="active">Ativas</option>
-            <option value="inactive">Inativas</option>
-          </select>
-        </label>
-        <label class="qm-select-wrap" title="Ordenar mensagens">
-          <i class="fa-solid fa-arrow-down-a-z"></i>
-          <select v-model="sortBy" class="qm-select" aria-label="Ordenar mensagens">
-            <option value="title">Título A–Z</option>
-            <option value="category">Categoria</option>
-            <option value="recent">Mais recentes</option>
-          </select>
-        </label>
+
+      <div class="qm-toolbar-actions">
+        <!-- Botão de Filtros com Popover Suspenso -->
+        <div class="qm-filter-dropdown-wrapper" ref="qmFilterDropdownRef">
+          <button
+            type="button"
+            class="qm-filter-btn"
+            :class="{ active: showFilterPopover || hasActiveCustomFilters }"
+            title="Filtros e ordenação"
+            @click="showFilterPopover = !showFilterPopover"
+          >
+            <i class="fa-solid fa-sliders"></i>
+            <span>Filtros</span>
+            <span v-if="hasActiveCustomFilters" class="qm-filter-dot"></span>
+          </button>
+
+          <!-- Popover Suspenso de Filtros -->
+          <Transition name="popover-fade">
+            <div v-if="showFilterPopover" class="qm-filter-popover">
+              <div class="qm-popover-header">
+                <span><i class="fa-solid fa-sliders"></i> Filtros e Ordenação</span>
+                <button type="button" class="qm-popover-close" @click="showFilterPopover = false">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <div class="qm-popover-body">
+                <div v-if="auth.canManageTeam" class="qm-popover-group">
+                  <label><i class="fa-solid fa-filter"></i> Status</label>
+                  <select v-model="statusFilter" class="qm-popover-select" aria-label="Filtrar por status">
+                    <option value="all">Todas as mensagens</option>
+                    <option value="active">Apenas Ativas</option>
+                    <option value="inactive">Apenas Inativas</option>
+                  </select>
+                </div>
+
+                <div class="qm-popover-group">
+                  <label><i class="fa-solid fa-arrow-down-a-z"></i> Ordenar por</label>
+                  <select v-model="sortBy" class="qm-popover-select" aria-label="Ordenar mensagens">
+                    <option value="title">Título A–Z</option>
+                    <option value="category">Categoria</option>
+                    <option value="recent">Mais recentes</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="qm-popover-footer">
+                <button
+                  v-if="hasActiveCustomFilters"
+                  type="button"
+                  class="qm-popover-reset"
+                  @click="resetQuickFilters"
+                >
+                  <i class="fa-solid fa-eraser"></i> Limpar
+                </button>
+                <button type="button" class="qm-popover-apply" @click="showFilterPopover = false">
+                  Concluído
+                </button>
+              </div>
+            </div>
+          </Transition>
+        </div>
+
+        <!-- Botão Nova Mensagem na Toolbar -->
+        <button v-if="auth.canManageTeam" class="btn-primary qm-create-btn" @click="openCreate">
+          <i class="fa-solid fa-plus"></i> Nova mensagem
+        </button>
       </div>
     </section>
 
@@ -182,7 +216,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { quickMessagesApi } from '@/api/quick-messages.api'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -193,6 +227,8 @@ const searchTerm = ref('')
 const selectedCategory = ref('all')
 const statusFilter = ref('all')
 const sortBy = ref('title')
+const showFilterPopover = ref(false)
+const qmFilterDropdownRef = ref(null)
 const messages = ref([])
 const loading = ref(true)
 const showForm = ref(false)
@@ -204,6 +240,21 @@ const form = ref(emptyForm())
 const categories = computed(() => [...new Set(messages.value.map(item => item.category || 'Geral'))].sort((a, b) => a.localeCompare(b, 'pt-BR')))
 const activeCount = computed(() => messages.value.filter(item => item.is_active).length)
 const hasFilters = computed(() => Boolean(searchTerm.value.trim()) || selectedCategory.value !== 'all' || statusFilter.value !== 'all')
+
+const hasActiveCustomFilters = computed(() => {
+  return statusFilter.value !== 'all' || sortBy.value !== 'title'
+})
+
+function resetQuickFilters() {
+  statusFilter.value = 'all'
+  sortBy.value = 'title'
+}
+
+function handleQmClickOutside(event) {
+  if (qmFilterDropdownRef.value && !qmFilterDropdownRef.value.contains(event.target)) {
+    showFilterPopover.value = false
+  }
+}
 
 const filteredMessages = computed(() => {
   const term = searchTerm.value.trim().toLocaleLowerCase('pt-BR')
@@ -285,32 +336,217 @@ async function removeMessage(message) {
   catch (error) { ui.showToast(error.response?.data?.error || 'Não foi possível excluir a mensagem.', 'error') }
 }
 
-onMounted(loadMessages)
+onMounted(() => {
+  document.addEventListener('click', handleQmClickOutside)
+  loadMessages()
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleQmClickOutside)
+})
 </script>
 
 <style scoped>
 .qm-page { width: 100%; height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 13px; padding: 18px 20px 24px; box-sizing: border-box; background: #f8fafc; }
-.qm-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 22px; padding: 17px 18px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff; box-shadow: 0 1px 3px rgba(15, 23, 42, .025); }
-.qm-eyebrow { display: inline-flex; align-items: center; gap: 6px; color: var(--brand-primary); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
-.qm-summary h2 { margin: 4px 0 2px; color: var(--text-main); font-size: 18px; font-weight: 700; }
-.qm-summary p { margin: 0; color: var(--text-muted); font-size: 11.5px; }
-.qm-stats { display: flex; gap: 6px; }
-.qm-stat { min-width: 64px; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; text-align: center; }
-.qm-stat strong { display: block; color: var(--text-main); font-size: 16px; font-weight: 700; }
-.qm-stat span { color: var(--text-muted); font-size: 9.5px; text-transform: uppercase; font-weight: 650; }
-.qm-create-btn { min-height: 37px; white-space: nowrap; border-radius: 9px; }
-.qm-toolbar { display: flex; gap: 10px; align-items: center; padding: 10px; border: 1px solid #e2e8f0; border-radius: 11px; background: #fff; }
+
+/* ── Toolbar Compacta com Busca, Filtros e Nova Mensagem ── */
+.qm-toolbar { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 11px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03); }
 .qm-search { position: relative; flex: 1; min-width: 180px; }
 .qm-search > i { position: absolute; z-index: 1; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 12px; pointer-events: none; }
 .qm-search input { box-sizing: border-box; width: 100%; height: 38px; padding: 0 34px; border: 1px solid #dbe2ea; border-radius: 9px; background: #f8fafc; color: #1e293b; font: inherit; font-size: 12.5px; outline: none; transition: border-color .15s ease, box-shadow .15s ease, background .15s ease; }
 .qm-search input:focus { border-color: #60a5fa; background: #fff; box-shadow: 0 0 0 3px rgba(37, 99, 235, .1); }
 .qm-search input::placeholder { color: #94a3b8; }
-.qm-filter-controls { display: flex; align-items: center; gap: 8px; }
-.qm-select-wrap { position: relative; display: block; }
-.qm-select-wrap > i { position: absolute; z-index: 1; left: 11px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 10px; pointer-events: none; }
-.qm-select { box-sizing: border-box; width: 155px; height: 38px; padding: 0 28px 0 30px; border: 1px solid #dbe2ea; border-radius: 9px; background: #fff; color: #475569; font-size: 11.5px; outline: none; cursor: pointer; }
-.qm-select:focus { border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(37, 99, 235, .08); }
 .qm-clear-search { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; color: var(--text-light); cursor: pointer; }
+
+.qm-toolbar-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+/* ── Botão e Popover de Filtros ── */
+.qm-filter-dropdown-wrapper { position: relative; }
+
+.qm-filter-btn {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 9px;
+  border: 1px solid #dbe2ea;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.qm-filter-btn:hover {
+  background: #f8fafc;
+  color: #1f62d0;
+  border-color: #bfdbfe;
+}
+
+.qm-filter-btn.active {
+  background: #eff6ff;
+  color: #1f62d0;
+  border-color: #1f62d0;
+}
+
+.qm-filter-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1f62d0;
+}
+
+.qm-filter-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 280px;
+  background: #ffffff;
+  border: 1px solid #dbe2ea;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.06);
+  z-index: 100;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.qm-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.qm-popover-header span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qm-popover-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.qm-popover-close:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+.qm-popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.qm-popover-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.qm-popover-group label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.qm-popover-group label i {
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.qm-popover-select {
+  box-sizing: border-box;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #dbe2ea;
+  border-radius: 7px;
+  background: #fff;
+  color: #1e293b;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
+
+.qm-popover-select:focus {
+  border-color: #1f62d0;
+  box-shadow: 0 0 0 3px rgba(31, 98, 208, .08);
+}
+
+.qm-popover-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.qm-popover-reset {
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.qm-popover-reset:hover {
+  text-decoration: underline;
+}
+
+.qm-popover-apply {
+  background: #1f62d0;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: auto;
+  transition: background 0.15s ease;
+}
+
+.qm-popover-apply:hover {
+  background: #1d4ed8;
+}
+
+.popover-fade-enter-active,
+.popover-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.popover-fade-enter-from,
+.popover-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.qm-create-btn { height: 38px; padding: 0 16px; white-space: nowrap; border-radius: 9px; font-weight: 600; font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; }
 .qm-category-row { display: flex; gap: 6px; overflow-x: auto; padding: 1px 1px 4px; scrollbar-width: thin; }
 .qm-category-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 29px; padding: 5px 10px; border: 1px solid var(--border-color); border-radius: 7px; background: #ffffff; color: var(--text-muted); font-size: 11.5px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.15s ease; }
 .qm-category-chip span { min-width: 16px; padding: 1px 4px; border-radius: 4px; background: #f1f5f9; font-size: 9.5px; text-align: center; }

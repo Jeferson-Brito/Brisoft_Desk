@@ -1,94 +1,161 @@
 <template>
   <div class="table-view-layout" style="width:100%;">
-    <!-- Barra de Filtros Avançados -->
-    <div class="card-box" style="padding:16px;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:16px;">
-      <div style="display:flex;flex-direction:column;gap:16px;">
-        
-        <!-- Search and Actions Row -->
-        <div style="display:flex;gap:12px;align-items:center;">
-          <div class="search-input-wrap" style="flex:1;position:relative;">
-            <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:14px;"></i>
-            <input
-              v-model="filters.search"
-              type="text"
-              class="form-control"
-              style="width:100%;padding:10px 14px 10px 38px;border:1px solid #cbd5e1;border-radius:8px;font-size:13.5px;transition:all 0.2s;"
-              placeholder="Buscar por cliente, telefone, protocolo ou mensagem..."
-            />
-          </div>
+    <!-- Barra Compacta de Ferramentas: Lupa + Pesquisa Pequena + Botão de Filtros -->
+    <div class="history-toolbar">
+      <div class="history-toolbar-actions">
+        <!-- Botão Lupa & Caixa de Pesquisa Pequena -->
+        <div class="history-search-wrapper" :class="{ open: isSearchOpen || filters.search }">
           <button
-            v-if="hasActiveFilters"
-            class="btn-secondary"
-            style="height:40px;padding:0 16px;color:#ef4444;border-color:#fca5a5;background:#fef2f2;border-radius:8px;font-weight:600;font-size:13px;white-space:nowrap;"
-            title="Limpar todos os filtros"
-            @click="clearFilters"
+            type="button"
+            class="history-tool-btn history-search-toggle"
+            :class="{ active: isSearchOpen || filters.search }"
+            title="Pesquisar conversas"
+            @click="toggleSearch"
           >
-            <i class="fa-solid fa-eraser" style="margin-right:6px;"></i> Limpar Filtros
+            <i class="fa-solid fa-magnifying-glass"></i>
           </button>
+
+          <Transition name="search-expand">
+            <div v-if="isSearchOpen || filters.search" class="history-compact-search">
+              <input
+                ref="searchInputRef"
+                v-model="filters.search"
+                type="text"
+                class="history-search-input"
+                placeholder="Buscar cliente, tel, protocolo..."
+                @keydown.esc="onSearchEsc"
+              />
+              <button
+                v-if="filters.search"
+                type="button"
+                class="history-search-clear"
+                title="Limpar pesquisa"
+                @click="clearSearch"
+              >
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          </Transition>
         </div>
 
-        <!-- Filters Grid Row -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;background:#f8fafc;padding:12px;border-radius:8px;border:1px solid #f1f5f9;">
-          
-          <!-- Filtro: Departamento -->
-          <div style="display:flex;flex-direction:column;gap:6px;">
-            <label style="font-size:12px;font-weight:600;color:#64748b;display:flex;align-items:center;gap:4px;">
-              <i class="fa-solid fa-building" style="color:#cbd5e1;"></i> Departamento
-            </label>
-            <select v-model="filters.department" class="form-control" style="width:100%;height:38px;border-radius:6px;border:1px solid #cbd5e1;font-size:13px;background-color:#ffffff;">
-              <option value="">Todos os Departamentos</option>
-              <option v-for="d in settingsStore.departments" :key="d.id" :value="d.name">
-                {{ d.name }}
-              </option>
-            </select>
-          </div>
+        <!-- Botão de Filtros com Popover Suspenso -->
+        <div class="history-filter-wrapper" ref="filterDropdownRef">
+          <button
+            type="button"
+            class="history-tool-btn history-filter-btn"
+            :class="{ active: showFilterPopover || hasActiveFilters }"
+            title="Filtros de conversas"
+            @click="showFilterPopover = !showFilterPopover"
+          >
+            <i class="fa-solid fa-sliders"></i>
+            <span>Filtros</span>
+            <span v-if="activeFilterCount > 0" class="history-filter-count">
+              {{ activeFilterCount }}
+            </span>
+          </button>
 
-          <!-- Filtro: Atendente -->
-          <div style="display:flex;flex-direction:column;gap:6px;">
-            <label style="font-size:12px;font-weight:600;color:#64748b;display:flex;align-items:center;gap:4px;">
-              <i class="fa-solid fa-user-tie" style="color:#cbd5e1;"></i> Atendente
-            </label>
-            <select v-model="filters.agent" class="form-control" style="width:100%;height:38px;border-radius:6px;border:1px solid #cbd5e1;font-size:13px;background-color:#ffffff;">
-              <option value="">Todos os Atendentes</option>
-              <option v-for="ag in uniqueAgents" :key="ag" :value="ag">
-                {{ ag }}
-              </option>
-            </select>
-          </div>
+          <!-- Painel Suspenso de Filtros -->
+          <Transition name="popover-fade">
+            <div v-if="showFilterPopover" class="history-filter-popover">
+              <div class="popover-header">
+                <span><i class="fa-solid fa-sliders"></i> Filtros de Conversas</span>
+                <button type="button" class="popover-close-btn" @click="showFilterPopover = false">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
 
-          <!-- Filtro: Avaliação CSAT -->
-          <div style="display:flex;flex-direction:column;gap:6px;">
-            <label style="font-size:12px;font-weight:600;color:#64748b;display:flex;align-items:center;gap:4px;">
-              <i class="fa-solid fa-star" style="color:#cbd5e1;"></i> Avaliação
-            </label>
-            <select v-model="filters.rating" class="form-control" style="width:100%;height:38px;border-radius:6px;border:1px solid #cbd5e1;font-size:13px;background-color:#ffffff;">
-              <option value="">Todas</option>
-              <option value="5">⭐⭐⭐⭐⭐ (5)</option>
-              <option value="4">⭐⭐⭐⭐ (4)</option>
-              <option value="3">⭐⭐⭐ (3)</option>
-              <option value="2">⭐⭐ (2)</option>
-              <option value="1">⭐ (1)</option>
-              <option value="sem_avaliacao">Sem avaliação</option>
-            </select>
-          </div>
+              <div class="popover-content">
+                <!-- Filtro: Departamento -->
+                <div class="popover-field">
+                  <label><i class="fa-solid fa-building"></i> Departamento</label>
+                  <select v-model="filters.department" class="popover-select">
+                    <option value="">Todos os Departamentos</option>
+                    <option v-for="d in settingsStore.departments" :key="d.id" :value="d.name">
+                      {{ d.name }}
+                    </option>
+                  </select>
+                </div>
 
-          <!-- Filtros de Data -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <!-- Data Início -->
-            <div style="display:flex;flex-direction:column;gap:6px;">
-              <label style="font-size:12px;font-weight:600;color:#64748b;display:flex;align-items:center;gap:4px;">
-                <i class="fa-regular fa-calendar" style="color:#cbd5e1;"></i> De
-              </label>
-              <input v-model="filters.dateFrom" type="date" class="form-control" style="width:100%;height:38px;border-radius:6px;border:1px solid #cbd5e1;font-size:13px;padding:0 10px;background-color:#ffffff;" />
+                <!-- Filtro: Atendente -->
+                <div class="popover-field">
+                  <label><i class="fa-solid fa-user-tie"></i> Atendente</label>
+                  <select v-model="filters.agent" class="popover-select">
+                    <option value="">Todos os Atendentes</option>
+                    <option v-for="ag in uniqueAgents" :key="ag" :value="ag">
+                      {{ ag }}
+                    </option>
+                  </select>
+                </div>
+
+                <!-- Filtro: Avaliação CSAT -->
+                <div class="popover-field">
+                  <label><i class="fa-solid fa-star"></i> Avaliação</label>
+                  <select v-model="filters.rating" class="popover-select">
+                    <option value="">Todas</option>
+                    <option value="5">⭐⭐⭐⭐⭐ (5)</option>
+                    <option value="4">⭐⭐⭐⭐ (4)</option>
+                    <option value="3">⭐⭐⭐ (3)</option>
+                    <option value="2">⭐⭐ (2)</option>
+                    <option value="1">⭐ (1)</option>
+                    <option value="sem_avaliacao">Sem avaliação</option>
+                  </select>
+                </div>
+
+                <!-- Filtros de Data -->
+                <div class="popover-date-grid">
+                  <div class="popover-field">
+                    <label><i class="fa-regular fa-calendar"></i> De</label>
+                    <input v-model="filters.dateFrom" type="date" class="popover-input" />
+                  </div>
+                  <div class="popover-field">
+                    <label><i class="fa-regular fa-calendar-check"></i> Até</label>
+                    <input v-model="filters.dateTo" type="date" class="popover-input" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="popover-footer">
+                <button
+                  v-if="hasActiveFilters"
+                  type="button"
+                  class="popover-reset-btn"
+                  @click="clearFilters"
+                >
+                  <i class="fa-solid fa-eraser"></i> Limpar filtros
+                </button>
+                <button
+                  type="button"
+                  class="popover-apply-btn"
+                  @click="showFilterPopover = false"
+                >
+                  Concluído
+                </button>
+              </div>
             </div>
-            <!-- Data Fim -->
-            <div style="display:flex;flex-direction:column;gap:6px;">
-              <label style="font-size:12px;font-weight:600;color:#64748b;display:flex;align-items:center;gap:4px;">
-                <i class="fa-regular fa-calendar-check" style="color:#cbd5e1;"></i> Até
-              </label>
-              <input v-model="filters.dateTo" type="date" class="form-control" style="width:100%;height:38px;border-radius:6px;border:1px solid #cbd5e1;font-size:13px;padding:0 10px;background-color:#ffffff;" />
-            </div>
-          </div>
+          </Transition>
+        </div>
+
+        <!-- Chips dos filtros ativos para rápida visualização e remoção -->
+        <div v-if="hasActiveChips" class="history-chips-row">
+          <span v-if="filters.department" class="history-chip">
+            Setor: <strong>{{ filters.department }}</strong>
+            <i class="fa-solid fa-xmark" @click="filters.department = ''"></i>
+          </span>
+          <span v-if="filters.agent" class="history-chip">
+            Atendente: <strong>{{ filters.agent }}</strong>
+            <i class="fa-solid fa-xmark" @click="filters.agent = ''"></i>
+          </span>
+          <span v-if="filters.rating" class="history-chip">
+            {{ filters.rating === 'sem_avaliacao' ? 'Sem avaliação' : `${filters.rating} ★` }}
+            <i class="fa-solid fa-xmark" @click="filters.rating = ''"></i>
+          </span>
+          <span v-if="filters.dateFrom || filters.dateTo" class="history-chip">
+            {{ filters.dateFrom ? formatShortDate(filters.dateFrom) : 'Início' }} - {{ filters.dateTo ? formatShortDate(filters.dateTo) : 'Hoje' }}
+            <i class="fa-solid fa-xmark" @click="filters.dateFrom = ''; filters.dateTo = ''"></i>
+          </span>
+          <button type="button" class="history-chip-clear" @click="clearFilters" title="Limpar todos os filtros">
+            Limpar tudo
+          </button>
         </div>
       </div>
     </div>
@@ -437,7 +504,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ticketsApi } from '@/api/tickets.api'
 import { useSettingsStore } from '@/stores/settings.store'
 import { formatPhone, formatCnpjCpf, formatDateTime } from '@/utils/formatters'
@@ -456,6 +523,11 @@ const showEditContactModal = ref(false)
 const currentPage = ref(1)
 const itemsPerPage = ref(20)
 
+const isSearchOpen = ref(false)
+const showFilterPopover = ref(false)
+const searchInputRef = ref(null)
+const filterDropdownRef = ref(null)
+
 const filters = ref({
   search: '',
   department: '',
@@ -464,6 +536,56 @@ const filters = ref({
   dateFrom: '',
   dateTo: ''
 })
+
+function toggleSearch() {
+  isSearchOpen.value = !isSearchOpen.value
+  if (isSearchOpen.value) {
+    nextTick(() => searchInputRef.value?.focus())
+  }
+}
+
+function onSearchEsc() {
+  if (!filters.value.search) {
+    isSearchOpen.value = false
+  }
+}
+
+function clearSearch() {
+  filters.value.search = ''
+  searchInputRef.value?.focus()
+}
+
+const activeFilterCount = computed(() => {
+  let count = 0
+  if (filters.value.department) count++
+  if (filters.value.agent) count++
+  if (filters.value.rating) count++
+  if (filters.value.dateFrom || filters.value.dateTo) count++
+  return count
+})
+
+const hasActiveChips = computed(() => {
+  return Boolean(
+    filters.value.department ||
+    filters.value.agent ||
+    filters.value.rating ||
+    filters.value.dateFrom ||
+    filters.value.dateTo
+  )
+})
+
+function formatShortDate(d) {
+  if (!d) return ''
+  const parts = d.split('-')
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}`
+  return d
+}
+
+function handleClickOutside(event) {
+  if (filterDropdownRef.value && !filterDropdownRef.value.contains(event.target)) {
+    showFilterPopover.value = false
+  }
+}
 
 const uniqueAgents = computed(() => {
   const set = new Set()
@@ -534,16 +656,14 @@ const filteredHistory = computed(() => {
 
     // 5. Data Início
     if (filters.value.dateFrom) {
-      const itemDate = new Date(item.closed_at || item.created_at || item.time)
-      const fromDate = new Date(`${filters.value.dateFrom}T00:00:00`)
-      if (itemDate < fromDate) return false
+      const itemDate = (item.closed_at || item.created_at || '').substring(0, 10)
+      if (itemDate && itemDate < filters.value.dateFrom) return false
     }
 
     // 6. Data Fim
     if (filters.value.dateTo) {
-      const itemDate = new Date(item.closed_at || item.created_at || item.time)
-      const toDate = new Date(`${filters.value.dateTo}T23:59:59`)
-      if (itemDate > toDate) return false
+      const itemDate = (item.closed_at || item.created_at || '').substring(0, 10)
+      if (itemDate && itemDate > filters.value.dateTo) return false
     }
 
     return true
@@ -613,12 +733,349 @@ async function fetchHistory() {
 }
 
 onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
   settingsStore.fetchDepartments()
   fetchHistory()
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
 })
 </script>
 
 <style scoped>
-.initial-avatar { overflow:hidden; }
-.history-avatar-image { width:100%; height:100%; object-fit:cover; }
+.initial-avatar { overflow: hidden; }
+.history-avatar-image { width: 100%; height: 100%; object-fit: cover; }
+
+/* ── Barra Compacta de Ferramentas ── */
+.history-toolbar {
+  margin-bottom: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  padding: 8px 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.history-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Botão Genérico de Ação na Toolbar ── */
+.history-tool-btn {
+  height: 34px;
+  min-width: 34px;
+  padding: 0 12px;
+  border-radius: 7px;
+  border: 1px solid #dbe2ea;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.history-tool-btn:hover {
+  background: #f8fafc;
+  color: #1f62d0;
+  border-color: #bfdbfe;
+}
+
+.history-tool-btn.active {
+  background: #eff6ff;
+  color: #1f62d0;
+  border-color: #1f62d0;
+}
+
+/* ── Lupa / Busca Pequena Expansível ── */
+.history-search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.history-search-toggle {
+  padding: 0;
+  width: 34px;
+}
+
+.history-compact-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.history-search-input {
+  width: 250px;
+  height: 34px;
+  padding: 0 28px 0 10px;
+  border: 1px solid #1f62d0;
+  border-radius: 7px;
+  font-size: 12.5px;
+  color: #0f172a;
+  background: #ffffff;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(31, 98, 208, 0.1);
+  transition: all 0.2s ease;
+}
+
+.history-search-input:focus {
+  border-color: #1d4ed8;
+}
+
+.history-search-clear {
+  position: absolute;
+  right: 6px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 3px;
+  font-size: 11px;
+}
+
+.history-search-clear:hover {
+  color: #ef4444;
+}
+
+/* Transição suave da busca */
+.search-expand-enter-active,
+.search-expand-leave-active {
+  transition: all 0.18s ease;
+  overflow: hidden;
+}
+
+.search-expand-enter-from,
+.search-expand-leave-to {
+  width: 0;
+  opacity: 0;
+}
+
+/* ── Popover de Filtros ── */
+.history-filter-wrapper {
+  position: relative;
+}
+
+.history-filter-count {
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #1f62d0;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.history-filter-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 340px;
+  background: #ffffff;
+  border: 1px solid #dbe2ea;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.06);
+  z-index: 100;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.popover-title,
+.popover-header span {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.popover-close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.popover-close-btn:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+.popover-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.popover-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.popover-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.popover-field label i {
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.popover-select,
+.popover-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 12px;
+  color: #0f172a;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.popover-select:focus,
+.popover-input:focus {
+  border-color: #1f62d0;
+}
+
+.popover-date-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.popover-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.popover-reset-btn {
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.popover-reset-btn:hover {
+  text-decoration: underline;
+}
+
+.popover-apply-btn {
+  background: #1f62d0;
+  color: #ffffff;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: auto;
+  transition: background 0.15s ease;
+}
+
+.popover-apply-btn:hover {
+  background: #1d4ed8;
+}
+
+/* Transição Popover */
+.popover-fade-enter-active,
+.popover-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.popover-fade-enter-from,
+.popover-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* ── Chips de Filtros Ativos ── */
+.history-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: 4px;
+}
+
+.history-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1f62d0;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.history-chip i {
+  font-size: 9px;
+  cursor: pointer;
+  color: #60a5fa;
+}
+
+.history-chip i:hover {
+  color: #ef4444;
+}
+
+.history-chip-clear {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.history-chip-clear:hover {
+  text-decoration: underline;
+}
 </style>
