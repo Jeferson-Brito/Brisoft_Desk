@@ -75,15 +75,17 @@ export const useTicketStore = defineStore('tickets', () => {
           activeTicketId.value = first?.id ?? null
         }
 
-        // Carrega o histórico completo com estado visual explícito. Assim a tela
-        // nunca parece uma conversa vazia enquanto o banco responde.
+        // Libera imediatamente o loading da fila assim que os tickets forem atribuídos
+        if (!silent) loading.value = false
+
+        // Carrega o histórico do ticket ativo em segundo plano sem bloquear a renderização da fila
         if (activeTicketId.value) {
           const act = queue.value.find(t => t.id === activeTicketId.value)
           if (act) {
             act.unreadCount = 0
             act.unread_count = 0
             ticketsApi.markAsRead(activeTicketId.value).catch(() => {})
-            await loadTicketMessages(activeTicketId.value)
+            loadTicketMessages(activeTicketId.value).catch(() => {})
           }
         }
       }

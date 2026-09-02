@@ -1927,6 +1927,29 @@ ${rendered}`,
         }
       }
 
+      const ticketIds = (tickets || []).map(t => t.id).filter(Boolean);
+      let collaboratorsByTicket = new Map();
+      if (ticketIds.length) {
+        const { data: colabData } = await supabase
+          .from('ticket_collaborators')
+          .select('ticket_id, user_id, created_at, users(id, name, role, department_id, avatar_url, is_active)')
+          .in('ticket_id', ticketIds)
+          .order('created_at');
+        if (colabData) {
+          for (const row of colabData) {
+            if (!collaboratorsByTicket.has(row.ticket_id)) {
+              collaboratorsByTicket.set(row.ticket_id, []);
+            }
+            if (row.users && row.users.id) {
+              collaboratorsByTicket.get(row.ticket_id).push({
+                ...row.users,
+                joined_at: row.created_at
+              });
+            }
+          }
+        }
+      }
+
       for (let t of tickets) {
         // A listagem da fila carrega apenas resumos. As mensagens são buscadas
         // sob demanda quando o atendente abre uma conversa.
@@ -1939,7 +1962,7 @@ ${rendered}`,
           t.departmentColor = t.departments.color;
           t.department_id = t.departments.id || t.department_id;
         }
-        t.collaborators = await this.getCollaborators(t.id, user, { skipAccessCheck: true });
+        t.collaborators = collaboratorsByTicket.get(t.id) || [];
       }
       saveTicketsToDisk(tickets);
       return tickets;
