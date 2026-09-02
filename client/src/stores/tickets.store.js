@@ -35,6 +35,7 @@ export const useTicketStore = defineStore('tickets', () => {
   const waitingTickets     = computed(() => visibleTickets.value.filter(t => t.status === 'aguardando'))
   const inProgressTickets  = computed(() => visibleTickets.value.filter(t => t.status === 'em_atendimento'))
   const chatbotTickets     = computed(() => visibleTickets.value.filter(t => t.status === 'chatbot'))
+  const groupTickets       = computed(() => visibleTickets.value.filter(t => t.status === 'grupo'))
 
   const activeTicket = computed(() =>
     visibleTickets.value.find(t => t.id === activeTicketId.value) ?? null
@@ -293,7 +294,7 @@ export const useTicketStore = defineStore('tickets', () => {
     // state
     queue, activeTicketId, loading, loadingMessageIds, kpiRevision,
     // getters
-    visibleTickets, waitingTickets, inProgressTickets, chatbotTickets, activeTicket,
+    visibleTickets, waitingTickets, inProgressTickets, chatbotTickets, groupTickets, activeTicket,
     // actions
     fetchQueue, fetchTickets: fetchQueue, receiveTicket, appendMessage, patchMessage, removeTicket, patchTicket, notifyKpisUpdated, isLoadingMessages, loadTicketMessages,
     selectTicket, assume, close

@@ -23,7 +23,7 @@
 
       <!-- Coluna 3: Detalhes do Atendimento & Contato -->
       <ContactDrawer
-        v-if="isDetailsOpen && ticketStore.activeTicket"
+        v-if="isDetailsOpen && ticketStore.activeTicket && !ticketStore.activeTicket.is_group"
         :ticket="ticketStore.activeTicket"
         @close="isDetailsOpen = false"
       />
@@ -91,7 +91,7 @@ async function fetchPerformance() {
   } catch (_) {}
 }
 
-watch(() => ticketStore.queue.map(ticket => `${ticket.id}:${ticket.status}:${ticket.updated_at || ''}`).join('|'), () => {
+watch(() => ticketStore.queue.filter(ticket => !ticket.is_group).map(ticket => `${ticket.id}:${ticket.status}:${ticket.updated_at || ''}`).join('|'), () => {
   clearTimeout(queueRefreshTimer)
   queueRefreshTimer = setTimeout(fetchPerformance, 700)
 })

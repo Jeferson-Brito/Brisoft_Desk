@@ -211,6 +211,26 @@ function preferredWhatsAppJid(phone, fallbackJid = '') {
   return String(fallbackJid || '');
 }
 
+function messageMutationWhatsAppJid(ticket, sentFromConnectedDevice = false) {
+  if (ticket?.is_group) return String(ticket.group_jid || ticket.raw_jid || ticket.jid || '');
+  if (sentFromConnectedDevice && ticket?.raw_jid) return String(ticket.raw_jid);
+  return preferredWhatsAppJid(ticket?.phone, ticket?.jid || ticket?.raw_jid);
+}
+
+async function departmentAllowsDeviceMessageMutations(departmentId) {
+  if (!departmentId) return false;
+  const { data, error } = await supabase
+    .from('departments')
+    .select('allow_device_message_mutations')
+    .eq('id', departmentId)
+    .maybeSingle();
+  if (error) {
+    if (/allow_device_message_mutations|schema cache|column .* does not exist/i.test(error.message || '')) return false;
+    throw error;
+  }
+  return data?.allow_device_message_mutations === true;
+}
+
 function phoneFromWhatsAppIdentity(phone, fallbackJid = '') {
   const explicitDigits = String(phone || '').replace(/\D/g, '');
   if (explicitDigits.length >= 10 && explicitDigits.length <= 15) return explicitDigits;
@@ -1809,8 +1829,8 @@ ${rendered}`,
     try {
       let ticketQuery = supabase
         .from('tickets')
-        .select('*, departments(id, name, color)')
-        .in('status', ['aguardando', 'em_atendimento']);
+        .select('*, departments(id, name, color, allow_device_message_mutations)')
+        .in('status', ['aguardando', 'em_atendimento', 'grupo']);
       ticketQuery = scopeTicketQuery(ticketQuery, user);
       let { data: tickets, error } = await ticketQuery
         .order('updated_at', { ascending: false });
@@ -1823,7 +1843,7 @@ ${rendered}`,
         const linkedIds = (links || []).map(item => item.ticket_id).filter(Boolean);
         if (linkedIds.length) {
           const known = new Set((tickets || []).map(item => String(item.id)));
-          const { data: linkedTickets } = await supabase.from('tickets').select('*, departments(id, name, color)').in('id', linkedIds).in('status', ['aguardando', 'em_atendimento']);
+          const { data: linkedTickets } = await supabase.from('tickets').select('*, departments(id, name, color, allow_device_message_mutations)').in('id', linkedIds).in('status', ['aguardando', 'em_atendimento', 'grupo']);
           tickets = [...(tickets || []), ...(linkedTickets || []).filter(item => !known.has(String(item.id)))];
         }
       }
@@ -1853,7 +1873,7 @@ ${rendered}`,
     try {
       const { data: ticket, error } = await supabase
         .from('tickets')
-        .select('*, departments(id, name, color)')
+        .select('*, departments(id, name, color, allow_device_message_mutations)')
         .eq('id', ticketId)
         .single();
       if (error || !ticket) return null;
@@ -1885,6 +1905,172 @@ ${rendered}`,
       console.error('Erro em getFullTicket:', e);
       return null;
     }
+  }
+
+  async resolveWhatsAppGroupDepartment(account = {}) {
+    const departments = await getCachedDepartments();
+    const botConfig = await getBotConfig();
+    return departments.find(department => String(department.id) === String(account.departmentId || '')
+      || normalizeBotInput(department.name) === normalizeBotInput(account.departmentName))
+      || departments.find(department => String(department.id) === String(account.fallbackDepartmentId || '')
+        || normalizeBotInput(department.name) === normalizeBotInput(account.fallbackDepartmentName))
+      || departments.find(department => String(department.id) === String(botConfig.default_department_id || ''))
+      || departments[0]
+      || null;
+  }
+
+  async ensureWhatsAppGroupTicket(account, group, io = null) {
+    if (!isSupabaseConfigured() || !account?.id || !group?.jid) return null;
+    const channel = `whatsapp:${account.id}`;
+    const department = await this.resolveWhatsAppGroupDepartment(account);
+    const name = String(group.subject || 'Grupo do WhatsApp').trim().slice(0, 255) || 'Grupo do WhatsApp';
+    const now = new Date().toISOString();
+    const { data: existing, error: findError } = await supabase.from('tickets')
+      .select('*')
+      .eq('channel', channel)
+      .eq('group_jid', group.jid)
+      .maybeSingle();
+    if (findError) throw findError;
+
+    const payload = {
+      client_name: name,
+      initials: name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase().slice(0, 2) || 'GR',
+      jid: group.jid,
+      raw_jid: group.jid,
+      group_jid: group.jid,
+      avatar_url: group.avatarUrl || existing?.avatar_url || null,
+      status: 'grupo',
+      assumed: true,
+      is_group: true,
+      is_employee: false,
+      channel,
+      handled_via: 'mixed',
+      department: department?.name || null,
+      department_id: department?.id || null,
+      updated_at: existing ? existing.updated_at : now
+    };
+
+    let ticket;
+    let created = false;
+    if (existing) {
+      const result = await supabase.from('tickets').update(payload).eq('id', existing.id).select().single();
+      ticket = assertSupabase(result, 'Falha ao atualizar grupo do WhatsApp');
+    } else {
+      const result = await supabase.from('tickets').insert({
+        id: crypto.randomUUID(),
+        ...payload,
+        preview: 'Grupo disponível para a equipe',
+        unread_count: 0,
+        time: makeTimeStr(new Date()),
+        created_at: now,
+        updated_at: now
+      }).select().single();
+      ticket = assertSupabase(result, 'Falha ao cadastrar grupo do WhatsApp');
+      created = true;
+    }
+
+    const fullTicket = await this.getFullTicket(ticket.id);
+    if (io && fullTicket) emitTicketEvent(io, created ? 'ticket_created' : 'ticket_updated', { ticket: fullTicket }, fullTicket);
+    return fullTicket || ticket;
+  }
+
+  async syncWhatsAppGroups(account, groups = [], io = null) {
+    if (!isSupabaseConfigured() || !account?.id) return [];
+    const currentJids = groups.map(group => group?.jid).filter(Boolean);
+    const synced = [];
+    for (const group of groups) {
+      try {
+        const ticket = await this.ensureWhatsAppGroupTicket(account, group, io);
+        if (ticket) synced.push(ticket);
+      } catch (error) {
+        console.warn(`Falha ao sincronizar grupo ${group?.subject || group?.jid}: ${error.message}`);
+      }
+    }
+    const existingResult = await supabase.from('tickets').select('id, group_jid')
+      .eq('channel', `whatsapp:${account.id}`)
+      .eq('is_group', true);
+    const currentSet = new Set(currentJids);
+    const inactiveIds = (existingResult.data || []).filter(item => !currentSet.has(item.group_jid)).map(item => item.id);
+    if (inactiveIds.length) {
+      await supabase.from('tickets').update({ status: 'grupo_inativo', updated_at: new Date().toISOString() }).in('id', inactiveIds);
+    }
+    return synced;
+  }
+
+  async processWhatsAppGroupMessage(data, io = null) {
+    if (!isSupabaseConfigured() || !data?.groupJid || !data?.whatsappAccountId) return null;
+    try {
+      if (await wasRemoteMessageProcessed(data.whatsappAccountId, data.messageId)) return { type: 'duplicate', messageId: data.messageId };
+      const ticket = await this.ensureWhatsAppGroupTicket({
+        id: data.whatsappAccountId,
+        departmentId: data.whatsappDepartmentId,
+        departmentName: data.whatsappDepartmentName,
+        fallbackDepartmentId: data.whatsappFallbackDepartmentId,
+        fallbackDepartmentName: data.whatsappFallbackDepartmentName
+      }, { jid: data.groupJid, subject: data.groupName, avatarUrl: data.avatarUrl }, io);
+      if (!ticket) return null;
+
+      const dateMs = whatsappTimestampMs(data.timestamp);
+      const createdAt = dateMs ? new Date(dateMs).toISOString() : new Date().toISOString();
+      const date = new Date(createdAt);
+      const memberName = String(data.senderName || data.participantJid || (data.fromMe ? 'WhatsApp' : 'Participante')).replace(/@.*$/, '').slice(0, 255);
+      const preview = data.text || ({ audio: '🎙️ Áudio', image: '📷 Imagem', video: '🎥 Vídeo', document: `📄 ${data.fileName || 'Documento'}` }[data.mediaType] || 'Nova mensagem');
+      const senderLabel = data.fromMe ? `WhatsApp (${data.whatsappAccountName || 'celular'})` : memberName;
+      const messagePayload = {
+        ticket_id: ticket.id,
+        sender: data.fromMe ? 'agent' : 'client',
+        sender_type: data.fromMe ? 'whatsapp_device' : 'group_member',
+        sender_name: senderLabel,
+        message_context: 'group',
+        participant_jid: data.participantJid || null,
+        type: data.mediaType || null,
+        text: data.fromMe ? `*${senderLabel}:*${data.text ? `\n\n${data.text}` : ''}` : (data.text || preview),
+        time: makeTimeStr(date),
+        media_url: data.mediaUrl || null,
+        file_name: data.fileName || null,
+        remote_message_id: data.messageId || null,
+        whatsapp_account_id: data.whatsappAccountId,
+        created_at: createdAt
+      };
+      const messageResult = await supabase.from('messages').insert(messagePayload).select().single();
+      if (messageResult.error?.code === '23505') return { type: 'duplicate', messageId: data.messageId };
+      const message = assertSupabase(messageResult, 'Falha ao salvar mensagem do grupo');
+      if (data.mediaUrl) rememberMediaTicket(data.mediaUrl, ticket.id);
+
+      const updatePayload = {
+        preview: `${data.fromMe ? 'Você' : memberName}: ${preview}`.slice(0, 100),
+        time: makeTimeStr(date),
+        updated_at: createdAt,
+        unread_count: data.fromMe ? (ticket.unread_count || 0) : (ticket.unread_count || 0) + 1
+      };
+      assertSupabase(await supabase.from('tickets').update(updatePayload).eq('id', ticket.id), 'Falha ao atualizar grupo');
+      Object.assign(ticket, updatePayload);
+      if (io) {
+        emitTicketEvent(io, 'new_message', { ticketId: ticket.id, message, ticket }, ticket);
+        emitTicketEvent(io, 'ticket_updated', { ticket }, ticket);
+      }
+      return { type: 'group_message', ticket, message };
+    } catch (error) {
+      console.error(`Falha ao processar mensagem de grupo: ${error.message}`);
+      return null;
+    }
+  }
+
+  async getWhatsAppAvatarTargets(accountId) {
+    if (!isSupabaseConfigured() || !accountId) return [];
+    const { data, error } = await supabase.from('tickets')
+      .select('id, phone, jid, raw_jid, group_jid, is_group')
+      .in('channel', accountId === 'default' ? ['whatsapp', 'whatsapp:default'] : [`whatsapp:${accountId}`])
+      .in('status', ['aguardando', 'em_atendimento', 'grupo']);
+    return error ? [] : (data || []);
+  }
+
+  async updateTicketAvatar(ticketId, avatarUrl, io = null) {
+    if (!isSupabaseConfigured() || !ticketId || !avatarUrl) return false;
+    const { data: ticket, error } = await supabase.from('tickets').update({ avatar_url: avatarUrl }).eq('id', ticketId).select().single();
+    if (error || !ticket) return false;
+    if (io) emitTicketEvent(io, 'ticket_updated', { ticket }, ticket);
+    return true;
   }
 
   async processWhatsAppCall(callData, io) {
@@ -2113,12 +2299,12 @@ ${rendered}`,
         { data: avaliacoes },
         { data: assumidosHoje }
       ] = await Promise.all([
-        scoped(supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('is_employee', false).gte('created_at', todayISO)),
-        scoped(supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('is_employee', false).eq('status', 'em_atendimento')),
-        scoped(supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('is_employee', false).eq('status', 'aguardando')),
-        scoped(supabase.from('tickets').select('created_at, closed_at, encerrado_por').eq('is_employee', false).eq('status', 'finalizado').gte('created_at', todayISO).not('closed_at', 'is', null)),
-        supabase.from('ratings').select('score, tickets!inner(is_employee)').eq('tickets.is_employee', false),
-        scoped(supabase.from('tickets').select('created_at, assumed_at').eq('is_employee', false).gte('created_at', todayISO).not('assumed_at', 'is', null))
+        scoped(supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('is_employee', false).eq('is_group', false).gte('created_at', todayISO)),
+        scoped(supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('is_employee', false).eq('is_group', false).eq('status', 'em_atendimento')),
+        scoped(supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('is_employee', false).eq('is_group', false).eq('status', 'aguardando')),
+        scoped(supabase.from('tickets').select('created_at, closed_at, encerrado_por').eq('is_employee', false).eq('is_group', false).eq('status', 'finalizado').gte('created_at', todayISO).not('closed_at', 'is', null)),
+        supabase.from('ratings').select('score, tickets!inner(is_employee,is_group)').eq('tickets.is_employee', false).eq('tickets.is_group', false),
+        scoped(supabase.from('tickets').select('created_at, assumed_at').eq('is_employee', false).eq('is_group', false).gte('created_at', todayISO).not('assumed_at', 'is', null))
       ]);
 
       // Busca de live activity separada e protegida contra erro de fk
@@ -2375,6 +2561,7 @@ ${rendered}`,
         quotedMessage: {
           remoteMessageId: repliedMessage.remote_message_id,
           sender: repliedMessage.sender,
+          participantJid: repliedMessage.participant_jid || null,
           text: messagePreview(repliedMessage)
         }
       } : undefined);
@@ -2488,8 +2675,13 @@ ${rendered}`,
       const { data: message, error: messageError } = await supabase.from('messages').select('*').eq('id', messageId).eq('ticket_id', ticketId).maybeSingle();
       if (messageError) throw messageError;
       if (!message) return { success: false, error: 'Mensagem não encontrada.' };
-      if (message.sender !== 'agent' || String(message.user_id || '') !== String(currentUser?.id || '')) {
-        return { success: false, error: 'Você só pode editar mensagens que enviou pelo Brisoft Desk.' };
+      const sentByCurrentUser = String(message.user_id || '') === String(currentUser?.id || '');
+      const sentFromConnectedDevice = message.sender_type === 'whatsapp_device' || String(message.sender_name || '').startsWith('WhatsApp (');
+      const deviceMutationAllowed = sentFromConnectedDevice && await departmentAllowsDeviceMessageMutations(ticket.department_id);
+      if (message.sender !== 'agent' || (sentFromConnectedDevice ? !deviceMutationAllowed : !sentByCurrentUser)) {
+        return { success: false, error: sentFromConnectedDevice
+          ? 'O administrador não autorizou este departamento a editar mensagens enviadas pelo celular.'
+          : 'Você só pode editar mensagens enviadas por você.' };
       }
       if (message.deleted_at) return { success: false, error: 'Uma mensagem excluída não pode ser editada.' };
       if (message.type && message.type !== 'text') return { success: false, error: 'Somente mensagens de texto podem ser editadas.' };
@@ -2498,7 +2690,7 @@ ${rendered}`,
       const agentName = currentUser.name || message.sender_name || 'Atendente';
       const formattedText = `*${agentName}:*\n\n${String(text).trim()}`;
       const accountId = message.whatsapp_account_id || (ticket.channel?.startsWith('whatsapp:') ? ticket.channel.slice('whatsapp:'.length) : null);
-      const targetJid = preferredWhatsAppJid(ticket.phone, ticket.jid || ticket.raw_jid);
+      const targetJid = messageMutationWhatsAppJid(ticket, sentFromConnectedDevice);
       await whatsappService.editMessage(targetJid, message.remote_message_id, formattedText, accountId);
 
       const editedAt = new Date().toISOString();
@@ -2527,14 +2719,19 @@ ${rendered}`,
       const { data: message, error: messageError } = await supabase.from('messages').select('*').eq('id', messageId).eq('ticket_id', ticketId).maybeSingle();
       if (messageError) throw messageError;
       if (!message) return { success: false, error: 'Mensagem não encontrada.' };
-      if (message.sender !== 'agent' || String(message.user_id || '') !== String(currentUser?.id || '')) {
-        return { success: false, error: 'Você só pode excluir mensagens que enviou pelo Brisoft Desk.' };
+      const sentByCurrentUser = String(message.user_id || '') === String(currentUser?.id || '');
+      const sentFromConnectedDevice = message.sender_type === 'whatsapp_device' || String(message.sender_name || '').startsWith('WhatsApp (');
+      const deviceMutationAllowed = sentFromConnectedDevice && await departmentAllowsDeviceMessageMutations(ticket.department_id);
+      if (message.sender !== 'agent' || (sentFromConnectedDevice ? !deviceMutationAllowed : !sentByCurrentUser)) {
+        return { success: false, error: sentFromConnectedDevice
+          ? 'O administrador não autorizou este departamento a excluir mensagens enviadas pelo celular.'
+          : 'Você só pode excluir mensagens enviadas por você.' };
       }
       if (message.deleted_at) return { success: true, message };
       if (!message.remote_message_id) return { success: false, error: 'Esta mensagem antiga não possui o identificador necessário para exclusão no WhatsApp.' };
 
       const accountId = message.whatsapp_account_id || (ticket.channel?.startsWith('whatsapp:') ? ticket.channel.slice('whatsapp:'.length) : null);
-      const targetJid = preferredWhatsAppJid(ticket.phone, ticket.jid || ticket.raw_jid);
+      const targetJid = messageMutationWhatsAppJid(ticket, sentFromConnectedDevice);
       await whatsappService.deleteMessage(targetJid, message.remote_message_id, accountId);
 
       const deletedAt = new Date().toISOString();
@@ -2691,11 +2888,12 @@ ${rendered}`,
     try {
       const { data: existingTicket, error: ticketError } = await supabase
         .from('tickets')
-        .select('id, user_id, agent_name, department_id, department, status, assumed')
+        .select('id, user_id, agent_name, department_id, department, status, assumed, is_group')
         .eq('id', ticketId)
         .maybeSingle();
       if (ticketError) throw ticketError;
       if (!existingTicket || !canUserAccessTicket(currentUser, existingTicket)) return { success: false, error: 'Ticket nao encontrado' };
+      if (existingTicket.is_group) return { success: false, error: 'Grupos do WhatsApp permanecem sempre abertos e não precisam ser assumidos.' };
 
       // Se o chamado já está em atendimento e atribuído ao mesmo usuário, retorna com sucesso
       if (existingTicket.status === 'em_atendimento' && (existingTicket.user_id === currentUser.id || existingTicket.agent_name === currentUser.name)) {
@@ -2783,11 +2981,12 @@ ${rendered}`,
       
       const { data: currentTicket } = await supabase
         .from('tickets')
-        .select('id, jid, raw_jid, phone, client_name, department, department_id, agent_name, status, channel')
+        .select('id, jid, raw_jid, phone, client_name, department, department_id, agent_name, status, channel, is_group')
         .eq('id', ticketId)
         .single();
 
       if (!currentTicket || !canUserAccessTicket(currentUser, currentTicket)) return { success: false, error: 'Ticket nao encontrado' };
+      if (currentTicket.is_group) return { success: false, error: 'Grupos são permanentes e não podem ser transferidos como atendimentos.' };
 
       const oldDept = currentTicket.department || 'Geral';
       const newDept = departmentName || 'Novo Departamento';
@@ -2878,11 +3077,12 @@ ${rendered}`,
 
       const { data: ticket } = await supabase
         .from('tickets')
-        .select('id, jid, raw_jid, phone, client_name, department, department_id, agent_name, channel, is_employee')
+        .select('id, jid, raw_jid, phone, client_name, department, department_id, agent_name, channel, is_employee, is_group')
         .eq('id', ticketId)
         .single();
 
       if (!ticket || !canUserAccessTicket(currentUser, ticket)) return { success: false, error: 'Ticket nao encontrado' };
+      if (ticket.is_group) return { success: false, error: 'Grupos do WhatsApp são permanentes e não podem ser encerrados.' };
       // ─── Update direto no banco ─────
       assertSupabase(await supabase.from('tickets').update({
         status: 'finalizado',
@@ -3101,6 +3301,7 @@ const ticketService = new TicketService();
 ticketService._test = {
   mergeHandledVia,
   preferredWhatsAppJid,
+  messageMutationWhatsAppJid,
   phoneFromWhatsAppIdentity,
   makeTimeStr,
   APP_TIME_ZONE,

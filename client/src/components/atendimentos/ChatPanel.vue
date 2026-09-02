@@ -15,14 +15,15 @@
       <!-- Título: Nome do Cliente (clique para abrir detalhes) -->
       <div
         class="chat-header-title-box"
-        style="cursor: pointer;"
-        title="Clique para ver os detalhes do contato"
-        @click="$emit('toggle-details')"
+        :style="{ cursor: ticket.is_group ? 'default' : 'pointer' }"
+        :title="ticket.is_group ? 'Grupo do WhatsApp' : 'Clique para ver os detalhes do contato'"
+        @click="!ticket.is_group && $emit('toggle-details')"
       >
         <div class="chat-contact-copy">
           <div class="chat-contact-name-line">
             <h2 class="chat-contact-title">{{ headerPerson.name || 'Cliente' }}</h2>
-            <i class="fa-solid chat-contact-chevron" :class="isDetailsOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            <i v-if="!ticket.is_group" class="fa-solid chat-contact-chevron" :class="isDetailsOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            <span v-if="ticket.is_group" class="group-contact-badge"><i class="fa-solid fa-users"></i> Grupo</span>
             <span v-if="ticket?.is_employee" class="employee-contact-badge" title="Funcionário da empresa"><i class="fa-solid fa-id-badge"></i> Funcionário</span>
           </div>
           <div v-if="headerPerson.role || ticket?.department" class="chat-contact-subtitle">
@@ -35,7 +36,7 @@
 
       <!-- Ações à Direita -->
       <div class="chat-header-tools">
-        <div class="contact-call-actions" aria-label="Recursos de chamada em desenvolvimento">
+        <div v-if="!ticket.is_group" class="contact-call-actions" aria-label="Recursos de chamada em desenvolvimento">
           <span class="upcoming-action" title="Ligação — em desenvolvimento">
             <button type="button" class="header-call-btn" disabled aria-label="Ligação em desenvolvimento">
               <i class="fa-solid fa-phone"></i>
@@ -87,7 +88,7 @@
         </button>
 
         <!-- 3 Pontinhos Dropdown (Menu de Ações) -->
-        <div v-if="ticket" class="actions-dropdown-wrapper" ref="actionsDropdownRef">
+        <div v-if="ticket && !ticket.is_group" class="actions-dropdown-wrapper" ref="actionsDropdownRef">
           <button
             type="button"
             class="header-tool-btn"
@@ -205,6 +206,8 @@
               :initials="ticket.initials"
               :avatar-color="ticket.avatarColor"
               :current-user-id="authStore.user?.id"
+              :is-group="Boolean(ticket.is_group)"
+              :allow-device-message-mutations="ticket.departments?.allow_device_message_mutations === true"
               @reply="startReply"
               @edit="startEdit"
               @delete="deleteMessage"
@@ -239,7 +242,7 @@
         v-if="showScrollBottom"
         type="button"
         class="scroll-bottom-btn"
-        :style="{ bottom: metricsExpanded ? (canSend ? '138px' : '68px') : (canSend ? '88px' : '24px') }"
+        :style="{ bottom: ticket?.is_group ? (canSend ? '88px' : '24px') : (metricsExpanded ? (canSend ? '138px' : '68px') : (canSend ? '88px' : '24px')) }"
         title="Rolar para as mensagens recentes"
         @click="scrollToBottomSmooth"
       >
@@ -312,6 +315,15 @@
 
       <input ref="fileInputRef" type="file" hidden @change="handleFileSelection" />
 
+      <div v-if="pastedImage" class="clipboard-image-preview">
+        <img :src="pastedImage.url" alt="Prévia da imagem colada" />
+        <span>
+          <strong>Imagem pronta para enviar</strong>
+          <small>Adicione uma legenda ou pressione Enter para enviar.</small>
+        </span>
+        <button type="button" class="btn-icon" title="Remover imagem" @click="clearPastedImage"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
       <div v-if="replyingMessage || editingMessage" class="composer-message-context">
         <span class="composer-message-context-icon">
           <i :class="editingMessage ? 'fa-solid fa-pen' : 'fa-solid fa-reply'"></i>
@@ -351,11 +363,12 @@
           rows="1"
           :placeholder="editingMessage ? 'Corrija sua mensagem...' : (chatMode === 'observacao' ? 'Digite uma observação interna (visível apenas para atendentes)...' : 'Digite sua mensagem...')"
           @input="adjustTextareaHeight"
+          @paste="handleComposerPaste"
           @keydown.enter.exact.prevent="sendMessage"
         ></textarea>
 
         <button
-          v-if="!isRecording && !inputMsg.trim()"
+          v-if="!isRecording && !inputMsg.trim() && !pastedImage"
           type="button"
           class="btn-primary composer-send-btn"
           title="Gravar áudio"
@@ -378,7 +391,7 @@
     </div>
 
     <!-- Barra de Indicadores KPIs no rodapé do ChatPanel (sempre visível quando metricsExpanded) -->
-    <div v-if="metricsExpanded" class="chat-kpi-bar">
+    <div v-if="metricsExpanded && !ticket?.is_group" class="chat-kpi-bar">
       <div class="kpi-mini-card" title="Total de chats de clientes recebidos hoje pelo departamento">
         <div class="kpi-mini-icon" style="background:#ecfdf5;color:#10b981;">
           <i class="fa-regular fa-comment-dots"></i>
@@ -445,7 +458,7 @@
     </div>
 
     <!-- Barra recolhida caso metricsExpanded esteja desligado -->
-    <div v-else class="chat-kpi-bar-collapsed" @click="toggleMetrics" title="Exibir indicadores de atendimento">
+    <div v-else-if="!ticket?.is_group" class="chat-kpi-bar-collapsed" @click="toggleMetrics" title="Exibir indicadores de atendimento">
       <div class="chat-kpi-collapsed-content">
         <i class="fa-solid fa-chart-line"></i>
         <span>Indicadores do mês • avaliação <strong>{{ ratingLabel }}</strong></span>
@@ -575,6 +588,7 @@ const quickSearch = ref('')
 const sendingMedia = ref(false)
 const isAssuming = ref(false)
 const pendingUploads = ref([])
+const pastedImage = ref(null)
 const isRecording = ref(false)
 const recordingSeconds = ref(0)
 let mediaRecorder = null
@@ -613,16 +627,19 @@ const recordingTime = computed(() => {
 
 const canAssume = computed(() => {
   if (!props.ticket) return false
+  if (props.ticket.is_group) return false
   return props.ticket.status === 'aguardando' && !props.ticket.assumed
 })
 
 const canClose = computed(() => {
   if (!props.ticket) return false
+  if (props.ticket.is_group) return false
   return props.ticket.status === 'em_atendimento' || props.ticket.assumed
 })
 
 const canSend = computed(() => {
   if (!props.ticket) return false
+  if (props.ticket.is_group) return true
   return props.ticket.status === 'em_atendimento' || props.ticket.assumed
 })
 
@@ -634,6 +651,12 @@ const whatsappAccountLabel = computed(() => {
 })
 
 const handlingChannel = computed(() => {
+  if (props.ticket?.is_group) return {
+    label: 'Grupo do WhatsApp',
+    description: 'Conversa permanente compartilhada com os participantes deste grupo.',
+    kind: 'device',
+    icon: 'fa-solid fa-users'
+  }
   let source = props.ticket?.handled_via || 'pending'
   if (source === 'pending' && String(props.ticket?.agent_name || '').startsWith('WhatsApp (')) source = 'whatsapp_device'
   if (source === 'whatsapp_device') return {
@@ -878,9 +901,11 @@ onUnmounted(() => {
   }
   if (recordingTimer) clearInterval(recordingTimer)
   recorderStream?.getTracks().forEach(track => track.stop())
+  clearPastedImage()
 })
 
 watch(() => props.ticket?.id, () => {
+  clearPastedImage()
   showBotInteractions.value = false
   closeMessageSearch()
   scrollToBottom()
@@ -1051,6 +1076,25 @@ function detectMediaType(file) {
   return 'document'
 }
 
+function clearPastedImage() {
+  if (pastedImage.value?.url) URL.revokeObjectURL(pastedImage.value.url)
+  pastedImage.value = null
+}
+
+function handleComposerPaste(event) {
+  if (chatMode.value !== 'responder' || editingMessage.value || !canSend.value) return
+  const imageItem = [...(event.clipboardData?.items || [])].find(item => item.kind === 'file' && item.type.startsWith('image/'))
+  if (!imageItem) return
+  const sourceFile = imageItem.getAsFile()
+  if (!sourceFile) return
+  event.preventDefault()
+  clearPastedImage()
+  const extension = sourceFile.type.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
+  const file = new File([sourceFile], `imagem-colada-${Date.now()}.${extension}`, { type: sourceFile.type || 'image/png' })
+  pastedImage.value = { file, url: URL.createObjectURL(file) }
+  nextTick(() => focusInput())
+}
+
 async function sendMediaFile(file, mediaType = detectMediaType(file), caption = '', voiceNote = false) {
   if (!props.ticket || !file) return
   if (file.size > 25 * 1024 * 1024) {
@@ -1184,7 +1228,16 @@ function stopRecording(shouldSend) {
 
 async function sendMessage() {
   const text = inputMsg.value.trim()
-  if (!text || !props.ticket) return
+  if (!props.ticket) return
+
+  if (pastedImage.value && !editingMessage.value && chatMode.value === 'responder') {
+    const image = pastedImage.value.file
+    clearPastedImage()
+    await sendMediaFile(image, 'image', text)
+    return
+  }
+
+  if (!text) return
 
   if (editingMessage.value) {
     const target = editingMessage.value
@@ -1290,6 +1343,21 @@ watch(inputMsg, (newVal) => {
   cursor: help;
   outline: none;
   transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+
+.group-contact-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 2px 6px;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .handling-channel-indicator:hover,
@@ -1448,6 +1516,21 @@ watch(inputMsg, (newVal) => {
 
 .composer-message-context-copy strong { color: #1e40af; font-size: 10.5px; }
 .composer-message-context-copy small { overflow: hidden; color: #64748b; font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+
+.clipboard-image-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 62px;
+  padding: 8px 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 9px;
+  background: #f8fbff;
+}
+.clipboard-image-preview img { width: 48px; height: 48px; flex: none; border-radius: 7px; object-fit: cover; }
+.clipboard-image-preview span { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.clipboard-image-preview strong { color: #1e3a8a; font-size: 11.5px; }
+.clipboard-image-preview small { color: #64748b; font-size: 10.5px; line-height: 1.35; }
 
 .message-delete-overlay { z-index: 10050; display: grid; place-items: center; padding: 18px; }
 .message-delete-dialog { width: min(420px, 100%); padding: 22px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 24px 60px rgba(15, 23, 42, .25); }

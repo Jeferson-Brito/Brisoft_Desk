@@ -15,7 +15,8 @@
         class="user-avatar"
         :style="{ backgroundColor: ticket.avatarColor || '#1f62d0' }"
       >
-        {{ ticket.initials || 'CL' }}
+        <img v-if="ticket.avatar_url && !avatarFailed" :src="ticket.avatar_url" :alt="displayName" referrerpolicy="no-referrer" @error="avatarFailed = true" />
+        <span v-else>{{ fallbackInitials }}</span>
       </div>
       <span class="online-indicator" :class="{ 'is-whatsapp': isWhatsapp }"></span>
     </div>
@@ -31,6 +32,7 @@
           <span v-if="ticket.is_employee" class="employee-tag" title="Funcionário">
             <i class="fa-solid fa-id-badge"></i>
           </span>
+          <span v-if="ticket.is_group" class="group-tag" title="Grupo do WhatsApp"><i class="fa-solid fa-users"></i></span>
           <span
             v-if="isIncomingCall"
             class="incoming-call-queue-badge"
@@ -44,7 +46,8 @@
       </div>
 
       <div class="queue-item-context">
-        <span v-if="person.role" class="contact-role" :title="person.role">{{ person.role }}</span>
+        <span v-if="ticket.is_group" class="contact-role">Grupo permanente</span>
+        <span v-else-if="person.role" class="contact-role" :title="person.role">{{ person.role }}</span>
         <span v-else-if="ticket.is_employee" class="contact-role">Funcionário da empresa</span>
         <span v-if="deptName" class="department-chip" :title="deptName">
           <span :style="{ backgroundColor: deptColor }"></span>{{ deptName }}
@@ -71,7 +74,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useTicketStore } from '@/stores/tickets.store'
 import { splitPersonLabel } from '@/utils/person-display'
 
@@ -85,6 +88,7 @@ const props = defineProps({
 const emit = defineEmits(['select'])
 const ticketStore = useTicketStore()
 const clockTick = ref(Date.now())
+const avatarFailed = ref(false)
 let clockTimer = null
 
 onMounted(() => {
@@ -92,6 +96,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => clearInterval(clockTimer))
+watch(() => props.ticket.avatar_url, () => { avatarFailed.value = false })
 
 function handleClick() {
   ticketStore.selectTicket(props.ticket.id)
@@ -100,6 +105,11 @@ function handleClick() {
 
 const person = computed(() => splitPersonLabel(props.ticket.clientName || props.ticket.client_name || 'Cliente'))
 const displayName = computed(() => person.value.name || 'Cliente')
+const fallbackInitials = computed(() => {
+  const parts = displayName.value.trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return props.ticket.is_group ? 'GR' : 'CL'
+  return `${parts[0][0] || ''}${parts.length > 1 ? parts[parts.length - 1][0] : (parts[0][1] || '')}`.toUpperCase()
+})
 const deptName = computed(() => props.ticket.department || props.ticket.departments?.name || props.ticket.deptInitial || '')
 const deptColor = computed(() => props.ticket.departmentColor || '#1f62d0')
 const isWhatsapp = computed(() => true)
@@ -196,6 +206,9 @@ function cleanPreview(preview) {
   box-shadow: 0 0 0 3px #f1f5f9;
   transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
+
+.user-avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.group-tag { color: #2563eb; font-size: 10.5px; }
 
 .queue-item-card:hover .user-avatar,
 .queue-item-card.active .user-avatar {

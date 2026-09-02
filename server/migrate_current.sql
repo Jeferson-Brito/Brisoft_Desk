@@ -1,6 +1,9 @@
 -- Compatibilidade para instalações existentes do Brisoft Desk.
 -- Execute uma vez no SQL Editor do Supabase antes de publicar esta versão.
 
+alter table if exists public.departments
+  add column if not exists allow_device_message_mutations boolean not null default false;
+
 alter table if exists public.messages
   add column if not exists user_id uuid references public.users(id) on delete set null,
   add column if not exists media_url text,
@@ -33,6 +36,18 @@ alter table if exists public.tickets
   add column if not exists handled_via text not null default 'pending',
   add column if not exists direct_whatsapp_messages integer not null default 0,
   add column if not exists platform_messages integer not null default 0;
+
+alter table if exists public.tickets
+  add column if not exists is_group boolean not null default false,
+  add column if not exists group_jid text,
+  add column if not exists avatar_url text;
+
+alter table if exists public.messages
+  add column if not exists participant_jid text;
+
+create unique index if not exists tickets_whatsapp_group_idx
+  on public.tickets(channel, group_jid)
+  where is_group = true and group_jid is not null;
 
 alter table if exists public.tickets
   add column if not exists queued_at timestamptz;

@@ -21,3 +21,15 @@ test('usa o JID telefônico para enviar mensagens e mantém o LID apenas como fa
   assert.equal(phoneFromWhatsAppIdentity('', '25117639839856@lid'), '');
   assert.equal(phoneFromWhatsAppIdentity('', '558393858515@s.whatsapp.net'), '558393858515');
 });
+
+test('preserva o JID original ao alterar mensagem enviada pelo aparelho', () => {
+  const { messageMutationWhatsAppJid } = ticketService._test;
+  const ticket = {
+    phone: '558393858515',
+    jid: '558393858515@s.whatsapp.net',
+    raw_jid: '25117639839856@lid'
+  };
+  assert.equal(messageMutationWhatsAppJid(ticket, true), '25117639839856@lid');
+  assert.equal(messageMutationWhatsAppJid(ticket, false), '558393858515@s.whatsapp.net');
+  assert.equal(messageMutationWhatsAppJid({ is_group: true, group_jid: '120363000000@g.us' }, true), '120363000000@g.us');
+});

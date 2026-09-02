@@ -34,6 +34,14 @@
               <input v-model.number="slaTargetMinutes" type="number" min="1" max="1440" class="form-control" />
               <small>Tempo esperado para o primeiro atendimento deste departamento.</small>
             </div>
+
+            <label class="permission-card">
+              <input v-model="allowDeviceMessageMutations" type="checkbox" />
+              <span>
+                <strong>Editar e excluir mensagens enviadas pelo celular</strong>
+                <small>Permite que os atendentes deste departamento alterem mensagens disparadas diretamente no aparelho conectado. Recomendado apenas quando o WhatsApp não é compartilhado por várias pessoas.</small>
+              </span>
+            </label>
           </div>
 
           <div class="modal-footer">
@@ -64,6 +72,7 @@ const name = ref(props.department?.name || '')
 const color = ref(props.department?.color || '#2563eb')
 const description = ref(props.department?.description || '')
 const slaTargetMinutes = ref(Number(props.department?.sla_target_minutes) || 15)
+const allowDeviceMessageMutations = ref(props.department?.allow_device_message_mutations === true)
 const loading = ref(false)
 
 async function handleSubmit() {
@@ -76,6 +85,7 @@ async function handleSubmit() {
       color: color.value,
       description: description.value.trim(),
       sla_target_minutes: slaTargetMinutes.value,
+      allow_device_message_mutations: allowDeviceMessageMutations.value,
       ...(props.department?.sort_order ? { sort_order: props.department.sort_order } : {})
     })
     if (res.success) {
@@ -90,3 +100,20 @@ async function handleSubmit() {
   }
 }
 </script>
+
+<style scoped>
+.permission-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dbe3ee;
+  border-radius: 9px;
+  background: #f8fafc;
+  cursor: pointer;
+}
+.permission-card input { width: 16px; height: 16px; margin-top: 2px; accent-color: #2563eb; }
+.permission-card span { display: grid; gap: 4px; }
+.permission-card strong { color: #1e293b; font-size: 12px; line-height: 1.35; }
+.permission-card small { color: #64748b; font-size: 10.5px; line-height: 1.45; }
+</style>

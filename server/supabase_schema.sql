@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS departments (
     color VARCHAR(20) DEFAULT '#2563eb',
     description TEXT,
     sort_order INT,
+    allow_device_message_mutations BOOLEAN NOT NULL DEFAULT FALSE,
     sla_target_minutes INT DEFAULT 15,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -116,6 +117,9 @@ CREATE TABLE IF NOT EXISTS tickets (
     direct_whatsapp_messages INT DEFAULT 0,
     platform_messages INT DEFAULT 0,
     is_employee BOOLEAN NOT NULL DEFAULT false,
+    is_group BOOLEAN NOT NULL DEFAULT false,
+    group_jid TEXT,
+    avatar_url TEXT,
     queued_at TIMESTAMP WITH TIME ZONE,
     
     -- Métricas de SLA
@@ -131,6 +135,7 @@ CREATE TABLE IF NOT EXISTS tickets (
 
 ALTER TABLE departments ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE departments ADD COLUMN IF NOT EXISTS sort_order INT;
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS allow_device_message_mutations BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS ticket_collaborators (
     ticket_id TEXT NOT NULL,
@@ -184,6 +189,7 @@ CREATE TABLE IF NOT EXISTS messages (
     remote_message_id VARCHAR(100), -- ID do WhatsApp
     whatsapp_account_id TEXT,
     file_name TEXT,
+    participant_jid TEXT,
     reply_to_message_id TEXT,
     reply_to_remote_message_id TEXT,
     reply_preview TEXT,
@@ -192,6 +198,10 @@ CREATE TABLE IF NOT EXISTS messages (
     deleted_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS tickets_whatsapp_group_idx
+    ON tickets(channel, group_jid)
+    WHERE is_group = true AND group_jid IS NOT NULL;
 
 -- 8. Tabela de Notas Internas de Contato
 CREATE TABLE IF NOT EXISTS contact_notes (

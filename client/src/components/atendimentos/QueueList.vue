@@ -102,6 +102,16 @@
       <button
         type="button"
         class="queue-tab-btn"
+        :class="{ active: currentTab === 'grupos' }"
+        @click="currentTab = 'grupos'"
+      >
+        <span>Grupos</span>
+        <span class="queue-tab-count">{{ groupCount }}</span>
+      </button>
+
+      <button
+        type="button"
+        class="queue-tab-btn"
         :class="{ active: currentTab === 'em_atendimento' }"
         @click="currentTab = 'em_atendimento'"
       >
@@ -160,7 +170,7 @@
 
       <div v-else-if="filteredTickets.length === 0" class="queue-empty-msg">
         <i class="fa-regular fa-comments"></i>
-        <span>Nenhum atendimento em {{ currentTab === 'aguardando' ? 'espera' : 'atendimento' }}</span>
+        <span>{{ currentTab === 'grupos' ? 'Nenhum grupo disponível' : `Nenhum atendimento em ${currentTab === 'aguardando' ? 'espera' : 'atendimento'}` }}</span>
       </div>
 
       <div v-else class="queue-cards-wrapper">
@@ -258,6 +268,14 @@ const inProgressCount = computed(() => {
   }).length
 })
 
+const groupCount = computed(() => {
+  return (ticketStore.groupTickets || []).filter(t => {
+    if (selectedDepartment.value && (t.department || t.deptInitial) !== selectedDepartment.value) return false
+    if (onlyUnread.value && (t.unreadCount || t.unread_count || 0) === 0) return false
+    return true
+  }).length
+})
+
 function onTicketClick(ticketId) {
   emit('ticket-selected', ticketId)
 }
@@ -281,9 +299,11 @@ const filteredTickets = computed(() => {
   let list = (ticketStore.visibleTickets || []).filter(t => t.status !== 'finalizado')
 
   if (currentTab.value === 'aguardando') {
-    list = list.filter(t => t.status === 'aguardando' || !t.assumed)
+    list = list.filter(t => !t.is_group && (t.status === 'aguardando' || !t.assumed))
   } else if (currentTab.value === 'em_atendimento') {
-    list = list.filter(t => t.assumed || t.status === 'em_atendimento' || t.status === 'chatbot')
+    list = list.filter(t => !t.is_group && (t.assumed || t.status === 'em_atendimento' || t.status === 'chatbot'))
+  } else if (currentTab.value === 'grupos') {
+    list = list.filter(t => t.status === 'grupo')
   }
 
   if (selectedDepartment.value) {
@@ -294,7 +314,7 @@ const filteredTickets = computed(() => {
     list = list.filter(t => (t.unreadCount || t.unread_count || 0) > 0)
   }
 
-  if (onlyMine.value) {
+  if (onlyMine.value && currentTab.value !== 'grupos') {
     const myId = authStore.user?.id
     list = list.filter(t => t.agent_id === myId || t.user_id === myId)
   }
@@ -517,12 +537,12 @@ const filteredTickets = computed(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 7px 10px;
+  padding: 7px 5px;
   border-radius: 6px;
   border: none;
   background: #f8fafc;
   color: #64748b;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;

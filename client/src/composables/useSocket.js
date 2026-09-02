@@ -40,7 +40,7 @@ export function useSocket() {
     socket.on('connect', () => {
       ui.serverOnline = true
       tickets.fetchQueue({ silent: true }).catch(() => {})
-      tickets.notifyKpisUpdated()
+      if (!ticket?.is_group) tickets.notifyKpisUpdated()
     })
 
     socket.on('disconnect', () => {
@@ -81,20 +81,22 @@ export function useSocket() {
     socket.on('ticket_created', ({ ticket }) => {
       if (!ticket) return
       tickets.receiveTicket(ticket)
-      tickets.notifyKpisUpdated()
-      _notifyIfRelevant(ticket, `💬 Novo atendimento (${ticket.department || 'Geral'}): ${ticket.clientName || 'Cliente'}`)
+      if (!ticket.is_group) tickets.notifyKpisUpdated()
+      _notifyIfRelevant(ticket, ticket.is_group
+        ? `👥 Grupo disponível: ${ticket.clientName || ticket.client_name || 'Grupo do WhatsApp'}`
+        : `💬 Novo atendimento (${ticket.department || 'Geral'}): ${ticket.clientName || 'Cliente'}`)
     })
 
     socket.on('ticket_updated', ({ ticket }) => {
       if (!ticket) return
       tickets.receiveTicket(ticket)
-      tickets.notifyKpisUpdated()
+      if (!ticket?.is_group) tickets.notifyKpisUpdated()
     })
 
     socket.on('queue_updated', ({ ticket }) => {
       if (!ticket) return
       tickets.receiveTicket(ticket)
-      tickets.notifyKpisUpdated()
+      if (!ticket?.is_group) tickets.notifyKpisUpdated()
     })
 
     socket.on('new_message', (data) => {
@@ -111,7 +113,7 @@ export function useSocket() {
       if (message?.sender === 'client' || !message?.sender) {
         const t = tickets.queue.find(q => q.id === ticketId)
         if (t && _isForMe(t)) {
-          const name     = contact?.name || t.clientName || 'Cliente'
+          const name     = t.is_group ? (message?.sender_name || t.clientName || 'Grupo') : (contact?.name || t.clientName || 'Cliente')
           const preview  = (message?.text || '').substring(0, 40)
           ui.showToast(`💬 ${name}: "${preview}"`)
           _playMessageSound()

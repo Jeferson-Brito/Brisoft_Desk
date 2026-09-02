@@ -78,6 +78,11 @@ test('atendimentos de funcionários não entram nos indicadores de clientes', ()
   assert.equal(metrics.ratingCount, 1);
 });
 
+test('grupos do WhatsApp não entram nos indicadores', () => {
+  assert.equal(performanceService._test.isCustomerTicket({ is_employee: false, is_group: true }), false);
+  assert.equal(performanceService._test.isCustomerTicket({ is_employee: false, is_group: false }), true);
+});
+
 test('calcula atendimentos e média de avaliação diária por atendente', () => {
   const daily = performanceService._test.calculateDailyAgentStats({
     closedTickets: [

@@ -515,7 +515,9 @@ class WhatsAppService {
         }),
         msgRetryCounterCache: new ExpiringCache({ ttlMs: 60 * 60 * 1000, maxEntries: 10000 }),
         placeholderResendCache: new ExpiringCache({ ttlMs: 10 * 60 * 1000, maxEntries: 10000 }),
-        userDevicesCache: new ExpiringCache({ ttlMs: 5 * 60 * 1000, maxEntries: 5000 })
+        userDevicesCache: new ExpiringCache({ ttlMs: 5 * 60 * 1000, maxEntries: 5000 }),
+        profilePictureCache: new ExpiringCache({ ttlMs: 6 * 60 * 60 * 1000, maxEntries: 10000 }),
+        groupMetadataCache: new ExpiringCache({ ttlMs: 30 * 60 * 1000, maxEntries: 1000 })
       });
       loadLidMap(this.accounts.get(id));
     }
@@ -567,6 +569,7 @@ class WhatsAppService {
       () => this.saveConfigs(null, { throwOnError: true })
     );
     this.emitAccounts();
+    if (account.status === 'connected') this.syncAccountGroups(account).catch(() => {});
     return this.publicAccount(account, true);
   }
 
@@ -734,6 +737,7 @@ class WhatsAppService {
         scheduleSessionBackup(account, 500);
         await this.saveConfigs();
         this.emitAccounts();
+        this.syncAccountGroups(account).catch(error => console.warn(`[WhatsApp:${account.name}] falha ao sincronizar grupos: ${error.message}`));
       }
 
       if (connection === 'close') {
@@ -798,7 +802,7 @@ class WhatsAppService {
         if (msg.key?.id) cacheRetryMessage(account, msg.key, msg.message);
         if (event.type !== 'notify' && !msg.key.fromMe) continue;
         const rawJid = msg.key.remoteJid;
-        if (!rawJid || rawJid.includes('@g.us') || rawJid.includes('@newsletter') || rawJid.includes('status@broadcast')) continue;
+        if (!rawJid || rawJid.includes('@newsletter') || rawJid.includes('status@broadcast')) continue;
         const messageKey = `${account.id}:${msg.key.id || `${rawJid}:${msg.messageTimestamp}`}`;
         if (msg.key.fromMe && this.platformMessageIds.has(messageKey)) {
           this.platformMessageIds.delete(messageKey);
@@ -808,6 +812,16 @@ class WhatsAppService {
         this.rememberMessageId(messageKey);
 
         this.messageQueue.enqueue(`${account.id}:${rawJid}`, async () => {
+          if (rawJid.includes('@g.us')) {
+            if (msg.key.fromMe) {
+              await new Promise(resolve => setTimeout(resolve, 350));
+              if (this.platformMessageIds.has(messageKey)) {
+                this.platformMessageIds.delete(messageKey);
+                return { type: 'platform_group_echo_ignored' };
+              }
+            }
+            return this.processGroupMessage(account, msg, downloadMediaMessage, downloadContentFromMessage);
+          }
           if (!msg.key.fromMe) {
             return this.processIncomingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage);
           }
@@ -826,6 +840,99 @@ class WhatsAppService {
         });
       }
     });
+  }
+
+  async profilePictureUrl(account, jid) {
+    if (!account?.sock || !jid) return null;
+    const cached = account.profilePictureCache?.get(jid);
+    if (cached !== undefined) return cached || null;
+    let url = null;
+    try { url = await account.sock.profilePictureUrl(jid, 'image'); } catch (_) {}
+    account.profilePictureCache?.set(jid, url || '');
+    return url || null;
+  }
+
+  async groupMetadata(account, groupJid) {
+    const cached = account.groupMetadataCache?.get(groupJid);
+    if (cached) return cached;
+    const metadata = await account.sock.groupMetadata(groupJid);
+    account.groupMetadataCache?.set(groupJid, metadata);
+    return metadata;
+  }
+
+  async syncAccountGroups(account) {
+    if (!account?.sock || account.status !== 'connected') return [];
+    const all = await account.sock.groupFetchAllParticipating();
+    const metadata = Object.values(all || {});
+    const groups = await Promise.all(metadata.map(async group => ({
+      jid: group.id,
+      subject: group.subject || 'Grupo do WhatsApp',
+      avatarUrl: await this.profilePictureUrl(account, group.id)
+    })));
+    const accountInfo = {
+      id: account.id,
+      departmentId: account.departmentId,
+      departmentName: account.departmentName,
+      fallbackDepartmentId: account.fallbackDepartmentId,
+      fallbackDepartmentName: account.fallbackDepartmentName
+    };
+    const synced = await ticketService.syncWhatsAppGroups(accountInfo, groups, this.io);
+    this.refreshAccountAvatars(account).catch(error => console.warn(`[WhatsApp:${account.name}] falha ao atualizar fotos: ${error.message}`));
+    return synced;
+  }
+
+  async refreshAccountAvatars(account) {
+    const targets = await ticketService.getWhatsAppAvatarTargets(account.id);
+    for (let offset = 0; offset < targets.length; offset += 5) {
+      await Promise.all(targets.slice(offset, offset + 5).map(async target => {
+        const jid = target.group_jid || (target.phone ? `${String(target.phone).replace(/\D/g, '')}@s.whatsapp.net` : null) || target.jid || target.raw_jid;
+        const url = await this.profilePictureUrl(account, jid);
+        if (url) await ticketService.updateTicketAvatar(target.id, url, this.io);
+      }));
+    }
+  }
+
+  async refreshTicketAvatar(account, ticket, jid) {
+    if (!ticket?.id || !jid) return false;
+    const url = await this.profilePictureUrl(account, jid);
+    return url ? ticketService.updateTicketAvatar(ticket.id, url, this.io) : false;
+  }
+
+  async processGroupMessage(account, msg, downloadMediaMessage, downloadContentFromMessage) {
+    const groupJid = msg.key.remoteJid;
+    const metadata = await this.groupMetadata(account, groupJid).catch(() => ({ id: groupJid, subject: 'Grupo do WhatsApp' }));
+    const content = unwrapMessageContent(msg.message);
+    if (content.reactionMessage) return { type: 'group_reaction_ignored' };
+    const media = await this.downloadMedia(account, msg, downloadMediaMessage, downloadContentFromMessage);
+    const text = content.conversation || content.extendedTextMessage?.text ||
+      content.imageMessage?.caption || content.videoMessage?.caption ||
+      content.documentMessage?.caption || media.fallbackText || '';
+    if (!text && !media.type) return { type: 'ignored_group_protocol_message' };
+    const participantJid = msg.key.participant || msg.participant || null;
+    const result = await ticketService.processWhatsAppGroupMessage({
+      groupJid,
+      groupName: metadata.subject,
+      avatarUrl: await this.profilePictureUrl(account, groupJid),
+      participantJid,
+      senderName: msg.pushName || (participantJid ? participantJid.replace(/@.*$/, '') : null),
+      fromMe: Boolean(msg.key.fromMe),
+      text,
+      mediaType: media.type,
+      mediaUrl: media.url,
+      fileName: media.fileName,
+      timestamp: msg.messageTimestamp,
+      messageId: msg.key.id,
+      whatsappAccountId: account.id,
+      whatsappAccountName: account.name,
+      whatsappDepartmentId: account.departmentId,
+      whatsappDepartmentName: account.departmentName,
+      whatsappFallbackDepartmentId: account.fallbackDepartmentId,
+      whatsappFallbackDepartmentName: account.fallbackDepartmentName
+    }, this.io);
+    if (media.type && !media.url && result?.ticket?.id) {
+      this.retryMissingMedia(account, msg, downloadMediaMessage, downloadContentFromMessage, result.ticket.id).catch(() => {});
+    }
+    return result;
   }
 
   bindCalls(account) {
@@ -919,6 +1026,7 @@ class WhatsAppService {
       whatsappFallbackDepartmentId: account.fallbackDepartmentId,
       whatsappFallbackDepartmentName: account.fallbackDepartmentName
     }, this.io, scopedSender);
+    this.refreshTicketAvatar(account, result?.ticket, phone ? `${phone}@s.whatsapp.net` : rawJid).catch(() => {});
     if (media.type && !media.url && result?.ticket?.id) {
       this.retryMissingMedia(account, msg, downloadMediaMessage, downloadContentFromMessage, result.ticket.id).catch(error => {
         console.warn(`[WhatsApp:${account.name}] mídia permaneceu indisponível após novas tentativas: ${error.message}`);
@@ -972,6 +1080,7 @@ class WhatsAppService {
       whatsappFallbackDepartmentId: account.fallbackDepartmentId,
       whatsappFallbackDepartmentName: account.fallbackDepartmentName
     }, this.io, this);
+    this.refreshTicketAvatar(account, result?.ticket, phone ? `${phone}@s.whatsapp.net` : rawJid).catch(() => {});
     if (media.type && !media.url && result?.ticket?.id) {
       this.retryMissingMedia(account, msg, downloadMediaMessage, downloadContentFromMessage, result.ticket.id).catch(error => {
         console.warn(`[WhatsApp:${account.name}] mídia enviada pelo dispositivo permaneceu indisponível: ${error.message}`);
@@ -1160,7 +1269,8 @@ class WhatsAppService {
         key: {
           remoteJid: jid,
           fromMe: options.quotedMessage.sender === 'agent',
-          id: quotedId
+          id: quotedId,
+          ...(options.quotedMessage.participantJid ? { participant: options.quotedMessage.participantJid } : {})
         },
         message: { conversation: String(options.quotedMessage.text || 'Mensagem') }
       } : undefined;
@@ -1179,7 +1289,9 @@ class WhatsAppService {
     const account = this.selectAccount(accountId);
     if (!account?.sock || account.status !== 'connected') throw new Error('WhatsApp desconectado. Não foi possível editar a mensagem.');
     let jid = target.includes('@') ? target : `${target.replace(/\D/g, '')}@s.whatsapp.net`;
-    jid = await resolveJid(jid, account);
+    // A chave de uma mensagem enviada pelo aparelho precisa conservar o JID
+    // exato recebido no evento (inclusive LID), senão o WhatsApp não a encontra.
+    jid = jid.replace(/:\d+@/, '@').replace(/:\d+$/, '');
     const key = { remoteJid: jid, fromMe: true, id: remoteMessageId };
     const result = await account.sock.sendMessage(jid, { text, edit: key });
     if (result?.key?.id) this.rememberPlatformMessage(account.id, result.key.id);
@@ -1190,7 +1302,7 @@ class WhatsAppService {
     const account = this.selectAccount(accountId);
     if (!account?.sock || account.status !== 'connected') throw new Error('WhatsApp desconectado. Não foi possível excluir a mensagem.');
     let jid = target.includes('@') ? target : `${target.replace(/\D/g, '')}@s.whatsapp.net`;
-    jid = await resolveJid(jid, account);
+    jid = jid.replace(/:\d+@/, '@').replace(/:\d+$/, '');
     const key = { remoteJid: jid, fromMe: true, id: remoteMessageId };
     const result = await account.sock.sendMessage(jid, { delete: key });
     if (result?.key?.id) this.rememberPlatformMessage(account.id, result.key.id);

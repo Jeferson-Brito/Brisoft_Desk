@@ -77,7 +77,7 @@ function ticketMatchesAgent(ticket, agent) {
 }
 
 function isCustomerTicket(ticket) {
-  return ticket?.is_employee !== true;
+  return ticket?.is_employee !== true && ticket?.is_group !== true;
 }
 
 function calculateDailyAgentStats({ closedTickets = [], ratings = [], agent, dateKey = localDateKey() }) {
@@ -193,8 +193,8 @@ function buildTrend(tickets, period) {
 }
 
 let performanceColumnsAvailable = null;
-const FULL_SELECT = 'id, user_id, department_id, department, agent_name, encerrado_por, status, is_employee, created_at, queued_at, updated_at, started_at, assumed_at, first_response_at, finished_at, closed_at, sla_minutes_target, sla_met, departments(id, name, color, sla_target_minutes)';
-const SAFE_SELECT = 'id, user_id, department_id, department, agent_name, encerrado_por, status, is_employee, created_at, updated_at, assumed_at, closed_at, departments(id, name, color, sla_target_minutes)';
+const FULL_SELECT = 'id, user_id, department_id, department, agent_name, encerrado_por, status, is_employee, is_group, created_at, queued_at, updated_at, started_at, assumed_at, first_response_at, finished_at, closed_at, sla_minutes_target, sla_met, departments(id, name, color, sla_target_minutes)';
+const SAFE_SELECT = 'id, user_id, department_id, department, agent_name, encerrado_por, status, is_employee, is_group, created_at, updated_at, assumed_at, closed_at, departments(id, name, color, sla_target_minutes)';
 
 class PerformanceService {
   async loadPeriod(period, departmentId = null) {

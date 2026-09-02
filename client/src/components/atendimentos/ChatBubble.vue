@@ -17,14 +17,11 @@
       {{ initials || 'CL' }}
     </div>
     <div class="message-bubble-shell incoming-shell">
-      <button v-if="msg.id" type="button" class="message-actions-trigger" aria-label="Opções da mensagem" @click.stop="toggleActions">
+      <button v-if="msg.id" ref="actionsTriggerRef" type="button" class="message-actions-trigger" aria-label="Opções da mensagem" @click.stop="toggleActions">
         <i class="fa-solid fa-chevron-down"></i>
       </button>
-      <div v-if="showActions" class="message-actions-menu" @click.stop>
-        <button type="button" @click="chooseReply"><i class="fa-solid fa-reply"></i> Responder</button>
-        <button v-if="canCopyMessage" type="button" @click="copyMessage"><i class="fa-regular fa-copy"></i> Copiar</button>
-      </div>
     <div class="chat-bubble incoming">
+      <div v-if="isGroup && msg.sender_name" class="group-message-sender">{{ msg.sender_name }}</div>
       <div v-if="replyPreview" class="message-reply-preview">
         <strong>{{ replySender || 'Mensagem respondida' }}</strong>
         <span>{{ replyPreview }}</span>
@@ -96,15 +93,9 @@
   <!-- Mensagens do Atendente (Outgoing) -->
   <div v-else class="chat-bubble-row outgoing">
     <div class="message-bubble-shell outgoing-shell">
-      <button v-if="!isDeleted" type="button" class="message-actions-trigger" aria-label="Opções da mensagem" @click.stop="toggleActions">
+      <button v-if="!isDeleted" ref="actionsTriggerRef" type="button" class="message-actions-trigger" aria-label="Opções da mensagem" @click.stop="toggleActions">
         <i class="fa-solid fa-chevron-down"></i>
       </button>
-      <div v-if="showActions" class="message-actions-menu outgoing-menu" @click.stop>
-        <button type="button" @click="chooseReply"><i class="fa-solid fa-reply"></i> Responder</button>
-        <button v-if="canCopyMessage" type="button" @click="copyMessage"><i class="fa-regular fa-copy"></i> Copiar</button>
-        <button v-if="canEditMessage" type="button" @click="chooseEdit"><i class="fa-solid fa-pen"></i> Editar</button>
-        <button v-if="canDeleteMessage" type="button" class="danger" @click="chooseDelete"><i class="fa-regular fa-trash-can"></i> Excluir para todos</button>
-      </div>
     <div class="chat-bubble outgoing">
       <div v-if="agentName" style="font-weight:700;font-size:11px;color:#1d4ed8;margin-bottom:3px;">
         {{ agentName }}
@@ -186,6 +177,15 @@
     </div>
   </div>
 
+  <Teleport to="body">
+    <div v-if="showActions" class="message-actions-menu" :style="actionsMenuStyle" @click.stop>
+      <button type="button" @click="chooseReply"><i class="fa-solid fa-reply"></i> Responder</button>
+      <button v-if="canCopyMessage" type="button" @click="copyMessage"><i class="fa-regular fa-copy"></i> Copiar</button>
+      <button v-if="canEditMessage" type="button" @click="chooseEdit"><i class="fa-solid fa-pen"></i> Editar</button>
+      <button v-if="canDeleteMessage" type="button" class="danger" @click="chooseDelete"><i class="fa-regular fa-trash-can"></i> Excluir para todos</button>
+    </div>
+  </Teleport>
+
   <!-- Zoom de Imagem (Modal Lightbox) -->
   <Teleport to="body">
     <div
@@ -241,6 +241,14 @@ const props = defineProps({
   currentUserId: {
     type: [String, Number],
     default: null
+  },
+  isGroup: {
+    type: Boolean,
+    default: false
+  },
+  allowDeviceMessageMutations: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -248,6 +256,8 @@ const emit = defineEmits(['reply', 'edit', 'delete', 'copied'])
 
 const showImageZoom = ref(false)
 const showActions = ref(false)
+const actionsTriggerRef = ref(null)
+const actionsMenuStyle = ref({})
 const mediaLoading = ref(false)
 const mediaLoadError = ref(false)
 
@@ -403,17 +413,17 @@ const isDirectWhatsapp = computed(() => props.msg?.sender_type === 'whatsapp_dev
   || String(props.msg?.sender_name || '').startsWith('WhatsApp (')
   || String(agentName.value || '').startsWith('WhatsApp ('))
 
-const isOwnPlatformMessage = computed(() => props.msg?.sender === 'agent'
+const canManageOutgoingMessage = computed(() => props.msg?.sender === 'agent'
   && Boolean(props.msg?.id)
-  && Boolean(props.currentUserId)
-  && String(props.msg?.user_id || '') === String(props.currentUserId)
-  && !isDirectWhatsapp.value
+  && (isDirectWhatsapp.value
+    ? props.allowDeviceMessageMutations
+    : (Boolean(props.currentUserId) && String(props.msg?.user_id || '') === String(props.currentUserId)))
   && !isDeleted.value)
 
-const canEditMessage = computed(() => isOwnPlatformMessage.value
+const canEditMessage = computed(() => canManageOutgoingMessage.value
   && (!props.msg?.type || props.msg.type === 'text')
   && Boolean(displayText.value))
-const canDeleteMessage = computed(() => isOwnPlatformMessage.value)
+const canDeleteMessage = computed(() => canManageOutgoingMessage.value)
 
 const displayText = computed(() => {
   if (isDeleted.value) return ''
@@ -425,6 +435,20 @@ const canCopyMessage = computed(() => Boolean(displayText.value))
 
 function toggleActions() {
   showActions.value = !showActions.value
+  if (showActions.value) positionActionsMenu()
+}
+
+function positionActionsMenu() {
+  const rect = actionsTriggerRef.value?.getBoundingClientRect()
+  if (!rect) return
+  const width = 178
+  const estimatedHeight = canDeleteMessage.value ? 154 : 82
+  const left = Math.max(8, Math.min(window.innerWidth - width - 8, props.msg?.sender === 'agent' ? rect.right - width : rect.left))
+  const belowTop = rect.bottom + 5
+  const top = belowTop + estimatedHeight <= window.innerHeight - 8
+    ? belowTop
+    : Math.max(8, rect.top - estimatedHeight - 5)
+  actionsMenuStyle.value = { position: 'fixed', left: `${left}px`, top: `${top}px`, width: `${width}px` }
 }
 
 function closeActions() {
@@ -458,8 +482,16 @@ async function copyMessage() {
   closeActions()
 }
 
-onMounted(() => document.addEventListener('click', closeActions))
-onUnmounted(() => document.removeEventListener('click', closeActions))
+onMounted(() => {
+  document.addEventListener('click', closeActions)
+  window.addEventListener('resize', closeActions)
+  window.addEventListener('scroll', closeActions, true)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', closeActions)
+  window.removeEventListener('resize', closeActions)
+  window.removeEventListener('scroll', closeActions, true)
+})
 </script>
 
 <style scoped>
@@ -508,21 +540,13 @@ onUnmounted(() => document.removeEventListener('click', closeActions))
 }
 
 .message-actions-menu {
-  position: absolute;
-  z-index: 80;
-  top: 31px;
-  left: calc(100% - 8px);
+  z-index: 100000;
   min-width: 154px;
   padding: 5px;
   border: 1px solid #e2e8f0;
   border-radius: 9px;
   background: #fff;
   box-shadow: 0 12px 28px rgba(15, 23, 42, .16);
-}
-
-.message-actions-menu.outgoing-menu {
-  right: 8px;
-  left: auto;
 }
 
 .message-actions-menu button {
@@ -561,6 +585,7 @@ onUnmounted(() => document.removeEventListener('click', closeActions))
 .message-reply-preview span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .deleted-message { display: flex; align-items: center; gap: 6px; color: #64748b; font-style: italic; }
 .edited-label { margin-left: 5px; color: #64748b; font-size: 9px; }
+.group-message-sender { margin-bottom: 4px; color: #2563eb; font-size: 10.5px; font-weight: 700; }
 
 @media (hover: none) {
   .message-actions-trigger { opacity: .72; }

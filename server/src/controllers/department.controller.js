@@ -17,7 +17,7 @@ function findLinkedWhatsAppAccounts(settingsValue, departmentId, departmentName 
 }
 
 function isMissingDepartmentOrderColumn(error) {
-  return /sort_order|description|schema cache|column .* does not exist/i.test(`${error?.message || ''} ${error?.details || ''}`);
+  return /sort_order|description|allow_device_message_mutations|schema cache|column .* does not exist/i.test(`${error?.message || ''} ${error?.details || ''}`);
 }
 
 class DepartmentController {
@@ -57,7 +57,7 @@ class DepartmentController {
   // Criar ou atualizar departamento
   async saveDepartment(req, res) {
     try {
-      const { id, name, color, description, sla_target_minutes, sort_order } = req.body;
+      const { id, name, color, description, sla_target_minutes, sort_order, allow_device_message_mutations } = req.body;
       
       if (!name) {
         return res.status(400).json({ success: false, error: 'Nome do departamento é obrigatório' });
@@ -67,6 +67,7 @@ class DepartmentController {
         name: String(name).trim(),
         color: color || '#2563eb',
         description: String(description || '').trim() || null,
+        allow_device_message_mutations: allow_device_message_mutations === true,
         ...(Number.isInteger(Number(sort_order)) && Number(sort_order) > 0 ? { sort_order: Number(sort_order) } : {}),
         sla_target_minutes: sla_target_minutes ? parseInt(sla_target_minutes, 10) : 15
       };
