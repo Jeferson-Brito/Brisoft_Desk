@@ -41,6 +41,7 @@ const mediaTicketCache = new Map();
 let remoteMessageColumnsAvailable = null;
 let conversationTrackingColumnsAvailable = null;
 let messageUserIdColumnAvailable = null;
+let messageInteractionColumnsAvailable = null;
 let ticketTimingColumnsAvailable = null;
 let conversationTrackingCheckPromise = null;
 const DEPARTMENT_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -278,6 +279,31 @@ async function analystParticipatedInTicket(user, ticketId) {
   }
   const results = await Promise.all(queries);
   return results.some(result => !result.error && Boolean(result.data));
+}
+
+function isMissingMessageInteractionColumns(error) {
+  return error?.code === '42703' || error?.code === 'PGRST204' || /reply_to_message_id|reply_to_remote_message_id|reply_preview|reply_sender|edited_at|deleted_at/i.test(error?.message || '');
+}
+
+function messagePreview(message, maxLength = 180) {
+  const mediaFallback = ({
+    image: '📷 Imagem', sticker: '🖼️ Figurinha', video: '🎥 Vídeo',
+    audio: '🎙️ Áudio', document: `📄 ${message?.file_name || 'Documento'}`
+  })[message?.type];
+  return String(message?.text || mediaFallback || 'Mensagem')
+    .replace(/^\*[^*]+:\*\s*/s, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength) || 'Mensagem';
+}
+
+async function ensureMessageInteractionColumns() {
+  if (messageInteractionColumnsAvailable === true) return true;
+  const result = await supabase.from('messages')
+    .select('reply_to_message_id, reply_to_remote_message_id, reply_preview, reply_sender, edited_at, deleted_at')
+    .limit(1);
+  messageInteractionColumnsAvailable = !result.error;
+  return messageInteractionColumnsAvailable;
 }
 
 async function isTicketCollaborator(userId, ticketId) {
@@ -2306,7 +2332,7 @@ ${rendered}`,
     }
   }
 
-  async sendAgentMessage(ticketId, text, currentUser, io, whatsappService) {
+  async sendAgentMessage(ticketId, text, currentUser, io, whatsappService, replyToMessageId = null) {
     if (!isSupabaseConfigured()) return { success: false, error: 'Supabase nao configurado' };
     await ensureConversationTrackingColumns();
     
@@ -2323,9 +2349,35 @@ ${rendered}`,
     const targetJid = preferredWhatsAppJid(ticket.phone, ticket.jid || ticket.raw_jid);
     const formattedText = `*${agentName}:*\n\n${text}`;
     try {
+      let repliedMessage = null;
+      if (replyToMessageId) {
+        if (!(await ensureMessageInteractionColumns())) {
+          return { success: false, error: 'Execute a atualização SQL das mensagens antes de usar a resposta vinculada.' };
+        }
+        const replyResult = await supabase
+          .from('messages')
+          .select('*')
+          .eq('id', replyToMessageId)
+          .eq('ticket_id', ticket.id)
+          .maybeSingle();
+        if (replyResult.error) throw replyResult.error;
+        repliedMessage = replyResult.data;
+        if (!repliedMessage || repliedMessage.deleted_at || !['client', 'agent'].includes(repliedMessage.sender)) {
+          return { success: false, error: 'A mensagem selecionada não está mais disponível para resposta.' };
+        }
+        if (!repliedMessage.remote_message_id) {
+          return { success: false, error: 'Esta mensagem antiga não possui o identificador necessário para responder diretamente no WhatsApp.' };
+        }
+      }
       // 1. Envia imediatamente para o WhatsApp
       const accountId = ticket.channel?.startsWith('whatsapp:') ? ticket.channel.slice('whatsapp:'.length) : null;
-      const sent = await whatsappService.sendMessage(targetJid, formattedText, accountId);
+      const sent = await whatsappService.sendMessage(targetJid, formattedText, accountId, repliedMessage ? {
+        quotedMessage: {
+          remoteMessageId: repliedMessage.remote_message_id,
+          sender: repliedMessage.sender,
+          text: messagePreview(repliedMessage)
+        }
+      } : undefined);
       if (sent) {
         // 2. Grava a mensagem no banco
         const agentMessagePayload = {
@@ -2336,6 +2388,14 @@ ${rendered}`,
           remote_message_id: sent?.key?.id || null,
           whatsapp_account_id: accountId || null
         };
+        if (repliedMessage) {
+          Object.assign(agentMessagePayload, {
+            reply_to_message_id: repliedMessage.id,
+            reply_to_remote_message_id: repliedMessage.remote_message_id || null,
+            reply_preview: messagePreview(repliedMessage),
+            reply_sender: repliedMessage.sender === 'client' ? (ticket.client_name || 'Cliente') : (repliedMessage.sender_name || 'Atendente')
+          });
+        }
         if (messageUserIdColumnAvailable !== false && currentUser?.id) {
           agentMessagePayload.user_id = uuidOrNull(currentUser.id);
         }
@@ -2351,7 +2411,7 @@ ${rendered}`,
           .insert(agentMessagePayload)
           .select()
           .single();
-        if (messageResult.error && (isMissingMessageUserIdColumn(messageResult.error) || isMissingConversationTrackingColumns(messageResult.error) || isMissingRemoteMessageColumns(messageResult.error))) {
+        if (messageResult.error && (isMissingMessageUserIdColumn(messageResult.error) || isMissingConversationTrackingColumns(messageResult.error) || isMissingRemoteMessageColumns(messageResult.error) || isMissingMessageInteractionColumns(messageResult.error))) {
           if (isMissingMessageUserIdColumn(messageResult.error)) {
             messageUserIdColumnAvailable = false;
             delete agentMessagePayload.user_id;
@@ -2366,6 +2426,12 @@ ${rendered}`,
             remoteMessageColumnsAvailable = false;
             delete agentMessagePayload.remote_message_id;
             delete agentMessagePayload.whatsapp_account_id;
+          }
+          if (isMissingMessageInteractionColumns(messageResult.error)) {
+            delete agentMessagePayload.reply_to_message_id;
+            delete agentMessagePayload.reply_to_remote_message_id;
+            delete agentMessagePayload.reply_preview;
+            delete agentMessagePayload.reply_sender;
           }
           messageResult = await supabase
             .from('messages')
@@ -2407,6 +2473,86 @@ ${rendered}`,
       }
     } catch (error) { return { success: false, error: error.message }; }
     return { success: false, error: 'Falha ao enviar' };
+  }
+
+  async editAgentMessage(ticketId, messageId, text, currentUser, io, whatsappService) {
+    if (!isSupabaseConfigured()) return { success: false, error: 'Supabase não configurado.' };
+    try {
+      if (!(await ensureMessageInteractionColumns())) {
+        return { success: false, error: 'Execute a atualização SQL das mensagens antes de usar a edição.' };
+      }
+      const { data: ticket, error: ticketError } = await supabase.from('tickets').select('*').eq('id', ticketId).maybeSingle();
+      if (ticketError) throw ticketError;
+      if (!ticket || !(await canUserAccessTicketDetails(currentUser, ticket))) return { success: false, error: 'Atendimento não encontrado.' };
+
+      const { data: message, error: messageError } = await supabase.from('messages').select('*').eq('id', messageId).eq('ticket_id', ticketId).maybeSingle();
+      if (messageError) throw messageError;
+      if (!message) return { success: false, error: 'Mensagem não encontrada.' };
+      if (message.sender !== 'agent' || String(message.user_id || '') !== String(currentUser?.id || '')) {
+        return { success: false, error: 'Você só pode editar mensagens que enviou pelo Brisoft Desk.' };
+      }
+      if (message.deleted_at) return { success: false, error: 'Uma mensagem excluída não pode ser editada.' };
+      if (message.type && message.type !== 'text') return { success: false, error: 'Somente mensagens de texto podem ser editadas.' };
+      if (!message.remote_message_id) return { success: false, error: 'Esta mensagem antiga não possui o identificador necessário para edição no WhatsApp.' };
+
+      const agentName = currentUser.name || message.sender_name || 'Atendente';
+      const formattedText = `*${agentName}:*\n\n${String(text).trim()}`;
+      const accountId = message.whatsapp_account_id || (ticket.channel?.startsWith('whatsapp:') ? ticket.channel.slice('whatsapp:'.length) : null);
+      const targetJid = preferredWhatsAppJid(ticket.phone, ticket.jid || ticket.raw_jid);
+      await whatsappService.editMessage(targetJid, message.remote_message_id, formattedText, accountId);
+
+      const editedAt = new Date().toISOString();
+      const updateResult = await supabase.from('messages').update({ text: formattedText, edited_at: editedAt }).eq('id', message.id).select().single();
+      if (updateResult.error && isMissingMessageInteractionColumns(updateResult.error)) {
+        return { success: false, error: 'Execute a atualização SQL das mensagens antes de usar a edição.' };
+      }
+      const updatedMessage = assertSupabase(updateResult, 'Falha ao atualizar mensagem');
+      emitTicketEvent(io, 'message_updated', { ticketId, message: updatedMessage }, ticket);
+      return { success: true, message: updatedMessage };
+    } catch (error) {
+      return { success: false, error: error.message || 'Não foi possível editar a mensagem.' };
+    }
+  }
+
+  async deleteAgentMessage(ticketId, messageId, currentUser, io, whatsappService) {
+    if (!isSupabaseConfigured()) return { success: false, error: 'Supabase não configurado.' };
+    try {
+      if (!(await ensureMessageInteractionColumns())) {
+        return { success: false, error: 'Execute a atualização SQL das mensagens antes de usar a exclusão.' };
+      }
+      const { data: ticket, error: ticketError } = await supabase.from('tickets').select('*').eq('id', ticketId).maybeSingle();
+      if (ticketError) throw ticketError;
+      if (!ticket || !(await canUserAccessTicketDetails(currentUser, ticket))) return { success: false, error: 'Atendimento não encontrado.' };
+
+      const { data: message, error: messageError } = await supabase.from('messages').select('*').eq('id', messageId).eq('ticket_id', ticketId).maybeSingle();
+      if (messageError) throw messageError;
+      if (!message) return { success: false, error: 'Mensagem não encontrada.' };
+      if (message.sender !== 'agent' || String(message.user_id || '') !== String(currentUser?.id || '')) {
+        return { success: false, error: 'Você só pode excluir mensagens que enviou pelo Brisoft Desk.' };
+      }
+      if (message.deleted_at) return { success: true, message };
+      if (!message.remote_message_id) return { success: false, error: 'Esta mensagem antiga não possui o identificador necessário para exclusão no WhatsApp.' };
+
+      const accountId = message.whatsapp_account_id || (ticket.channel?.startsWith('whatsapp:') ? ticket.channel.slice('whatsapp:'.length) : null);
+      const targetJid = preferredWhatsAppJid(ticket.phone, ticket.jid || ticket.raw_jid);
+      await whatsappService.deleteMessage(targetJid, message.remote_message_id, accountId);
+
+      const deletedAt = new Date().toISOString();
+      const updateResult = await supabase.from('messages').update({
+        text: '',
+        media_url: null,
+        file_name: null,
+        deleted_at: deletedAt
+      }).eq('id', message.id).select().single();
+      if (updateResult.error && isMissingMessageInteractionColumns(updateResult.error)) {
+        return { success: false, error: 'Execute a atualização SQL das mensagens antes de usar a exclusão.' };
+      }
+      const deletedMessage = assertSupabase(updateResult, 'Falha ao excluir mensagem');
+      emitTicketEvent(io, 'message_deleted', { ticketId, message: deletedMessage }, ticket);
+      return { success: true, message: deletedMessage };
+    } catch (error) {
+      return { success: false, error: error.message || 'Não foi possível excluir a mensagem.' };
+    }
   }
 
   async sendAgentMedia(ticketId, fileBuffer, metadata, currentUser, io, whatsappService) {
@@ -2962,7 +3108,9 @@ ticketService._test = {
   selectOutboundWhatsAppAccount,
   isMissingMessageUserIdColumn,
   isMissingConversationTrackingColumns,
-  isMissingRemoteMessageColumns
+  isMissingRemoteMessageColumns,
+  isMissingMessageInteractionColumns,
+  messagePreview
 };
 
 module.exports = ticketService;

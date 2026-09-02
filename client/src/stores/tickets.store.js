@@ -182,6 +182,12 @@ export const useTicketStore = defineStore('tickets', () => {
     }
   }
 
+  function patchMessage(ticketId, messageId, patch) {
+    const ticket = queue.value.find(t => t.id === ticketId)
+    const message = ticket?.messages?.find(item => String(item.id) === String(messageId))
+    if (message) Object.assign(message, patch)
+  }
+
   // Remove ticket da fila (após encerramento)
   function removeTicket(ticketId) {
     const idx = queue.value.findIndex(t => t.id === ticketId)
@@ -289,7 +295,7 @@ export const useTicketStore = defineStore('tickets', () => {
     // getters
     visibleTickets, waitingTickets, inProgressTickets, chatbotTickets, activeTicket,
     // actions
-    fetchQueue, fetchTickets: fetchQueue, receiveTicket, appendMessage, removeTicket, patchTicket, notifyKpisUpdated, isLoadingMessages, loadTicketMessages,
+    fetchQueue, fetchTickets: fetchQueue, receiveTicket, appendMessage, patchMessage, removeTicket, patchTicket, notifyKpisUpdated, isLoadingMessages, loadTicketMessages,
     selectTicket, assume, close
   }
 })

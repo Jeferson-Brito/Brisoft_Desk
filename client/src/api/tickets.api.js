@@ -12,7 +12,9 @@ export const ticketsApi = {
   close:         (ticketId)                        => http.post('/tickets/close',            { ticketId }),
   updateContact: (ticketId, contactData)           => http.put(`/tickets/${ticketId}/contact`, contactData),
   startConversation: (contactId, departmentId)     => http.post('/tickets/start-conversation', { contactId, departmentId }),
-  sendMessage:   (ticketId, text)                  => http.post('/tickets/send-message',     { ticketId, text }),
+  sendMessage:   (ticketId, text, replyToMessageId = null) => http.post('/tickets/send-message', { ticketId, text, replyToMessageId }),
+  editMessage:   (ticketId, messageId, text)       => http.patch(`/tickets/${ticketId}/messages/${messageId}`, { text }),
+  deleteMessage: (ticketId, messageId)             => http.delete(`/tickets/${ticketId}/messages/${messageId}`),
   sendMedia:     (ticketId, file, metadata = {}, requestOptions = {}) => http.post(`/tickets/${ticketId}/media`, file, {
     timeout: 300000,
     onUploadProgress: requestOptions.onUploadProgress,

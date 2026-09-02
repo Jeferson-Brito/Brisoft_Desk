@@ -184,6 +184,12 @@ CREATE TABLE IF NOT EXISTS messages (
     remote_message_id VARCHAR(100), -- ID do WhatsApp
     whatsapp_account_id TEXT,
     file_name TEXT,
+    reply_to_message_id TEXT,
+    reply_to_remote_message_id TEXT,
+    reply_preview TEXT,
+    reply_sender TEXT,
+    edited_at TIMESTAMP WITH TIME ZONE,
+    deleted_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

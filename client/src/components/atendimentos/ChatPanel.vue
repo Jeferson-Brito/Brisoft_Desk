@@ -204,6 +204,11 @@
               :msg="m"
               :initials="ticket.initials"
               :avatar-color="ticket.avatarColor"
+              :current-user-id="authStore.user?.id"
+              @reply="startReply"
+              @edit="startEdit"
+              @delete="deleteMessage"
+              @copied="onMessageCopied"
             />
           </div>
         </div>
@@ -307,6 +312,17 @@
 
       <input ref="fileInputRef" type="file" hidden @change="handleFileSelection" />
 
+      <div v-if="replyingMessage || editingMessage" class="composer-message-context">
+        <span class="composer-message-context-icon">
+          <i :class="editingMessage ? 'fa-solid fa-pen' : 'fa-solid fa-reply'"></i>
+        </span>
+        <span class="composer-message-context-copy">
+          <strong>{{ editingMessage ? 'Editando sua mensagem' : `Respondendo a ${messageAuthorLabel(replyingMessage)}` }}</strong>
+          <small>{{ messagePlainText(editingMessage || replyingMessage) }}</small>
+        </span>
+        <button type="button" class="btn-icon" title="Cancelar" @click="cancelMessageContext"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
       <div class="chat-input-row">
         <div class="chat-input-actions">
           <button type="button" class="btn-icon" :class="{ active: showQuickMessages }" title="Mensagens rápidas" @click="toggleQuickMessages">
@@ -333,7 +349,7 @@
           v-model="inputMsg"
           id="chatMessageInput"
           rows="1"
-          :placeholder="chatMode === 'observacao' ? 'Digite uma observação interna (visível apenas para atendentes)...' : 'Digite sua mensagem...'"
+          :placeholder="editingMessage ? 'Corrija sua mensagem...' : (chatMode === 'observacao' ? 'Digite uma observação interna (visível apenas para atendentes)...' : 'Digite sua mensagem...')"
           @input="adjustTextareaHeight"
           @keydown.enter.exact.prevent="sendMessage"
         ></textarea>
@@ -444,6 +460,25 @@
       @close="showTransferModal = false"
     />
     <ModalColaboradores v-if="showCollaboratorsModal && ticket" :ticket="ticket" @close="showCollaboratorsModal = false" @updated="updateCollaborators" />
+
+    <Teleport to="body">
+      <div v-if="messageToDelete" class="modal-overlay active message-delete-overlay" @click.self="messageToDelete = null">
+        <div class="message-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="deleteMessageTitle">
+          <span class="message-delete-icon"><i class="fa-regular fa-trash-can"></i></span>
+          <div>
+            <h3 id="deleteMessageTitle">Excluir mensagem para todos?</h3>
+            <p>A mensagem será removida deste atendimento e também da conversa no WhatsApp.</p>
+          </div>
+          <div class="message-delete-actions">
+            <button type="button" class="btn-secondary" :disabled="deletingMessage" @click="messageToDelete = null">Cancelar</button>
+            <button type="button" class="message-delete-confirm" :disabled="deletingMessage" @click="confirmDeleteMessage">
+              <i :class="deletingMessage ? 'fa-solid fa-spinner fa-spin' : 'fa-regular fa-trash-can'"></i>
+              {{ deletingMessage ? 'Excluindo...' : 'Excluir para todos' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -530,6 +565,10 @@ const messageSearchInputRef = ref(null)
 const showQuickMessages = ref(false)
 const showBotInteractions = ref(false)
 const showEmojiPicker = ref(false)
+const replyingMessage = ref(null)
+const editingMessage = ref(null)
+const messageToDelete = ref(null)
+const deletingMessage = ref(false)
 const quickMessages = ref([])
 const quickMessagesLoading = ref(false)
 const quickSearch = ref('')
@@ -864,7 +903,72 @@ watch(canSend, (val) => {
 
 function setChatMode(mode) {
   chatMode.value = mode
+  if (mode === 'observacao') cancelMessageContext()
   focusInput()
+}
+
+function messagePlainText(message) {
+  if (!message) return ''
+  const mediaFallback = ({ image: 'Imagem', sticker: 'Figurinha', video: 'Vídeo', audio: 'Áudio', document: message.file_name || 'Documento' })[message.type]
+  return String(message.text || mediaFallback || 'Mensagem')
+    .replace(/^\*[^*]+:\*\s*/s, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 150)
+}
+
+function messageAuthorLabel(message) {
+  if (!message) return 'mensagem'
+  if (message.sender === 'client') return props.ticket?.clientName || props.ticket?.client_name || 'cliente'
+  return message.sender_name || 'atendente'
+}
+
+function startReply(message) {
+  editingMessage.value = null
+  replyingMessage.value = message
+  chatMode.value = 'responder'
+  focusInput()
+}
+
+function startEdit(message) {
+  replyingMessage.value = null
+  editingMessage.value = message
+  chatMode.value = 'responder'
+  inputMsg.value = messagePlainText(message)
+  nextTick(adjustTextareaHeight)
+  focusInput()
+}
+
+function cancelMessageContext() {
+  replyingMessage.value = null
+  editingMessage.value = null
+}
+
+function onMessageCopied(success = true) {
+  ui.showToast(success === false ? 'Não foi possível copiar a mensagem.' : 'Mensagem copiada.', success === false ? 'error' : 'success')
+}
+
+async function deleteMessage(message) {
+  if (!props.ticket || !message?.id) return
+  messageToDelete.value = message
+}
+
+async function confirmDeleteMessage() {
+  const message = messageToDelete.value
+  if (!props.ticket || !message?.id || deletingMessage.value) return
+  deletingMessage.value = true
+  try {
+    const { data } = await ticketsApi.deleteMessage(props.ticket.id, message.id)
+    if (!data.success) throw new Error(data.error || 'Não foi possível excluir a mensagem.')
+    ticketStore.patchMessage(props.ticket.id, message.id, data.message)
+    if (editingMessage.value?.id === message.id || replyingMessage.value?.id === message.id) cancelMessageContext()
+    messageToDelete.value = null
+    ui.showToast('Mensagem excluída para todos.')
+  } catch (error) {
+    ui.showToast(error.response?.data?.error || error.message || 'Não foi possível excluir a mensagem.', 'error')
+  } finally {
+    deletingMessage.value = false
+  }
 }
 
 function scrollToBottom() {
@@ -1082,6 +1186,22 @@ async function sendMessage() {
   const text = inputMsg.value.trim()
   if (!text || !props.ticket) return
 
+  if (editingMessage.value) {
+    const target = editingMessage.value
+    try {
+      const { data } = await ticketsApi.editMessage(props.ticket.id, target.id, text)
+      if (!data.success) throw new Error(data.error || 'Não foi possível editar a mensagem.')
+      ticketStore.patchMessage(props.ticket.id, target.id, data.message)
+      inputMsg.value = ''
+      cancelMessageContext()
+      ui.showToast('Mensagem editada no site e no WhatsApp.')
+      focusInput()
+    } catch (error) {
+      ui.showToast(error.response?.data?.error || error.message || 'Não foi possível editar a mensagem.', 'error')
+    }
+    return
+  }
+
   const isObs = chatMode.value === 'observacao'
   const agentName = authStore.user?.name || 'Atendente'
   const now = new Date()
@@ -1093,16 +1213,30 @@ async function sendMessage() {
 
   const msg = isObs
     ? { type: 'divider', text: `📌 NOTA INTERNA (${agentName}): ${text}`, time: timeStr }
-    : { sender: 'agent', text: formattedText, time: timeStr, read: true }
+    : {
+        sender: 'agent',
+        user_id: authStore.user?.id,
+        sender_name: agentName,
+        text: formattedText,
+        time: timeStr,
+        read: true,
+        ...(replyingMessage.value ? {
+          reply_to_message_id: replyingMessage.value.id,
+          reply_preview: messagePlainText(replyingMessage.value),
+          reply_sender: messageAuthorLabel(replyingMessage.value)
+        } : {})
+      }
 
+  const replyToMessageId = replyingMessage.value?.id || null
   ticketStore.appendMessage(props.ticket.id, msg)
   inputMsg.value = ''
+  cancelMessageContext()
   scrollToBottom()
   focusInput()
 
   if (!isObs) {
     try {
-      await ticketsApi.sendMessage(props.ticket.id, text)
+      await ticketsApi.sendMessage(props.ticket.id, text, replyToMessageId)
     } catch (e) {
       console.warn('Erro ao enviar mensagem:', e)
     }
@@ -1279,6 +1413,53 @@ watch(inputMsg, (newVal) => {
 .chat-message-search-anchor.search-hit { background: rgba(250, 204, 21, .08); }
 .chat-message-search-anchor.search-hit-active { background: rgba(250, 204, 21, .16); }
 .chat-message-search-anchor.search-hit-active :deep(.chat-bubble) { box-shadow: 0 0 0 2px rgba(234, 179, 8, .45), 0 5px 15px rgba(15, 23, 42, .08); }
+
+.composer-message-context {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 7px 9px;
+  border: 1px solid #dbeafe;
+  border-left: 3px solid #2563eb;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.composer-message-context-icon {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  flex: none;
+  border-radius: 7px;
+  background: #e8f1ff;
+  color: #2563eb;
+  font-size: 11px;
+}
+
+.composer-message-context-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.composer-message-context-copy strong { color: #1e40af; font-size: 10.5px; }
+.composer-message-context-copy small { overflow: hidden; color: #64748b; font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+
+.message-delete-overlay { z-index: 10050; display: grid; place-items: center; padding: 18px; }
+.message-delete-dialog { width: min(420px, 100%); padding: 22px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 24px 60px rgba(15, 23, 42, .25); }
+.message-delete-dialog { display: grid; grid-template-columns: 42px 1fr; gap: 13px; }
+.message-delete-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 11px; background: #fff1f2; color: #dc2626; font-size: 17px; }
+.message-delete-dialog h3 { margin: 1px 0 6px; color: #0f172a; font-size: 15px; }
+.message-delete-dialog p { margin: 0; color: #64748b; font-size: 12px; line-height: 1.55; }
+.message-delete-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; padding-top: 15px; border-top: 1px solid #e2e8f0; }
+.message-delete-actions button { min-height: 34px; padding: 0 13px; border-radius: 7px; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.message-delete-actions button:disabled { opacity: .6; cursor: wait; }
+.message-delete-confirm { border: 1px solid #ef4444; background: #ef4444; color: #fff; }
+.message-delete-confirm:hover:not(:disabled) { background: #dc2626; }
 
 .bot-history-toolbar {
   display: flex;

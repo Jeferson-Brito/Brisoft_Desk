@@ -70,6 +70,8 @@ router.get('/tickets/:id', requireAuth, (req, res) => ticketController.getTicket
 router.put('/tickets/:id/contact', requireAuth, (req, res) => ticketController.updateContact(req, res));
 router.post('/tickets/start-conversation', requireAuth, (req, res) => ticketController.startConversation(req, res));
 router.post('/tickets/send-message', requireAuth, (req, res) => ticketController.sendMessage(req, res));
+router.patch('/tickets/:id/messages/:messageId', requireAuth, (req, res) => ticketController.editMessage(req, res));
+router.delete('/tickets/:id/messages/:messageId', requireAuth, (req, res) => ticketController.deleteMessage(req, res));
 router.post(
   '/tickets/:id/media',
   requireAuth,

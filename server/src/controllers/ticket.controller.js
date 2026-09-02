@@ -50,7 +50,7 @@ class TicketController {
 
   async sendMessage(req, res) {
     try {
-      const { ticketId, text } = req.body;
+      const { ticketId, text, replyToMessageId } = req.body;
       if (!ticketId || typeof text !== 'string' || !text.trim()) {
         return res.status(400).json({ success: false, error: 'ticketId e text são obrigatórios' });
       }
@@ -62,7 +62,8 @@ class TicketController {
         text.trim(),
         req.user,
         req.app.get('io'),
-        whatsappService
+        whatsappService,
+        replyToMessageId || null
       );
 
       if (!result || result.success === false) {
@@ -71,6 +72,39 @@ class TicketController {
       return res.json({ success: true, result });
     } catch (err) {
       console.error('❌ Erro no controller sendMessage:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
+  async editMessage(req, res) {
+    try {
+      const text = String(req.body?.text || '').trim();
+      if (!text) return res.status(400).json({ success: false, error: 'Informe o novo texto da mensagem.' });
+      const result = await ticketService.editAgentMessage(
+        req.params.id,
+        req.params.messageId,
+        text,
+        req.user,
+        req.app.get('io'),
+        whatsappService
+      );
+      return res.status(result?.success ? 200 : 400).json(result);
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
+  async deleteMessage(req, res) {
+    try {
+      const result = await ticketService.deleteAgentMessage(
+        req.params.id,
+        req.params.messageId,
+        req.user,
+        req.app.get('io'),
+        whatsappService
+      );
+      return res.status(result?.success ? 200 : 400).json(result);
+    } catch (err) {
       return res.status(500).json({ success: false, error: err.message });
     }
   }

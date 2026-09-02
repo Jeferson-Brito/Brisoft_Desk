@@ -1145,7 +1145,7 @@ class WhatsAppService {
     return [...this.accounts.values()].find(account => account.status === 'connected') || null;
   }
 
-  async sendMessage(target, text, accountId = null) {
+  async sendMessage(target, text, accountId = null, options = {}) {
     const account = this.selectAccount(accountId);
     if (!account?.sock || account.status !== 'connected') {
       console.warn(`[WhatsApp:${accountId || 'automático'}] conta não conectada; mensagem não enviada.`);
@@ -1155,7 +1155,16 @@ class WhatsAppService {
     if (!jid.includes('@')) jid = `${target.replace(/\D/g, '')}@s.whatsapp.net`;
     jid = await resolveJid(jid, account);
     try {
-      const result = await account.sock.sendMessage(jid, { text });
+      const quotedId = String(options?.quotedMessage?.remoteMessageId || '').trim();
+      const quoted = quotedId ? {
+        key: {
+          remoteJid: jid,
+          fromMe: options.quotedMessage.sender === 'agent',
+          id: quotedId
+        },
+        message: { conversation: String(options.quotedMessage.text || 'Mensagem') }
+      } : undefined;
+      const result = await account.sock.sendMessage(jid, { text }, quoted ? { quoted } : undefined);
       if (result?.key?.id && result?.message) cacheRetryMessage(account, result.key, result.message);
       this.rememberPlatformMessage(account.id, result?.key?.id);
       console.log(`[WhatsApp:${account.name}] mensagem enviada para ${getPhoneFromJid(jid, account.lidMap)} (${jid}).`);
@@ -1164,6 +1173,28 @@ class WhatsAppService {
       console.error(`[WhatsApp:${account.name}] falha no envio: ${error.message}`);
       return false;
     }
+  }
+
+  async editMessage(target, remoteMessageId, text, accountId = null) {
+    const account = this.selectAccount(accountId);
+    if (!account?.sock || account.status !== 'connected') throw new Error('WhatsApp desconectado. Não foi possível editar a mensagem.');
+    let jid = target.includes('@') ? target : `${target.replace(/\D/g, '')}@s.whatsapp.net`;
+    jid = await resolveJid(jid, account);
+    const key = { remoteJid: jid, fromMe: true, id: remoteMessageId };
+    const result = await account.sock.sendMessage(jid, { text, edit: key });
+    if (result?.key?.id) this.rememberPlatformMessage(account.id, result.key.id);
+    return result;
+  }
+
+  async deleteMessage(target, remoteMessageId, accountId = null) {
+    const account = this.selectAccount(accountId);
+    if (!account?.sock || account.status !== 'connected') throw new Error('WhatsApp desconectado. Não foi possível excluir a mensagem.');
+    let jid = target.includes('@') ? target : `${target.replace(/\D/g, '')}@s.whatsapp.net`;
+    jid = await resolveJid(jid, account);
+    const key = { remoteJid: jid, fromMe: true, id: remoteMessageId };
+    const result = await account.sock.sendMessage(jid, { delete: key });
+    if (result?.key?.id) this.rememberPlatformMessage(account.id, result.key.id);
+    return result;
   }
 
   async sendMediaMessage(target, fileBuffer, mediaType, caption, fileName, accountId = null, mimeType = null, voiceNote = false) {

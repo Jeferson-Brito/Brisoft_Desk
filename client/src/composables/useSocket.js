@@ -119,6 +119,14 @@ export function useSocket() {
       }
     })
 
+    socket.on('message_updated', ({ ticketId, message }) => {
+      if (ticketId && message?.id) tickets.patchMessage(ticketId, message.id, message)
+    })
+
+    socket.on('message_deleted', ({ ticketId, message }) => {
+      if (ticketId && message?.id) tickets.patchMessage(ticketId, message.id, message)
+    })
+
     socket.on('rating_received', (data) => {
       const auth = useAuthStore()
       if (data.agentName && auth.user?.name === data.agentName) {

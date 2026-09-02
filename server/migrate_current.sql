@@ -10,7 +10,13 @@ alter table if exists public.messages
   add column if not exists file_name text,
   add column if not exists sender_type text,
   add column if not exists sender_name text,
-  add column if not exists message_context text;
+  add column if not exists message_context text,
+  add column if not exists reply_to_message_id text,
+  add column if not exists reply_to_remote_message_id text,
+  add column if not exists reply_preview text,
+  add column if not exists reply_sender text,
+  add column if not exists edited_at timestamptz,
+  add column if not exists deleted_at timestamptz;
 
 create index if not exists messages_user_id_idx on public.messages(user_id);
 

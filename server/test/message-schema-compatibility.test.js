@@ -29,3 +29,18 @@ test('reconhece erro de ausência das colunas de mensagem remota do WhatsApp', (
   assert.equal(isMissing({ code: '42703', message: 'column "whatsapp_account_id" does not exist' }), true);
   assert.equal(isMissing({ code: '23505', message: 'duplicate key value' }), false);
 });
+
+test('reconhece erro de ausência das colunas de interação entre mensagens', () => {
+  const isMissing = ticketService._test.isMissingMessageInteractionColumns;
+
+  assert.equal(isMissing({ code: 'PGRST204', message: "Could not find the 'reply_preview' column of 'messages'" }), true);
+  assert.equal(isMissing({ message: 'column "deleted_at" does not exist' }), true);
+  assert.equal(isMissing({ code: '23505', message: 'duplicate key value' }), false);
+});
+
+test('gera prévia limpa para respostas a texto e mídia', () => {
+  const preview = ticketService._test.messagePreview;
+
+  assert.equal(preview({ text: '*Maria:*\n\nVou verificar para você.' }), 'Vou verificar para você.');
+  assert.equal(preview({ type: 'audio', text: '' }), '🎙️ Áudio');
+});
