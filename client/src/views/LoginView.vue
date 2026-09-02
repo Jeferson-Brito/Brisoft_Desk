@@ -94,12 +94,13 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 import { useSocket }    from '@/composables/useSocket'
 import logoUrl from '@/assets/img/logo.png'
 
 const router   = useRouter()
+const route    = useRoute()
 const auth     = useAuthStore()
 const socket   = useSocket()
 
@@ -122,7 +123,8 @@ async function handleSubmit() {
     const result = await auth.login(email.value.trim(), password.value)
     if (result.success) {
       socket.connect()
-      router.push({ name: 'dashboard' })
+      const redirect = String(route.query.redirect || '')
+      await router.replace(redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : { name: 'dashboard' })
     } else {
       errorMsg.value = result.error || 'Credenciais inválidas. Tente novamente.'
     }

@@ -24,7 +24,10 @@ http.interceptors.response.use(
       const auth = useAuthStore()
       auth.clearSession()
       import('@/composables/useSocket').then(({ useSocket }) => useSocket().disconnect())
-      if (window.location.pathname !== '/login') window.location.assign('/login')
+      if (window.location.pathname !== '/login') {
+        const destination = `${window.location.pathname}${window.location.search}${window.location.hash}`
+        window.location.assign(`/login?redirect=${encodeURIComponent(destination)}`)
+      }
     }
     return Promise.reject(error)
   }

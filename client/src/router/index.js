@@ -74,7 +74,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
-    return { name: 'login' }
+    return { name: 'login', query: { redirect: to.fullPath } }
   }
 
   if (to.meta.requiresAdmin && !auth.isAdmin) {
@@ -86,7 +86,8 @@ router.beforeEach(async (to) => {
   }
 
   if (to.name === 'login' && auth.isAuthenticated) {
-    return { name: 'dashboard' }
+    const redirect = String(to.query.redirect || '')
+    return redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : { name: 'dashboard' }
   }
 })
 

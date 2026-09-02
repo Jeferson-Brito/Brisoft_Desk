@@ -4,9 +4,17 @@ import { authApi } from '@/api/auth.api'
 
 const TOKEN_KEY = 'brifdesk_token'
 
+function loadStoredToken() {
+  const sharedToken = localStorage.getItem(TOKEN_KEY)
+  const legacyTabToken = sessionStorage.getItem(TOKEN_KEY)
+  if (!sharedToken && legacyTabToken) localStorage.setItem(TOKEN_KEY, legacyTabToken)
+  if (legacyTabToken) sessionStorage.removeItem(TOKEN_KEY)
+  return sharedToken || legacyTabToken || null
+}
+
 export const useAuthStore = defineStore('auth', () => {
   // ─── State ──────────────────────────────────────────────────────────────────
-  const token = ref(sessionStorage.getItem(TOKEN_KEY) || null)
+  const token = ref(loadStoredToken())
   const user  = ref(null)
   const initialized = ref(false)
 
@@ -30,12 +38,14 @@ export const useAuthStore = defineStore('auth', () => {
   function setSession(newToken, newUser) {
     token.value = newToken
     user.value  = newUser
-    sessionStorage.setItem(TOKEN_KEY, newToken)
+    localStorage.setItem(TOKEN_KEY, newToken)
+    sessionStorage.removeItem(TOKEN_KEY)
   }
 
   function clearSession() {
     token.value = null
     user.value  = null
+    localStorage.removeItem(TOKEN_KEY)
     sessionStorage.removeItem(TOKEN_KEY)
   }
 
