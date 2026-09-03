@@ -331,57 +331,67 @@
     <Teleport to="body">
       <div
         v-if="selectedTicketModal"
-        class="modal-overlay active"
+        class="modal-overlay active history-detail-overlay"
         @click.self="selectedTicketModal = null"
       >
-        <div class="modal-container" style="max-width:900px;width:90vw;height:85vh;display:flex;flex-direction:column;">
+        <div class="modal-container history-detail-modal" role="dialog" aria-modal="true" aria-label="Detalhes da conversa">
           <!-- Modal Header -->
-          <div class="modal-header" style="flex-shrink:0;">
-            <div style="display:flex;align-items:center;gap:12px;">
+          <div class="modal-header history-detail-header">
+            <div class="history-customer-summary">
               <div
-                class="initial-avatar"
-                style="width:40px;height:40px;font-size:14px;flex-shrink:0;"
+                class="initial-avatar history-detail-avatar"
                 :style="{ background: selectedTicketModal.avatarColor || '#2563eb' }"
               >
                 <img v-if="selectedTicketModal.avatar_url" :src="selectedTicketModal.avatar_url" alt="Foto do cliente" referrerpolicy="no-referrer" class="history-avatar-image" />
                 <span v-else>{{ selectedTicketModal.initials || 'CL' }}</span>
               </div>
-              <div>
-                <span class="modal-title" style="font-size:15px;display:flex;align-items:center;gap:8px;">
+              <div class="history-customer-copy">
+                <div class="history-customer-name-row">
+                  <span class="modal-title history-customer-name">
                   {{ normalizePersonName(selectedTicketModal.clientName || selectedTicketModal.client_name || 'Cliente') }}
-                  <span class="badge badge-whatsapp" style="font-size:10.5px;">
-                    <i class="fa-brands fa-whatsapp"></i> {{ formatPhone(selectedTicketModal.phone) }}
                   </span>
-                </span>
-                <span style="font-size:11px;color:#64748b;">
-                  Protocolo: <code style="color:#1e293b;font-weight:600;">{{ selectedTicketModal.protocolo || selectedTicketModal.id }}</code>
-                </span>
+                  <span class="history-channel-pill"><i class="fa-brands fa-whatsapp"></i> WhatsApp</span>
+                </div>
+                <div class="history-customer-meta">
+                  <span><i class="fa-solid fa-phone"></i>{{ formatPhone(selectedTicketModal.phone) }}</span>
+                  <span class="history-meta-separator"></span>
+                  <span><i class="fa-solid fa-hashtag"></i>{{ selectedTicketModal.protocolo || selectedTicketModal.id }}</span>
+                </div>
               </div>
             </div>
 
-            <button type="button" class="btn-icon" @click="selectedTicketModal = null">
+            <button type="button" class="history-modal-close" aria-label="Fechar detalhes da conversa" @click="selectedTicketModal = null">
               <i class="fa-solid fa-xmark"></i>
             </button>
           </div>
 
           <!-- Modal Body em 2 Colunas -->
-          <div style="flex:1;display:grid;grid-template-columns:1.6fr 1fr;overflow:hidden;min-height:0;">
+          <div class="history-detail-body">
             <!-- Coluna 1: Chat de Mensagens -->
-            <div style="display:flex;flex-direction:column;border-right:1px solid #e2e8f0;height:100%;min-height:0;background:#f8fafc;">
-              <div style="padding:10px 16px;background:#ffffff;border-bottom:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#475569;">
-                <i class="fa-regular fa-comments" style="color:#2563eb;margin-right:4px;"></i>
-                Conversa completa
+            <div class="history-conversation-pane">
+              <div class="history-conversation-toolbar">
+                <div>
+                  <span class="history-toolbar-icon"><i class="fa-regular fa-comments"></i></span>
+                  <div><strong>Conversa completa</strong><small>Histórico de mensagens deste atendimento</small></div>
+                </div>
+                <span class="history-message-count">
+                  {{ (selectedTicketModal.messages || []).filter(msg => !msg?.text?.startsWith?.('[Chatbot][State]')).length }} mensagens
+                </span>
               </div>
 
-              <div class="chat-messages-container" style="flex:1;overflow-y:auto;padding:16px;">
-                <div v-if="detailLoading" style="padding:32px;text-align:center;color:#64748b;font-size:12px;">
-                  <i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i> Carregando conversa completa...
+              <div class="chat-messages-container history-conversation-messages">
+                <div v-if="detailLoading" class="history-conversation-state">
+                  <span class="history-state-icon"><i class="fa-solid fa-spinner fa-spin"></i></span>
+                  <strong>Carregando conversa</strong>
+                  <small>Buscando todas as mensagens deste atendimento.</small>
                 </div>
-                <div v-else-if="!selectedTicketModal.messages || selectedTicketModal.messages.length === 0" style="padding:32px;text-align:center;color:#94a3b8;font-size:12px;">
-                  Nenhuma mensagem registrada neste chamado.
+                <div v-else-if="!selectedTicketModal.messages || selectedTicketModal.messages.length === 0" class="history-conversation-state">
+                  <span class="history-state-icon empty"><i class="fa-regular fa-message"></i></span>
+                  <strong>Nenhuma mensagem registrada</strong>
+                  <small>Este atendimento não possui mensagens disponíveis no histórico.</small>
                 </div>
                 <template v-else>
-                  <div class="chat-date-pill">Início do Atendimento</div>
+                  <div class="chat-date-pill history-start-pill"><i class="fa-regular fa-calendar"></i> Início do atendimento</div>
                   <ChatBubble
                     v-for="(m, idx) in (selectedTicketModal.messages || []).filter(msg => !msg?.text?.startsWith?.('[Chatbot][State]'))"
                     :key="idx"
@@ -395,99 +405,85 @@
             </div>
 
             <!-- Coluna 2: Informações e Metadados do Atendimento -->
-            <div style="display:flex;flex-direction:column;padding:18px;gap:14px;overflow-y:auto;background:#ffffff;">
+            <aside class="history-detail-sidebar">
               <!-- Card de Avaliação do Cliente -->
               <div
-                style="border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px;"
-                :style="{
-                  background: selectedTicketModal.rating ? '#fefce8' : '#f8fafc',
-                  border: `1px solid ${selectedTicketModal.rating ? '#fef08a' : '#e2e8f0'}`
-                }"
+                class="history-rating-card"
+                :class="{ rated: selectedTicketModal.rating }"
               >
-                <span style="font-size:11.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">
-                  Avaliação do Atendimento
-                </span>
-                <div v-if="selectedTicketModal.rating" style="display:flex;align-items:center;gap:8px;">
-                  <span style="font-size:24px;color:#eab308;">
-                    {{ '⭐'.repeat(selectedTicketModal.rating) }}
-                  </span>
-                  <div>
-                    <strong style="font-size:14px;color:#854d0e;">{{ selectedTicketModal.rating }} de 5 estrelas</strong>
-                    <span style="font-size:11px;color:#a16207;display:block;">Avaliado pelo cliente via WhatsApp</span>
+                <div class="history-card-eyebrow"><i class="fa-solid fa-star"></i> Avaliação do atendimento</div>
+                <div v-if="selectedTicketModal.rating" class="history-rating-result">
+                  <div class="history-stars" :aria-label="`${selectedTicketModal.rating} de 5 estrelas`">
+                    <i v-for="star in 5" :key="star" class="fa-solid fa-star" :class="{ active: star <= selectedTicketModal.rating }"></i>
                   </div>
+                  <strong>{{ selectedTicketModal.rating }} de 5</strong>
+                  <small>Avaliação enviada pelo cliente via WhatsApp</small>
                 </div>
-                <div v-else style="display:flex;align-items:center;gap:6px;color:#94a3b8;font-size:12px;">
-                  <i class="fa-regular fa-face-meh" style="font-size:16px;"></i>
-                  <span>Pesquisa enviada automaticamente (aguardando ou sem resposta).</span>
+                <div v-else class="history-rating-pending">
+                  <span><i class="fa-regular fa-clock"></i></span>
+                  <div><strong>Aguardando avaliação</strong><small>A pesquisa foi enviada, mas ainda não recebeu uma resposta.</small></div>
                 </div>
               </div>
 
               <!-- Metadados da Conversa -->
-              <div>
-                <span class="details-section-title" style="margin-bottom:8px;display:block;">
-                  Detalhes Operacionais
-                </span>
-                <div class="contact-info-list">
-                  <div class="contact-info-item">
-                    <i class="fa-solid fa-user-tie"></i>
-                    <span>Atendente Responsável: <strong>{{ selectedTicketModal.agent || selectedTicketModal.encerrado_por || 'Sistema' }}</strong></span>
+              <section class="history-info-card">
+                <div class="history-info-card-header">
+                  <span class="history-info-card-icon"><i class="fa-solid fa-headset"></i></span>
+                  <div><strong>Detalhes do atendimento</strong><small>Responsáveis e período da conversa</small></div>
+                </div>
+                <div class="history-detail-list">
+                  <div class="history-detail-row">
+                    <span class="history-detail-row-icon"><i class="fa-solid fa-user-tie"></i></span>
+                    <div><small>Atendente responsável</small><strong>{{ selectedTicketModal.agent || selectedTicketModal.encerrado_por || 'Sistema' }}</strong></div>
                   </div>
-                  <div class="contact-info-item">
-                    <i class="fa-solid fa-building"></i>
-                    <span>Departamento: <strong>{{ selectedTicketModal.deptFinal || selectedTicketModal.department || 'Geral' }}</strong></span>
+                  <div class="history-detail-row">
+                    <span class="history-detail-row-icon"><i class="fa-solid fa-building"></i></span>
+                    <div><small>Departamento</small><strong>{{ selectedTicketModal.deptFinal || selectedTicketModal.department || 'Geral' }}</strong></div>
                   </div>
-                  <div class="contact-info-item">
-                    <i class="fa-regular fa-clock"></i>
-                    <span>Início do Chamado: <strong>{{ formatDateTime(selectedTicketModal.created_at || selectedTicketModal.time) }}</strong></span>
+                  <div class="history-detail-row">
+                    <span class="history-detail-row-icon"><i class="fa-regular fa-clock"></i></span>
+                    <div><small>Início do atendimento</small><strong>{{ formatDateTime(selectedTicketModal.created_at || selectedTicketModal.time) }}</strong></div>
                   </div>
-                  <div class="contact-info-item">
-                    <i class="fa-solid fa-circle-check" style="color:#16a34a;"></i>
-                    <span>Encerramento: <strong>{{ formatDateTime(selectedTicketModal.closed_at || selectedTicketModal.updated_at) }}</strong></span>
+                  <div class="history-detail-row success">
+                    <span class="history-detail-row-icon"><i class="fa-solid fa-check"></i></span>
+                    <div><small>Encerramento</small><strong>{{ formatDateTime(selectedTicketModal.closed_at || selectedTicketModal.updated_at) }}</strong></div>
                   </div>
                 </div>
-              </div>
+              </section>
 
               <!-- Dados do Cliente -->
-              <div>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                  <span class="details-section-title">
-                    Dados do Cliente
-                  </span>
-                  <button class="btn-secondary" style="font-size:11px;padding:2px 8px;" @click="showEditContactModal = true">
-                    <i class="fa-solid fa-pen"></i> Editar
+              <section class="history-info-card">
+                <div class="history-info-card-header">
+                  <span class="history-info-card-icon customer"><i class="fa-regular fa-address-card"></i></span>
+                  <div><strong>Dados do cliente</strong><small>Informações salvas no contato</small></div>
+                  <button class="history-edit-contact" type="button" @click="showEditContactModal = true">
+                    <i class="fa-solid fa-pen"></i><span>Editar</span>
                   </button>
                 </div>
-                <div class="contact-info-list">
-                  <div class="contact-info-item">
-                    <i class="fa-solid fa-user"></i>
-                    <span>Nome: <strong>{{ normalizePersonName(selectedTicketModal.clientName || selectedTicketModal.client_name) }}</strong></span>
+                <div class="history-detail-list">
+                  <div class="history-detail-row">
+                    <span class="history-detail-row-icon"><i class="fa-solid fa-user"></i></span>
+                    <div><small>Nome</small><strong>{{ normalizePersonName(selectedTicketModal.clientName || selectedTicketModal.client_name) }}</strong></div>
                   </div>
-                  <div class="contact-info-item">
-                    <i class="fa-brands fa-whatsapp" style="color:#22c55e;"></i>
-                    <span>Telefone: <strong>{{ formatPhone(selectedTicketModal.phone) }}</strong></span>
+                  <div class="history-detail-row whatsapp">
+                    <span class="history-detail-row-icon"><i class="fa-brands fa-whatsapp"></i></span>
+                    <div><small>Telefone / WhatsApp</small><strong>{{ formatPhone(selectedTicketModal.phone) }}</strong></div>
                   </div>
-                  <div class="contact-info-item">
-                    <i class="fa-regular fa-envelope"></i>
-                    <span>E-mail: <strong>{{ selectedTicketModal.email || selectedTicketModal.contact?.email || 'Não informado' }}</strong></span>
+                  <div class="history-detail-row">
+                    <span class="history-detail-row-icon"><i class="fa-regular fa-envelope"></i></span>
+                    <div><small>E-mail</small><strong>{{ selectedTicketModal.email || selectedTicketModal.contact?.email || 'Não informado' }}</strong></div>
                   </div>
-                  <div class="contact-info-item">
-                    <i class="fa-regular fa-id-card"></i>
-                    <span>CNPJ/CPF: <strong>{{ formatCnpjCpf(selectedTicketModal.cnpj || selectedTicketModal.contact?.cnpj) }}</strong></span>
+                  <div class="history-detail-row">
+                    <span class="history-detail-row-icon"><i class="fa-regular fa-id-card"></i></span>
+                    <div><small>CNPJ / CPF</small><strong>{{ formatCnpjCpf(selectedTicketModal.cnpj || selectedTicketModal.contact?.cnpj) }}</strong></div>
                   </div>
-                  <div class="contact-info-item">
-                    <i class="fa-regular fa-building"></i>
-                    <span>Empresa: <strong>{{ selectedTicketModal.company || selectedTicketModal.contact?.company || 'Não informada' }}</strong></span>
+                  <div class="history-detail-row">
+                    <span class="history-detail-row-icon"><i class="fa-regular fa-building"></i></span>
+                    <div><small>Empresa</small><strong>{{ selectedTicketModal.company || selectedTicketModal.contact?.company || 'Não informada' }}</strong></div>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Modal Footer -->
-          <div class="modal-footer" style="flex-shrink:0;">
-            <button type="button" class="btn-secondary" @click="selectedTicketModal = null">
-              Fechar
-            </button>
+              </section>
+            </aside>
           </div>
         </div>
       </div>
@@ -584,6 +580,12 @@ function formatShortDate(d) {
 function handleClickOutside(event) {
   if (filterDropdownRef.value && !filterDropdownRef.value.contains(event.target)) {
     showFilterPopover.value = false
+  }
+}
+
+function handleHistoryKeydown(event) {
+  if (event.key === 'Escape' && selectedTicketModal.value && !showEditContactModal.value) {
+    selectedTicketModal.value = null
   }
 }
 
@@ -734,18 +736,110 @@ async function fetchHistory() {
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
+  document.addEventListener('keydown', handleHistoryKeydown)
   settingsStore.fetchDepartments()
   fetchHistory()
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('keydown', handleHistoryKeydown)
 })
 </script>
 
 <style scoped>
 .initial-avatar { overflow: hidden; }
 .history-avatar-image { width: 100%; height: 100%; object-fit: cover; }
+
+/* ── Detalhes da conversa ── */
+.history-detail-overlay { padding:24px;box-sizing:border-box;backdrop-filter:blur(5px);background:rgba(15,23,42,.58); }
+.history-detail-modal { width:min(1120px,calc(100vw - 48px));max-width:none;height:min(860px,calc(100vh - 48px));max-height:none;border:1px solid rgba(226,232,240,.9);border-radius:16px;display:flex;flex-direction:column;overflow:hidden;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.3); }
+.history-detail-header { min-height:74px;padding:12px 18px;border-bottom:1px solid #e8edf3;display:flex;align-items:center;justify-content:space-between;gap:16px;flex:none;background:#fff; }
+.history-customer-summary { min-width:0;display:flex;align-items:center;gap:12px; }
+.history-detail-avatar { width:44px;height:44px;font-size:14px;flex:none;box-shadow:0 0 0 3px #f1f5f9; }
+.history-customer-copy { min-width:0;display:flex;flex-direction:column;gap:5px; }
+.history-customer-name-row { min-width:0;display:flex;align-items:center;gap:8px; }
+.history-customer-name { overflow:hidden;color:#0f172a;font-size:15px;text-overflow:ellipsis;white-space:nowrap; }
+.history-channel-pill { padding:3px 7px;border:1px solid #bbf7d0;border-radius:999px;display:inline-flex;align-items:center;gap:4px;flex:none;background:#f0fdf4;color:#07864b;font-size:9.5px;font-weight:600; }
+.history-customer-meta { min-width:0;display:flex;align-items:center;gap:8px;color:#64748b;font-size:10.5px; }
+.history-customer-meta>span:not(.history-meta-separator) { min-width:0;display:inline-flex;align-items:center;gap:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.history-customer-meta i { color:#94a3b8;font-size:9px; }
+.history-meta-separator { width:3px;height:3px;border-radius:50%;flex:none;background:#cbd5e1; }
+.history-modal-close { width:34px;height:34px;border:1px solid #e2e8f0;border-radius:9px;display:grid;place-items:center;flex:none;background:#fff;color:#64748b;cursor:pointer;transition:background-color .15s ease,border-color .15s ease,color .15s ease,transform .15s ease; }
+.history-modal-close:hover { border-color:#fecaca;background:#fef2f2;color:#dc2626;transform:rotate(3deg); }
+.history-detail-body { flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.7fr) minmax(320px,.9fr);overflow:hidden; }
+.history-conversation-pane { min-width:0;min-height:0;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;background:#f6f8fc; }
+.history-conversation-toolbar { min-height:58px;padding:9px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none;background:rgba(255,255,255,.94); }
+.history-conversation-toolbar>div { min-width:0;display:flex;align-items:center;gap:9px; }
+.history-conversation-toolbar>div>div { min-width:0;display:flex;flex-direction:column;gap:1px; }
+.history-conversation-toolbar strong { color:#334155;font-size:12px;font-weight:600; }
+.history-conversation-toolbar small { color:#94a3b8;font-size:9.5px; }
+.history-toolbar-icon { width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none;background:#eff6ff;color:#2563eb;font-size:11px; }
+.history-message-count { padding:4px 8px;border:1px solid #e2e8f0;border-radius:999px;flex:none;background:#f8fafc;color:#64748b;font-size:9.5px;font-weight:600; }
+.history-conversation-messages { flex:1;min-height:0;padding:20px 22px 28px;overflow-y:auto;background:radial-gradient(circle at 50% 0,rgba(219,234,254,.28),transparent 34%),#f6f8fc;scrollbar-width:thin;scrollbar-color:#cbd5e1 transparent; }
+.history-start-pill { width:max-content;margin:0 auto 18px;padding:4px 10px;border:1px solid #dbe2ea;border-radius:999px;background:rgba(255,255,255,.9);color:#64748b;font-size:9.5px;font-weight:500;box-shadow:0 2px 6px rgba(15,23,42,.03); }
+.history-start-pill i { margin-right:4px;color:#94a3b8; }
+.history-conversation-state { min-height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:5px;color:#64748b;text-align:center; }
+.history-conversation-state strong { color:#475569;font-size:12px;font-weight:600; }
+.history-conversation-state small { max-width:280px;color:#94a3b8;font-size:10.5px;line-height:1.45; }
+.history-state-icon { width:42px;height:42px;margin-bottom:4px;border-radius:12px;display:grid;place-items:center;background:#eff6ff;color:#2563eb;font-size:15px; }
+.history-state-icon.empty { background:#f1f5f9;color:#94a3b8; }
+.history-detail-sidebar { min-width:0;padding:15px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;background:#f8fafc;scrollbar-width:thin;scrollbar-color:#cbd5e1 transparent; }
+.history-rating-card,.history-info-card { border:1px solid #e2e8f0;border-radius:12px;background:#fff;box-shadow:0 3px 12px rgba(15,23,42,.025); }
+.history-rating-card { padding:13px;display:flex;flex-direction:column;gap:10px; }
+.history-rating-card.rated { border-color:#fde68a;background:linear-gradient(135deg,#fffdf4,#fffbeb); }
+.history-card-eyebrow { display:flex;align-items:center;gap:6px;color:#64748b;font-size:9px;font-weight:700;letter-spacing:.045em;text-transform:uppercase; }
+.history-card-eyebrow i { color:#f59e0b; }
+.history-rating-result { display:grid;grid-template-columns:1fr auto;align-items:center;gap:3px 10px; }
+.history-rating-result strong { color:#92400e;font-size:13px;font-weight:700; }
+.history-rating-result small { grid-column:1 / -1;color:#a16207;font-size:9.5px; }
+.history-stars { display:flex;gap:3px;color:#e2e8f0;font-size:13px; }
+.history-stars i.active { color:#fbbf24;filter:drop-shadow(0 1px 1px rgba(180,83,9,.12)); }
+.history-rating-pending { display:flex;align-items:center;gap:9px; }
+.history-rating-pending>span { width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:none;background:#f1f5f9;color:#94a3b8; }
+.history-rating-pending>div { min-width:0;display:flex;flex-direction:column;gap:2px; }
+.history-rating-pending strong { color:#475569;font-size:11px;font-weight:600; }
+.history-rating-pending small { color:#94a3b8;font-size:9.5px;line-height:1.35; }
+.history-info-card { overflow:hidden; }
+.history-info-card-header { min-height:52px;padding:10px 12px;border-bottom:1px solid #edf1f5;display:flex;align-items:center;gap:9px; }
+.history-info-card-header>div { min-width:0;display:flex;flex:1;flex-direction:column;gap:1px; }
+.history-info-card-header strong { color:#334155;font-size:11px;font-weight:600; }
+.history-info-card-header small { color:#94a3b8;font-size:9px; }
+.history-info-card-icon { width:29px;height:29px;border-radius:8px;display:grid;place-items:center;flex:none;background:#eff6ff;color:#2563eb;font-size:10px; }
+.history-info-card-icon.customer { background:#f0fdf4;color:#059669; }
+.history-edit-contact { min-height:27px;padding:0 8px;border:1px solid #dbe2ea;border-radius:7px;display:inline-flex;align-items:center;gap:5px;flex:none;background:#fff;color:#475569;font-size:9.5px;font-weight:600;cursor:pointer;transition:all .15s ease; }
+.history-edit-contact:hover { border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8; }
+.history-detail-list { padding:3px 12px; }
+.history-detail-row { padding:8px 0;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:9px; }
+.history-detail-row:last-child { border-bottom:0; }
+.history-detail-row-icon { width:27px;height:27px;border-radius:7px;display:grid;place-items:center;flex:none;background:#f1f5f9;color:#64748b;font-size:9.5px; }
+.history-detail-row>div { min-width:0;display:flex;flex-direction:column;gap:1px; }
+.history-detail-row small { color:#94a3b8;font-size:8.5px;font-weight:500; }
+.history-detail-row strong { overflow-wrap:anywhere;color:#334155;font-size:10.5px;font-weight:600;line-height:1.35; }
+.history-detail-row.success .history-detail-row-icon { background:#ecfdf5;color:#059669; }
+.history-detail-row.whatsapp .history-detail-row-icon { background:#f0fdf4;color:#16a34a; }
+
+@media (max-width: 860px) {
+  .history-detail-overlay { padding:12px; }
+  .history-detail-modal { width:calc(100vw - 24px);height:calc(100vh - 24px); }
+  .history-detail-body { display:block;overflow-y:auto;background:#f8fafc; }
+  .history-conversation-pane { min-height:62vh;border-right:0;border-bottom:1px solid #e2e8f0; }
+  .history-conversation-messages { min-height:0; }
+  .history-detail-sidebar { overflow:visible; }
+}
+
+@media (max-width: 560px) {
+  .history-detail-overlay { padding:0; }
+  .history-detail-modal { width:100vw;height:100vh;border:0;border-radius:0; }
+  .history-detail-header { min-height:68px;padding:10px 12px; }
+  .history-detail-avatar { width:39px;height:39px; }
+  .history-channel-pill,.history-meta-separator,.history-customer-meta>span:last-child { display:none; }
+  .history-customer-name { font-size:14px; }
+  .history-conversation-toolbar { padding:8px 12px; }
+  .history-conversation-toolbar small { display:none; }
+  .history-conversation-messages { padding:16px 10px 24px; }
+  .history-detail-sidebar { padding:10px; }
+}
 
 /* ── Barra Compacta de Ferramentas ── */
 .history-toolbar {
