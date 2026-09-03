@@ -1,7 +1,7 @@
 import http from '@/api/http'
-import { getMediaSource } from '@/utils/media-message'
+import { getMediaSource, getProtectedMediaPath } from '@/utils/media-message'
 
-const MAX_CACHED_MEDIA = 100
+const MAX_CACHED_MEDIA = 500
 const mediaCache = new Map()
 const RETRY_DELAYS_MS = [0, 700, 1500, 3000]
 
@@ -38,21 +38,24 @@ function trimCache() {
   if (mediaCache.size <= MAX_CACHED_MEDIA) return
   const entries = [...mediaCache.entries()].filter(([, entry]) => entry.settled).sort((a, b) => a[1].lastUsed - b[1].lastUsed)
   const excess = Math.min(entries.length, mediaCache.size - MAX_CACHED_MEDIA)
-  for (const [key, entry] of entries.slice(0, excess)) {
-    if (entry.objectUrl) URL.revokeObjectURL(entry.objectUrl)
-    mediaCache.delete(key)
-  }
+  // Não revoga a Blob URL aqui: ela pode continuar sendo exibida por uma
+  // mensagem já renderizada. O navegador libera todas ao sair da aplicação.
+  for (const [key] of entries.slice(0, excess)) mediaCache.delete(key)
 }
 
 export async function loadProtectedMedia(source) {
-  const existing = mediaCache.get(source)
+  const apiPath = getProtectedMediaPath(source)
+  if (!apiPath) throw new Error('Endereço de mídia protegido inválido.')
+
+  // A mesma mídia pode estar salva como URL absoluta em mensagens antigas e
+  // como caminho relativo nas novas. A chave normalizada evita novo download.
+  const existing = mediaCache.get(apiPath)
   if (existing) {
     existing.lastUsed = Date.now()
     return existing.promise
   }
 
   const entry = { lastUsed: Date.now(), objectUrl: null, promise: null, settled: false }
-  const apiPath = source.startsWith('/api/') ? source.slice(4) : source
   entry.promise = requestMedia(apiPath)
     .then(response => {
       entry.objectUrl = URL.createObjectURL(response.data)
@@ -61,10 +64,10 @@ export async function loadProtectedMedia(source) {
       return entry.objectUrl
     })
     .catch(error => {
-      mediaCache.delete(source)
+      mediaCache.delete(apiPath)
       throw error
     })
-  mediaCache.set(source, entry)
+  mediaCache.set(apiPath, entry)
   trimCache()
   return entry.promise
 }
@@ -77,7 +80,7 @@ export function clearProtectedMediaCache() {
 }
 
 export async function preloadTicketMedia(messages = [], concurrency = 3) {
-  const sources = [...new Set(messages.map(getMediaSource).filter(source => source?.startsWith('/api/media/') || source?.startsWith('/media/')))]
+  const sources = [...new Set(messages.map(getMediaSource).filter(source => getProtectedMediaPath(source)))]
   let cursor = 0
   async function worker() {
     while (cursor < sources.length) {

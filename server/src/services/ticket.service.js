@@ -3409,13 +3409,26 @@ ${rendered}`,
     if (!isSupabaseConfigured()) return false;
     let ticketId = mediaTicketCache.get(filename) || null;
     if (!ticketId) {
-      const { data: message, error } = await supabase
-        .from('messages')
-        .select('ticket_id')
-        .or(`media_url.eq./api/media/${filename},text.like.%||/api/media/${filename}`)
-        .limit(1)
-        .maybeSingle();
-      if (error || !message) return false;
+      let message = null;
+      for (const mediaPath of [`/api/media/${filename}`, `/media/${filename}`]) {
+        const result = await supabase.from('messages').select('ticket_id').eq('media_url', mediaPath).limit(1).maybeSingle();
+        if (!result.error && result.data) {
+          message = result.data;
+          break;
+        }
+      }
+      if (!message) {
+        const absoluteResult = await supabase.from('messages').select('ticket_id, media_url').ilike('media_url', `%/${filename}`).limit(50);
+        message = (absoluteResult.data || []).find(item => {
+          try { return new URL(item.media_url).pathname.split('/').pop() === filename; } catch { return false; }
+        }) || null;
+      }
+      if (!message) {
+        const legacyResult = await supabase.from('messages').select('ticket_id, text').like('text', `%${filename}%`).limit(50);
+        message = (legacyResult.data || []).find(item => String(item.text || '').includes(`||/api/media/${filename}`)
+          || String(item.text || '').includes(`||/media/${filename}`)) || null;
+      }
+      if (!message) return false;
       ticketId = message.ticket_id;
       rememberMediaTicket(`/api/media/${filename}`, ticketId);
     }

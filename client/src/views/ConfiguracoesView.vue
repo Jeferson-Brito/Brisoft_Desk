@@ -143,156 +143,207 @@
         <div class="settings-section-header">
           <div>
             <span class="settings-section-heading">Chatbot do WhatsApp</span>
-            <div style="font-size:11px;color:#64748b;margin-top:3px;">Defina o comportamento, o roteamento e todas as mensagens automáticas.</div>
+            <div class="settings-section-description">Organize o funcionamento do bot por assunto e altere somente o que precisa.</div>
           </div>
           <button class="btn-primary" :disabled="savingBot" @click="saveBotSettings">
             <i class="fa-solid fa-floppy-disk"></i> {{ savingBot ? 'Salvando...' : 'Salvar configurações' }}
           </button>
         </div>
 
-        <div class="settings-content-stack">
-          <div class="bot-status-card">
-            <div>
-              <strong style="display:block;font-size:13px;color:#1e293b;">Bot automático</strong>
-              <span style="font-size:11.5px;color:#64748b;">Quando desligado, novos contatos vão diretamente para o departamento padrão.</span>
-            </div>
-            <label class="bot-status-toggle">
-              <input v-model="botConfig.enabled" type="checkbox" />
-              {{ botConfig.enabled ? 'Ativado' : 'Desativado' }}
-            </label>
-          </div>
+        <nav class="bot-subnav" role="tablist" aria-label="Seções da configuração da IA">
+          <button
+            v-for="section in botSections"
+            :key="section.id"
+            class="bot-subnav-item"
+            :class="{ active: botSection === section.id }"
+            type="button"
+            role="tab"
+            :aria-selected="botSection === section.id"
+            @click="botSection = section.id"
+          >
+            <span class="bot-subnav-icon"><i :class="section.icon"></i></span>
+            <span class="bot-subnav-copy">
+              <strong>{{ section.label }}</strong>
+              <small>{{ section.description }}</small>
+            </span>
+          </button>
+        </nav>
 
-          <div class="settings-form-grid-2">
-            <div>
-              <label class="bot-field-label">Departamento padrão</label>
-              <select v-model="botConfig.default_department_id" class="bot-field-control">
-                <option :value="null">Selecione um departamento</option>
-                <option v-for="department in settingsStore.departments" :key="department.id" :value="department.id">{{ department.name }}</option>
-              </select>
-              <span class="bot-field-help">Último recurso: usado quando a conta do WhatsApp não possui departamento dedicado nem padrão individual.</span>
+        <div class="settings-content-stack bot-tab-content">
+          <section v-if="botSection === 'overview'" class="bot-tab-panel" role="tabpanel">
+            <div class="bot-panel-heading">
+              <span class="bot-panel-heading-icon"><i class="fa-solid fa-gauge-high"></i></span>
+              <div><strong>Visão geral do bot</strong><small>Ative o atendimento automático e defina os parâmetros principais.</small></div>
             </div>
-            <div class="bot-number-grid">
+
+            <div class="bot-status-card">
               <div>
-                <label class="bot-field-label">Retomar por até (horas)</label>
-                <input v-model.number="botConfig.resume_window_hours" class="bot-field-control" type="number" min="1" max="168" />
+                <strong>Bot automático</strong>
+                <span>Quando desligado, novos contatos vão diretamente para o departamento padrão.</span>
               </div>
-              <div>
-                <label class="bot-field-label">Janela da avaliação (min.)</label>
-                <input v-model.number="botConfig.rating_window_minutes" class="bot-field-control" type="number" min="5" max="1440" />
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <div class="bot-field-label" style="margin-bottom:8px;">Regras e rotinas</div>
-            <div class="bot-behavior-grid">
-              <label v-for="option in botBehaviorOptions" :key="option.key" class="bot-behavior-option">
-                <input v-model="botConfig[option.key]" type="checkbox" style="margin-top:2px;" />
-                <span><strong style="display:block;">{{ option.label }}</strong><small style="color:#64748b;">{{ option.help }}</small></span>
-              </label>
-            </div>
-          </div>
-
-          <div class="inactivity-settings-card">
-            <div class="inactivity-settings-header">
-              <div class="inactivity-settings-icon"><i class="fa-regular fa-clock"></i></div>
-              <div class="inactivity-settings-title">
-                <strong>Inatividade nos atendimentos pelo WhatsApp</strong>
-                <span>Controla conversas em andamento atendidas diretamente pelo celular, fora da plataforma.</span>
-              </div>
-              <label class="inactivity-toggle">
-                <input v-model="botConfig.auto_close_external_service" type="checkbox" />
-                <span>{{ botConfig.auto_close_external_service ? 'Ativada' : 'Desativada' }}</span>
+              <label class="bot-status-toggle">
+                <input v-model="botConfig.enabled" type="checkbox" />
+                {{ botConfig.enabled ? 'Ativado' : 'Desativado' }}
               </label>
             </div>
 
-            <div v-if="botConfig.auto_close_external_service" class="inactivity-settings-body">
+            <div class="settings-form-grid-2">
               <div>
-                <label class="bot-field-label">Encerrar após quanto tempo sem mensagens?</label>
-                <div class="inactivity-time-input">
-                  <input v-model.number="botConfig.external_service_idle_minutes" class="bot-field-control" type="number" min="5" max="1440" />
-                  <span>minutos</span>
+                <label class="bot-field-label">Departamento padrão</label>
+                <select v-model="botConfig.default_department_id" class="bot-field-control">
+                  <option :value="null">Selecione um departamento</option>
+                  <option v-for="department in settingsStore.departments" :key="department.id" :value="department.id">{{ department.name }}</option>
+                </select>
+                <span class="bot-field-help">Usado quando a conta do WhatsApp não possui departamento dedicado nem padrão individual.</span>
+              </div>
+              <div class="bot-number-grid">
+                <div>
+                  <label class="bot-field-label">Retomar atendimento por até</label>
+                  <div class="bot-input-suffix"><input v-model.number="botConfig.resume_window_hours" class="bot-field-control" type="number" min="1" max="168" /><span>horas</span></div>
                 </div>
-                <span class="bot-field-help">Aceita de 5 minutos a 24 horas. O tempo reinicia sempre que o cliente ou atendente envia uma mensagem.</span>
-              </div>
-
-              <label class="inactivity-action-option">
-                <input v-model="botConfig.send_rating_on_external_inactivity" type="checkbox" />
-                <span>
-                  <strong>Enviar avaliação ao encerrar por inatividade</strong>
-                  <small>O administrador pode ativar ou desativar este envio. Aplica-se somente a clientes; funcionários nunca recebem a pesquisa.</small>
-                </span>
-              </label>
-
-              <div class="inactivity-result-note">
-                <i class="fa-solid fa-arrow-rotate-right"></i>
-                <span>Depois do encerramento, uma nova mensagem do cliente inicia normalmente um novo fluxo no bot.</span>
+                <div>
+                  <label class="bot-field-label">Prazo para receber avaliação</label>
+                  <div class="bot-input-suffix"><input v-model.number="botConfig.rating_window_minutes" class="bot-field-control" type="number" min="5" max="1440" /><span>min.</span></div>
+                </div>
               </div>
             </div>
+          </section>
 
-            <div v-else class="inactivity-disabled-note">
-              Os atendimentos feitos pelo celular permanecerão em andamento até serem encerrados manualmente ou até o cliente pedir um novo atendimento.
+          <section v-else-if="botSection === 'automation'" class="bot-tab-panel" role="tabpanel">
+            <div class="bot-panel-heading">
+              <span class="bot-panel-heading-icon purple"><i class="fa-solid fa-diagram-project"></i></span>
+              <div><strong>Fluxo e automações</strong><small>Escolha como o bot identifica, encaminha e encerra cada conversa.</small></div>
             </div>
-          </div>
 
-          <div class="bot-compact-grid">
-            <div v-if="botConfig.auto_route_after_invalid">
-              <label class="bot-field-label">Tentativas inválidas antes de encaminhar</label>
-              <input v-model.number="botConfig.invalid_attempt_limit" class="bot-field-control" type="number" min="1" max="10" />
-            </div>
             <div>
-              <label class="bot-field-label">Proteção para mensagens rápidas (seg.)</label>
-              <input v-model.number="botConfig.rapid_message_grace_seconds" class="bot-field-control" type="number" min="0" max="15" />
-              <span class="bot-field-help">Evita considerar como erro uma mensagem enviada antes de o menu aparecer. Use 0 para desativar.</span>
-            </div>
-          </div>
-
-          <div v-if="botConfig.collect_customer_name" class="bot-single-field">
-            <label class="bot-field-label">Tentativas para informar o nome</label>
-            <input v-model.number="botConfig.customer_name_attempt_limit" class="bot-field-control" type="number" min="1" max="5" />
-            <span class="bot-field-help">Após esse limite, o atendimento continua sem salvar um nome.</span>
-          </div>
-
-          <div class="settings-form-grid-3">
-            <div>
-              <label class="bot-field-label">Palavras para reabrir o menu</label>
-              <input v-model="botConfig.menu_keywords" class="bot-field-control" type="text" />
-              <span class="bot-field-help">Separe por vírgulas. Exemplo: menu, ajuda, início.</span>
-            </div>
-            <div>
-              <label class="bot-field-label">Palavras para falar com um humano</label>
-              <input v-model="botConfig.human_handoff_keywords" class="bot-field-control" type="text" :disabled="!botConfig.human_handoff_enabled" />
-              <span class="bot-field-help">Encaminha imediatamente ao departamento padrão.</span>
-            </div>
-            <div>
-              <label class="bot-field-label">Palavras para cancelar atendimento</label>
-              <input v-model="botConfig.cancel_keywords" class="bot-field-control" type="text" :disabled="!botConfig.allow_customer_cancel" />
-              <span class="bot-field-help">Encerra o chamado no bot. Ex: cancelar, sair, 0.</span>
-            </div>
-            <div>
-              <label class="bot-field-label">Palavras para iniciar outro atendimento</label>
-              <input v-model="botConfig.restart_service_keywords" class="bot-field-control" type="text" />
-              <span class="bot-field-help">Durante atendimento pelo celular, encerra a conversa atual e reabre o menu do bot.</span>
-            </div>
-          </div>
-
-          <div>
-            <div class="bot-messages-header">
-              <div>
-                <div class="bot-field-label">Mensagens automáticas</div>
-                <span class="bot-field-help">Variáveis: <code>{nome}</code>, <code>{departamento}</code>, <code>{opcoes}</code>, <code>{atendente}</code>, <code>{tentativa}</code>, <code>{limite}</code> e <code>{estrelas}</code>. Formatação do WhatsApp: <code>*negrito*</code>, <code>_itálico_</code> e <code>~riscado~</code>.</span>
+              <div class="bot-group-title">Comportamentos do atendimento</div>
+              <div class="bot-behavior-grid">
+                <label v-for="option in botBehaviorOptions" :key="option.key" class="bot-behavior-option">
+                  <input v-model="botConfig[option.key]" type="checkbox" />
+                  <span><strong>{{ option.label }}</strong><small>{{ option.help }}</small></span>
+                </label>
               </div>
-              <button class="btn-secondary" type="button" @click="restoreBotDefaults">Restaurar textos padrão</button>
+            </div>
+
+            <div class="bot-rule-card">
+              <div class="bot-group-title">Limites de tentativa</div>
+              <div class="bot-compact-grid">
+                <div v-if="botConfig.auto_route_after_invalid">
+                  <label class="bot-field-label">Respostas inválidas antes de encaminhar</label>
+                  <input v-model.number="botConfig.invalid_attempt_limit" class="bot-field-control" type="number" min="1" max="10" />
+                </div>
+                <div>
+                  <label class="bot-field-label">Proteção para mensagens rápidas</label>
+                  <div class="bot-input-suffix"><input v-model.number="botConfig.rapid_message_grace_seconds" class="bot-field-control" type="number" min="0" max="15" /><span>seg.</span></div>
+                  <span class="bot-field-help">Evita considerar como erro uma resposta enviada antes de o menu aparecer.</span>
+                </div>
+                <div v-if="botConfig.collect_customer_name">
+                  <label class="bot-field-label">Tentativas para informar o nome</label>
+                  <input v-model.number="botConfig.customer_name_attempt_limit" class="bot-field-control" type="number" min="1" max="5" />
+                  <span class="bot-field-help">Após esse limite, o fluxo continua sem salvar um nome.</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="bot-group-title">Palavras reconhecidas pelo bot</div>
+              <div class="settings-form-grid-2 bot-keyword-grid">
+                <div>
+                  <label class="bot-field-label">Reabrir o menu</label>
+                  <input v-model="botConfig.menu_keywords" class="bot-field-control" type="text" />
+                  <span class="bot-field-help">Exemplo: menu, ajuda, início.</span>
+                </div>
+                <div>
+                  <label class="bot-field-label">Falar com um humano</label>
+                  <input v-model="botConfig.human_handoff_keywords" class="bot-field-control" type="text" :disabled="!botConfig.human_handoff_enabled" />
+                  <span class="bot-field-help">Encaminha ao departamento padrão.</span>
+                </div>
+                <div>
+                  <label class="bot-field-label">Cancelar atendimento</label>
+                  <input v-model="botConfig.cancel_keywords" class="bot-field-control" type="text" :disabled="!botConfig.allow_customer_cancel" />
+                  <span class="bot-field-help">Exemplo: cancelar, sair, 0.</span>
+                </div>
+                <div>
+                  <label class="bot-field-label">Iniciar outro atendimento</label>
+                  <input v-model="botConfig.restart_service_keywords" class="bot-field-control" type="text" />
+                  <span class="bot-field-help">Encerra a conversa atual e abre novamente o menu.</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section v-else-if="botSection === 'inactivity'" class="bot-tab-panel" role="tabpanel">
+            <div class="bot-panel-heading">
+              <span class="bot-panel-heading-icon amber"><i class="fa-regular fa-clock"></i></span>
+              <div><strong>Inatividade</strong><small>Defina o que acontece quando uma conversa pelo celular fica sem novas mensagens.</small></div>
+            </div>
+
+            <div class="inactivity-settings-card">
+              <div class="inactivity-settings-header">
+                <div class="inactivity-settings-icon"><i class="fa-regular fa-clock"></i></div>
+                <div class="inactivity-settings-title">
+                  <strong>Encerramento automático</strong>
+                  <span>Controla conversas atendidas diretamente pelo WhatsApp, fora da plataforma.</span>
+                </div>
+                <label class="inactivity-toggle">
+                  <input v-model="botConfig.auto_close_external_service" type="checkbox" />
+                  <span>{{ botConfig.auto_close_external_service ? 'Ativado' : 'Desativado' }}</span>
+                </label>
+              </div>
+
+              <div v-if="botConfig.auto_close_external_service" class="inactivity-settings-body">
+                <div>
+                  <label class="bot-field-label">Encerrar após quanto tempo sem mensagens?</label>
+                  <div class="inactivity-time-input">
+                    <input v-model.number="botConfig.external_service_idle_minutes" class="bot-field-control" type="number" min="5" max="1440" />
+                    <span>minutos</span>
+                  </div>
+                  <span class="bot-field-help">Aceita de 5 minutos a 24 horas. O tempo reinicia quando o cliente ou atendente envia uma mensagem.</span>
+                </div>
+
+                <label class="inactivity-action-option">
+                  <input v-model="botConfig.send_rating_on_external_inactivity" type="checkbox" />
+                  <span>
+                    <strong>Enviar avaliação ao encerrar</strong>
+                    <small>Aplica-se somente a clientes. Funcionários nunca recebem a pesquisa.</small>
+                  </span>
+                </label>
+
+                <div class="inactivity-result-note">
+                  <i class="fa-solid fa-arrow-rotate-right"></i>
+                  <span>Depois do encerramento, uma nova mensagem do cliente inicia normalmente um novo fluxo no bot.</span>
+                </div>
+              </div>
+
+              <div v-else class="inactivity-disabled-note">
+                Os atendimentos pelo celular permanecerão em andamento até serem encerrados manualmente ou o cliente solicitar um novo atendimento.
+              </div>
+            </div>
+          </section>
+
+          <section v-else class="bot-tab-panel" role="tabpanel">
+            <div class="bot-panel-heading bot-messages-heading">
+              <span class="bot-panel-heading-icon green"><i class="fa-regular fa-message"></i></span>
+              <div><strong>Mensagens automáticas</strong><small>Personalize os textos enviados ao cliente em cada etapa do atendimento.</small></div>
+              <button class="btn-secondary" type="button" @click="restoreBotDefaults"><i class="fa-solid fa-arrow-rotate-left"></i> Restaurar textos padrão</button>
+            </div>
+
+            <div class="bot-variable-help">
+              <i class="fa-solid fa-code"></i>
+              <span>Use <code>{nome}</code>, <code>{departamento}</code>, <code>{opcoes}</code>, <code>{atendente}</code>, <code>{tentativa}</code>, <code>{limite}</code> e <code>{estrelas}</code>. No WhatsApp: <code>*negrito*</code>, <code>_itálico_</code> e <code>~riscado~</code>.</span>
             </div>
 
             <div class="bot-message-list">
-              <div v-for="field in botMessageFields" :key="field.key">
-                <label class="bot-field-label">{{ field.label }}</label>
-                <textarea v-model="botConfig[field.key]" :rows="field.rows || 3" maxlength="4000" class="bot-field-control" style="resize:vertical;line-height:1.45;"></textarea>
+              <div v-for="field in botMessageFields" :key="field.key" class="bot-message-editor">
+                <div class="bot-message-editor-header">
+                  <label class="bot-field-label">{{ field.label }}</label>
+                  <span>{{ String(botConfig[field.key] || '').length }}/4000</span>
+                </div>
+                <textarea v-model="botConfig[field.key]" :rows="field.rows || 3" maxlength="4000" class="bot-field-control"></textarea>
                 <span class="bot-field-help">{{ field.help }}</span>
               </div>
             </div>
-          </div>
+          </section>
         </div>
       </div>
 
@@ -312,7 +363,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -328,7 +379,19 @@ const props = defineProps({
   standalone: { type: Boolean, default: false }
 })
 const activeTab = ref(props.initialTab)
+const botSection = ref('overview')
 const savingBot = ref(false)
+
+// As rotas de configurações usam o mesmo componente. O Vue pode preservar a
+// instância ao alternar entre elas, então sincronizamos a aba com a nova rota.
+watch(
+  () => props.initialTab,
+  (tab) => {
+    activeTab.value = tab
+    if (tab === 'bot') botSection.value = 'overview'
+  },
+  { flush: 'sync' }
+)
 
 const showModalDept = ref(false)
 const editingDepartment = ref(null)
@@ -402,6 +465,13 @@ const botBehaviorOptions = [
   { key: 'send_queue_confirmation', label: 'Confirmar entrada na fila', help: 'Envia uma mensagem após escolher o departamento.' },
   { key: 'send_transfer_notice', label: 'Avisar sobre transferências', help: 'Notifica o cliente quando o setor for alterado.' },
   { key: 'send_rating_request', label: 'Solicitar avaliação', help: 'Envia a pesquisa ao encerrar atendimentos manualmente.' }
+]
+
+const botSections = [
+  { id: 'overview', label: 'Visão geral', description: 'Status e parâmetros principais', icon: 'fa-solid fa-gauge-high' },
+  { id: 'automation', label: 'Fluxo e automações', description: 'Regras, limites e palavras-chave', icon: 'fa-solid fa-diagram-project' },
+  { id: 'inactivity', label: 'Inatividade', description: 'Encerramento e avaliação', icon: 'fa-regular fa-clock' },
+  { id: 'messages', label: 'Mensagens', description: 'Textos enviados pelo bot', icon: 'fa-regular fa-message' }
 ]
 
 const botMessageFields = [
@@ -537,6 +607,44 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.bot-subnav { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;padding:6px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc; }
+.bot-subnav-item { min-width:0;padding:10px;border:1px solid transparent;border-radius:9px;display:flex;align-items:center;gap:9px;background:transparent;color:#64748b;text-align:left;cursor:pointer;transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease; }
+.bot-subnav-item:hover { border-color:#dbeafe;background:#fff;transform:translateY(-1px); }
+.bot-subnav-item.active { border-color:#bfdbfe;background:#fff;color:#2563eb;box-shadow:0 4px 14px rgba(37,99,235,.08); }
+.bot-subnav-icon { width:31px;height:31px;border-radius:8px;display:grid;place-items:center;flex:none;background:#e2e8f0;color:#64748b;font-size:12px; }
+.bot-subnav-item.active .bot-subnav-icon { background:#dbeafe;color:#2563eb; }
+.bot-subnav-copy { min-width:0;display:flex;flex-direction:column;gap:2px; }
+.bot-subnav-copy strong { overflow:hidden;color:#334155;font-size:11.5px;font-weight:600;text-overflow:ellipsis;white-space:nowrap; }
+.bot-subnav-item.active .bot-subnav-copy strong { color:#1d4ed8; }
+.bot-subnav-copy small { overflow:hidden;color:#94a3b8;font-size:9.5px;font-weight:400;text-overflow:ellipsis;white-space:nowrap; }
+.bot-tab-content { gap:0; }
+.bot-tab-panel { display:flex;flex-direction:column;gap:20px;animation:bot-tab-enter .16s ease-out; }
+.bot-panel-heading { padding:2px 0 13px;border-bottom:1px solid #edf1f5;display:flex;align-items:center;gap:10px; }
+.bot-panel-heading-icon { width:36px;height:36px;border-radius:10px;display:grid;place-items:center;flex:none;background:#dbeafe;color:#2563eb;font-size:13px; }
+.bot-panel-heading-icon.purple { background:#ede9fe;color:#7c3aed; }
+.bot-panel-heading-icon.amber { background:#fef3c7;color:#d97706; }
+.bot-panel-heading-icon.green { background:#dcfce7;color:#059669; }
+.bot-panel-heading>div { min-width:0;display:flex;flex:1;flex-direction:column;gap:2px; }
+.bot-panel-heading strong { color:#1e293b;font-size:13px;font-weight:600; }
+.bot-panel-heading small { color:#64748b;font-size:10.5px;line-height:1.4; }
+.bot-group-title { margin-bottom:8px;color:#334155;font-size:11px;font-weight:600; }
+.bot-rule-card { padding:14px;border:1px solid #e2e8f0;border-radius:11px;background:#fbfcfe; }
+.bot-input-suffix { position:relative; }
+.bot-input-suffix .bot-field-control { padding-right:48px; }
+.bot-input-suffix>span { position:absolute;top:50%;right:10px;color:#94a3b8;font-size:10.5px;font-weight:600;transform:translateY(-50%);pointer-events:none; }
+.bot-keyword-grid>div { min-width:0; }
+.bot-field-control:disabled { background:#f8fafc;color:#94a3b8;cursor:not-allowed; }
+.bot-messages-heading .btn-secondary { flex:none; }
+.bot-variable-help { padding:10px 12px;border:1px solid #dbeafe;border-radius:9px;display:flex;align-items:flex-start;gap:8px;background:#f8fbff;color:#475569;font-size:10.5px;line-height:1.55; }
+.bot-variable-help>i { margin-top:3px;color:#2563eb; }
+.bot-variable-help code { padding:1px 4px;border-radius:4px;background:#eaf2ff;color:#1d4ed8;font-size:10px; }
+.bot-message-list { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px; }
+.bot-message-editor { min-width:0;padding:13px;border:1px solid #e2e8f0;border-radius:10px;background:#fbfcfe;transition:border-color .15s ease,box-shadow .15s ease; }
+.bot-message-editor:focus-within { border-color:#bfdbfe;background:#fff;box-shadow:0 4px 16px rgba(37,99,235,.06); }
+.bot-message-editor-header { display:flex;align-items:center;justify-content:space-between;gap:10px; }
+.bot-message-editor-header>span { color:#94a3b8;font-size:9px;white-space:nowrap; }
+.bot-message-editor textarea { min-height:78px;resize:vertical;line-height:1.45; }
+@keyframes bot-tab-enter { from { opacity:0;transform:translateY(3px); } to { opacity:1;transform:translateY(0); } }
 .department-order-heading { width:150px; }
 .department-order-cell { display:flex;align-items:center;gap:8px; }
 .department-order-number { width:24px;height:24px;border-radius:7px;background:#eff6ff;color:#2563eb;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700; }
@@ -566,5 +674,7 @@ button:disabled { opacity:.55;cursor:not-allowed; }
 .inactivity-action-option small { color:#64748b;font-size:10.5px;line-height:1.35; }
 .inactivity-result-note { grid-column:1 / -1;display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:7px;background:#f0fdf4;color:#166534;font-size:10.5px; }
 .inactivity-disabled-note { padding:11px 14px;border-top:1px solid #dbeafe;color:#64748b;font-size:10.5px;background:#fff; }
-@media (max-width: 800px) { .inactivity-settings-body { grid-template-columns:1fr; } .inactivity-result-note { grid-column:auto; } .inactivity-settings-header { align-items:flex-start;flex-wrap:wrap; } .inactivity-toggle { margin-left:44px; } }
+@media (max-width: 980px) { .bot-subnav { grid-template-columns:repeat(2,minmax(0,1fr)); } .bot-message-list { grid-template-columns:1fr; } }
+@media (max-width: 800px) { .inactivity-settings-body { grid-template-columns:1fr; } .inactivity-result-note { grid-column:auto; } .inactivity-settings-header { align-items:flex-start;flex-wrap:wrap; } .inactivity-toggle { margin-left:44px; } .bot-messages-heading { align-items:flex-start;flex-wrap:wrap; } .bot-messages-heading .btn-secondary { width:100%;justify-content:center; } }
+@media (max-width: 560px) { .bot-subnav { grid-template-columns:1fr 1fr;gap:5px; } .bot-subnav-item { padding:8px; } .bot-subnav-copy small { display:none; } .bot-subnav-icon { width:28px;height:28px; } .bot-panel-heading { align-items:flex-start; } }
 </style>

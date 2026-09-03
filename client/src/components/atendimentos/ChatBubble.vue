@@ -216,7 +216,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { cleanMediaDisplayText, getDocumentDisplayName, getMediaSource } from '@/utils/media-message'
+import { cleanMediaDisplayText, getDocumentDisplayName, getMediaSource, getProtectedMediaPath } from '@/utils/media-message'
 import { loadProtectedMedia } from '@/utils/protected-media-cache'
 
 const companyTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
@@ -326,7 +326,7 @@ async function resolveMedia(source) {
   mediaLoadError.value = false
   if (!source) return
 
-  if (source.startsWith('/api/media/') || source.startsWith('/media/')) {
+  if (getProtectedMediaPath(source)) {
     try {
       resolvedMediaSrc.value = await loadProtectedMedia(source)
     } catch (error) {

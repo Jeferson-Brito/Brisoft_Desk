@@ -5,6 +5,20 @@ export function getMediaSource(message = {}) {
   return match?.[1] || null
 }
 
+export function getProtectedMediaPath(source, origin = '') {
+  const raw = String(source || '').trim()
+  if (!raw) return null
+  try {
+    const base = origin || (typeof window !== 'undefined' ? window.location.origin : 'https://brisoft.local')
+    const url = new URL(raw, base)
+    const match = url.pathname.match(/^\/(?:api\/)?media\/([a-zA-Z0-9._-]+)$/)
+    if (!match) return null
+    return `/media/${encodeURIComponent(match[1])}`
+  } catch {
+    return null
+  }
+}
+
 export function cleanMediaDisplayText(value, hasMediaSource = false) {
   const text = String(value || '').replace(/\|\|\/(?:api\/)?media\/[^\s]+/g, '').trim()
   if (!hasMediaSource) return text
