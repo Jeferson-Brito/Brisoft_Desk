@@ -51,7 +51,20 @@ router.get('/media/:filename', requireAuth, async (req, res) => {
   const stored = await cloudStorage.downloadMedia(filename);
   if (!stored) return res.status(404).json({ success: false, error: 'Mídia não encontrada.' });
   res.type(stored.contentType);
+  if (stored.buffer?.length) res.setHeader('Content-Length', stored.buffer.length);
   return res.send(stored.buffer);
+});
+
+router.get('/media/:filename/info', requireAuth, async (req, res) => {
+  const filename = path.basename(req.params.filename || '');
+  if (!filename || filename !== req.params.filename || !/^[a-zA-Z0-9._-]+$/.test(filename)) {
+    return res.status(400).json({ success: false, error: 'Arquivo inválido.' });
+  }
+  if (!(await ticketService.canAccessMedia(filename, req.user))) {
+    return res.status(404).json({ success: false, error: 'Mídia não encontrada.' });
+  }
+  const size = ticketService.getMediaSize(filename);
+  return res.json({ success: true, filename, size: size || 0 });
 });
 
 // Rotas de Usuários (apenas administradores)

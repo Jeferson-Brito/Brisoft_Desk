@@ -33,3 +33,47 @@ export function getDocumentDisplayName(message = {}, source = '') {
   if (!fileName) return 'Baixar documento'
   try { return decodeURIComponent(fileName).replace(/^doc_\d+_/, '') } catch { return fileName }
 }
+
+export const LARGE_MEDIA_THRESHOLD_BYTES = 5 * 1024 * 1024
+
+export function formatFileSize(bytes) {
+  const size = Number(bytes) || 0
+  if (size <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const i = Math.min(units.length - 1, Math.floor(Math.log(size) / Math.log(1024)))
+  const formatted = (size / Math.pow(1024, i)).toFixed(i > 1 ? 1 : 0)
+  return `${formatted} ${units[i]}`
+}
+
+export function isAudioMedia(message = {}, source = '') {
+  if (message.type === 'audio') return true
+  const s = String(source || message.media_url || message.mediaUrl || '').toLowerCase()
+  return s.endsWith('.ogg') || s.endsWith('.mp3') || s.endsWith('.m4a') || s.endsWith('.wav')
+}
+
+export function isVisualMedia(message = {}, source = '') {
+  if (isAudioMedia(message, source)) return false
+  const t = String(message.type || '').toLowerCase()
+  if (t === 'image' || t === 'video' || t === 'sticker') return true
+  const s = String(source || message.media_url || message.mediaUrl || '').toLowerCase()
+  return /\.(?:jpe?g|png|webp|mp4|webm|mov)$/i.test(s)
+}
+
+export function isLargeMedia(message = {}, source = '') {
+  // Áudio não pode ter limite de MB
+  if (isAudioMedia(message, source)) return false
+  if (!isVisualMedia(message, source)) return false
+  const size = Number(message.media_size ?? message.file_size ?? 0)
+  return size > LARGE_MEDIA_THRESHOLD_BYTES
+}
+
+export function getMediaDownloadName(message = {}, source = '') {
+  if (message.file_name) return message.file_name
+  const raw = String(source || message.media_url || message.mediaUrl || '').split('/').pop()?.split('?')[0]
+  if (!raw) return 'arquivo'
+  try {
+    return decodeURIComponent(raw).replace(/^(?:img|video|audio|doc|sticker)_\d+_[a-zA-Z0-9_-]+(?:\.|$)/, '') || raw
+  } catch {
+    return raw
+  }
+}

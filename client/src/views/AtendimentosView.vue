@@ -101,12 +101,12 @@ async function fetchPerformance() {
 
 watch(() => ticketStore.queue.filter(ticket => !ticket.is_group).map(ticket => `${ticket.id}:${ticket.status}:${ticket.updated_at || ''}`).join('|'), () => {
   clearTimeout(queueRefreshTimer)
-  queueRefreshTimer = setTimeout(fetchPerformance, 700)
+  queueRefreshTimer = setTimeout(fetchPerformance, 2500)
 })
 
 watch(() => ticketStore.kpiRevision, () => {
   clearTimeout(queueRefreshTimer)
-  queueRefreshTimer = setTimeout(fetchPerformance, 250)
+  queueRefreshTimer = setTimeout(fetchPerformance, 2500)
 })
 
 async function syncLiveData() {
@@ -126,7 +126,7 @@ watch(() => ticketStore.activeTicket, (ticket) => {
 
 onMounted(async () => {
   await Promise.all([ticketStore.fetchQueue(), fetchPerformance()])
-  refreshTimer = setInterval(syncLiveData, 5000)
+  refreshTimer = setInterval(syncLiveData, 30000)
   document.addEventListener('visibilitychange', syncLiveData)
   document.addEventListener('keydown', minimizeActiveChat)
 })

@@ -46,6 +46,41 @@
         <button type="button" class="media-retry-button" @click="retryMedia">Tentar novamente</button>
       </div>
 
+      <!-- Card para Mídia Grande (> 5MB) sob demanda -->
+      <div v-if="isLargeMediaItem && !showLargeInline" class="large-media-box" :class="{ outgoing: msg.sender === 'agent' }">
+        <div class="large-media-header">
+          <div class="large-media-icon">
+            <i :class="isVideo ? 'fa-solid fa-film' : 'fa-solid fa-image'"></i>
+          </div>
+          <div class="large-media-meta">
+            <span class="large-media-title">{{ isVideo ? 'Vídeo' : 'Imagem' }}</span>
+            <span class="large-media-size">{{ formattedMediaSize }}</span>
+            <span class="large-media-badge"><i class="fa-solid fa-triangle-exclamation"></i> Acima de 5 MB</span>
+          </div>
+        </div>
+        <div class="large-media-actions">
+          <button
+            type="button"
+            class="btn-download-large-media"
+            :disabled="downloadingToPc"
+            @click.stop="downloadToPc"
+          >
+            <i v-if="downloadingToPc" class="fa-solid fa-spinner fa-spin"></i>
+            <i v-else class="fa-solid fa-download"></i>
+            <span>{{ downloadingToPc ? 'Baixando...' : (downloadedBlobUrl ? 'Baixar novamente' : 'Baixar mídia') }}</span>
+          </button>
+          <button
+            v-if="downloadedBlobUrl"
+            type="button"
+            class="btn-view-inline"
+            @click.stop="showLargeInline = true"
+          >
+            <i class="fa-solid fa-eye"></i>
+            <span>Visualizar no chat</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Imagem -->
       <div v-else-if="isImage" style="margin-bottom:6px;">
         <img
@@ -55,6 +90,11 @@
           @click="showImageZoom = true"
           @error="mediaLoadError = true"
         />
+        <div v-if="isLargeMediaItem && showLargeInline" style="margin-top:4px;">
+          <button type="button" class="btn-view-inline" style="width:auto;padding:4px 8px;font-size:11px;" @click.stop="downloadToPc">
+            <i class="fa-solid fa-download"></i> Baixar no PC
+          </button>
+        </div>
       </div>
 
       <!-- Áudio / Mensagem de Voz -->
@@ -69,6 +109,11 @@
       <!-- Vídeo -->
       <div v-else-if="isVideo" style="margin-bottom:6px;">
         <video controls preload="metadata" :src="resolvedMediaSrc" style="max-width:280px;max-height:260px;border-radius:8px;display:block;" @error="mediaLoadError = true"></video>
+        <div v-if="isLargeMediaItem && showLargeInline" style="margin-top:4px;">
+          <button type="button" class="btn-view-inline" style="width:auto;padding:4px 8px;font-size:11px;" @click.stop="downloadToPc">
+            <i class="fa-solid fa-download"></i> Baixar no PC
+          </button>
+        </div>
       </div>
 
       <!-- Documento -->
@@ -133,6 +178,41 @@
         <button type="button" class="media-retry-button" @click="retryMedia">Tentar novamente</button>
       </div>
 
+      <!-- Card para Mídia Grande (> 5MB) sob demanda -->
+      <div v-if="isLargeMediaItem && !showLargeInline" class="large-media-box" :class="{ outgoing: msg.sender === 'agent' }">
+        <div class="large-media-header">
+          <div class="large-media-icon">
+            <i :class="isVideo ? 'fa-solid fa-film' : 'fa-solid fa-image'"></i>
+          </div>
+          <div class="large-media-meta">
+            <span class="large-media-title">{{ isVideo ? 'Vídeo' : 'Imagem' }}</span>
+            <span class="large-media-size">{{ formattedMediaSize }}</span>
+            <span class="large-media-badge"><i class="fa-solid fa-triangle-exclamation"></i> Acima de 5 MB</span>
+          </div>
+        </div>
+        <div class="large-media-actions">
+          <button
+            type="button"
+            class="btn-download-large-media"
+            :disabled="downloadingToPc"
+            @click.stop="downloadToPc"
+          >
+            <i v-if="downloadingToPc" class="fa-solid fa-spinner fa-spin"></i>
+            <i v-else class="fa-solid fa-download"></i>
+            <span>{{ downloadingToPc ? 'Baixando...' : (downloadedBlobUrl ? 'Baixar novamente' : 'Baixar mídia') }}</span>
+          </button>
+          <button
+            v-if="downloadedBlobUrl"
+            type="button"
+            class="btn-view-inline"
+            @click.stop="showLargeInline = true"
+          >
+            <i class="fa-solid fa-eye"></i>
+            <span>Visualizar no chat</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Imagem enviada pelo atendente -->
       <div v-else-if="isImage" style="margin-bottom:6px;">
         <img
@@ -142,6 +222,11 @@
           @click="showImageZoom = true"
           @error="mediaLoadError = true"
         />
+        <div v-if="isLargeMediaItem && showLargeInline" style="margin-top:4px;">
+          <button type="button" class="btn-view-inline" style="width:auto;padding:4px 8px;font-size:11px;" @click.stop="downloadToPc">
+            <i class="fa-solid fa-download"></i> Baixar no PC
+          </button>
+        </div>
       </div>
 
       <!-- Áudio enviado -->
@@ -152,6 +237,11 @@
       <!-- Vídeo enviado -->
       <div v-else-if="isVideo" style="margin-bottom:6px;">
         <video controls preload="metadata" :src="resolvedMediaSrc" style="max-width:280px;max-height:260px;border-radius:8px;display:block;" @error="mediaLoadError = true"></video>
+        <div v-if="isLargeMediaItem && showLargeInline" style="margin-top:4px;">
+          <button type="button" class="btn-view-inline" style="width:auto;padding:4px 8px;font-size:11px;" @click.stop="downloadToPc">
+            <i class="fa-solid fa-download"></i> Baixar no PC
+          </button>
+        </div>
       </div>
 
       <!-- Documento enviado -->
@@ -216,8 +306,16 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { cleanMediaDisplayText, getDocumentDisplayName, getMediaSource, getProtectedMediaPath } from '@/utils/media-message'
-import { loadProtectedMedia } from '@/utils/protected-media-cache'
+import {
+  cleanMediaDisplayText,
+  getDocumentDisplayName,
+  getMediaSource,
+  getProtectedMediaPath,
+  LARGE_MEDIA_THRESHOLD_BYTES,
+  formatFileSize,
+  getMediaDownloadName
+} from '@/utils/media-message'
+import { loadProtectedMedia, fetchMediaInfo } from '@/utils/protected-media-cache'
 
 const companyTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
@@ -318,14 +416,112 @@ const mediaSrc = computed(() => {
   return getMediaSource(props.msg)
 })
 
+const isImage = computed(() => {
+  if (props.msg?.deleted_at) return false
+  if (props.msg?.type === 'image' || props.msg?.type === 'sticker') return true
+  if (mediaSrc.value && (mediaSrc.value.endsWith('.jpg') || mediaSrc.value.endsWith('.png') || mediaSrc.value.endsWith('.webp') || mediaSrc.value.endsWith('.jpeg'))) return true
+  return false
+})
+
+const isAudio = computed(() => {
+  if (props.msg?.deleted_at) return false
+  if (props.msg?.type === 'audio') return true
+  if (mediaSrc.value && (mediaSrc.value.endsWith('.ogg') || mediaSrc.value.endsWith('.mp3') || mediaSrc.value.endsWith('.m4a') || mediaSrc.value.endsWith('.wav'))) return true
+  return false
+})
+
+const isVideo = computed(() => {
+  if (props.msg?.deleted_at) return false
+  if (props.msg?.type === 'video') return true
+  if (mediaSrc.value && (mediaSrc.value.endsWith('.mp4') || mediaSrc.value.endsWith('.webm') || mediaSrc.value.endsWith('.mov'))) return true
+  return false
+})
+
+const isDocument = computed(() => {
+  if (props.msg?.deleted_at) return false
+  if (props.msg?.type === 'document') return true
+  if (mediaSrc.value && !isImage.value && !isAudio.value && !isVideo.value) return true
+  return false
+})
+
+const discoveredSize = ref(null)
+const downloadingToPc = ref(false)
+const showLargeInline = ref(false)
+const downloadedBlobUrl = ref(null)
+
+const effectiveMediaSize = computed(() => {
+  if (discoveredSize.value !== null) return discoveredSize.value
+  const fromMsg = props.msg?.media_size ?? props.msg?.file_size
+  if (fromMsg !== undefined && fromMsg !== null && !Number.isNaN(Number(fromMsg))) return Number(fromMsg)
+  return null
+})
+
+const isLargeMediaItem = computed(() => {
+  // Áudio nunca tem limite de MB ("áudio não pode ter limite de MB")
+  if (isAudio.value) return false
+  if (!isImage.value && !isVideo.value) return false
+  if (effectiveMediaSize.value !== null) {
+    return effectiveMediaSize.value > LARGE_MEDIA_THRESHOLD_BYTES
+  }
+  return false
+})
+
+const formattedMediaSize = computed(() => {
+  return formatFileSize(effectiveMediaSize.value || 0)
+})
+
+const downloadFileName = computed(() => {
+  return getMediaDownloadName(props.msg, mediaSrc.value)
+})
+
+async function downloadToPc() {
+  if (downloadingToPc.value || !mediaSrc.value) return
+  downloadingToPc.value = true
+  try {
+    const blobUrl = resolvedMediaSrc.value || await loadProtectedMedia(mediaSrc.value)
+    resolvedMediaSrc.value = blobUrl
+    downloadedBlobUrl.value = blobUrl
+
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = downloadFileName.value || (isVideo.value ? 'video.mp4' : 'imagem.jpg')
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  } catch (error) {
+    console.error('Falha ao baixar mídia para o PC:', error)
+    mediaLoadError.value = true
+  } finally {
+    downloadingToPc.value = false
+  }
+}
+
+watch(showLargeInline, show => {
+  if (show && !resolvedMediaSrc.value && mediaSrc.value) {
+    resolveMedia(mediaSrc.value)
+  }
+})
+
 const resolvedMediaSrc = ref(null)
 
 async function resolveMedia(source) {
   resolvedMediaSrc.value = null
-  mediaLoading.value = Boolean(source)
+  mediaLoading.value = false
   mediaLoadError.value = false
   if (!source) return
 
+  if ((isImage.value || isVideo.value) && effectiveMediaSize.value === null) {
+    fetchMediaInfo(source).then(info => {
+      if (info?.size) discoveredSize.value = info.size
+    }).catch(() => {})
+  }
+
+  // Mídias > 5MB não são baixadas automaticamente
+  if (isLargeMediaItem.value && !showLargeInline.value && !downloadedBlobUrl.value) {
+    return
+  }
+
+  mediaLoading.value = true
   if (getProtectedMediaPath(source)) {
     try {
       resolvedMediaSrc.value = await loadProtectedMedia(source)
@@ -357,36 +553,8 @@ function retryMedia() {
   if (mediaSrc.value) resolveMedia(mediaSrc.value)
 }
 
-const isImage = computed(() => {
-  if (props.msg?.deleted_at) return false
-  if (props.msg?.type === 'image' || props.msg?.type === 'sticker') return true
-  if (mediaSrc.value && (mediaSrc.value.endsWith('.jpg') || mediaSrc.value.endsWith('.png') || mediaSrc.value.endsWith('.webp') || mediaSrc.value.endsWith('.jpeg'))) return true
-  return false
-})
-
-const isAudio = computed(() => {
-  if (props.msg?.deleted_at) return false
-  if (props.msg?.type === 'audio') return true
-  if (mediaSrc.value && (mediaSrc.value.endsWith('.ogg') || mediaSrc.value.endsWith('.mp3') || mediaSrc.value.endsWith('.m4a') || mediaSrc.value.endsWith('.wav'))) return true
-  return false
-})
-
-const isVideo = computed(() => {
-  if (props.msg?.deleted_at) return false
-  if (props.msg?.type === 'video') return true
-  if (mediaSrc.value && (mediaSrc.value.endsWith('.mp4') || mediaSrc.value.endsWith('.webm') || mediaSrc.value.endsWith('.mov'))) return true
-  return false
-})
-
-const isDocument = computed(() => {
-  if (props.msg?.deleted_at) return false
-  if (props.msg?.type === 'document') return true
-  if (mediaSrc.value && !isImage.value && !isAudio.value && !isVideo.value) return true
-  return false
-})
-
 const hasMedia = computed(() => !isDeleted.value && (isImage.value || isAudio.value || isVideo.value || isDocument.value))
-const mediaUnavailable = computed(() => mediaLoadError.value || !mediaSrc.value || !resolvedMediaSrc.value)
+const mediaUnavailable = computed(() => mediaLoadError.value || !mediaSrc.value || (!resolvedMediaSrc.value && (!isLargeMediaItem.value || showLargeInline.value)))
 
 const reactionData = computed(() => {
   if (props.msg?.type !== 'reaction') return null
@@ -693,5 +861,139 @@ onUnmounted(() => {
   max-width: 90%;
   line-height: 1.4;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.large-media-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 240px;
+  max-width: 300px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #1e293b;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.large-media-box.outgoing {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.large-media-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.large-media-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: #e2e8f0;
+  color: #2563eb;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.large-media-box.outgoing .large-media-icon {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.large-media-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.large-media-title {
+  font-weight: 700;
+  font-size: 12.5px;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.large-media-size {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.large-media-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #b45309;
+  background: #fef3c7;
+  padding: 1px 5px;
+  border-radius: 4px;
+  width: fit-content;
+  margin-top: 2px;
+}
+
+.large-media-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.btn-download-large-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #ffffff;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-download-large-media:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-download-large-media:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-view-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334155;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-view-inline:hover {
+  background: #f1f5f9;
 }
 </style>

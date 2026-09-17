@@ -115,7 +115,7 @@ export const useTicketStore = defineStore('tickets', () => {
 
   // Recebe ticket via WebSocket e insere/atualiza na fila
   function receiveTicket(ticket) {
-    if (ticket?.status === 'finalizado') {
+    if (ticket?.status === 'finalizado' || ticket?.status === 'grupo_inativo') {
       removeTicket(ticket.id)
       return
     }
@@ -196,6 +196,17 @@ export const useTicketStore = defineStore('tickets', () => {
     const idx = queue.value.findIndex(t => t.id === ticketId)
     if (idx !== -1) queue.value.splice(idx, 1)
     if (activeTicketId.value === ticketId) {
+      activeTicketId.value = null
+      requireExplicitSelection = true
+    }
+  }
+
+  // Remove múltiplos tickets da fila em lote
+  function removeTickets(ticketIds = []) {
+    if (!Array.isArray(ticketIds) || !ticketIds.length) return
+    const idSet = new Set(ticketIds.map(String))
+    queue.value = queue.value.filter(t => !idSet.has(String(t.id)))
+    if (activeTicketId.value && idSet.has(String(activeTicketId.value))) {
       activeTicketId.value = null
       requireExplicitSelection = true
     }
@@ -303,7 +314,7 @@ export const useTicketStore = defineStore('tickets', () => {
     // getters
     visibleTickets, waitingTickets, inProgressTickets, chatbotTickets, groupTickets, activeTicket,
     // actions
-    fetchQueue, fetchTickets: fetchQueue, receiveTicket, appendMessage, patchMessage, removeTicket, patchTicket, notifyKpisUpdated, isLoadingMessages, loadTicketMessages,
+    fetchQueue, fetchTickets: fetchQueue, receiveTicket, appendMessage, patchMessage, removeTicket, removeTickets, patchTicket, notifyKpisUpdated, isLoadingMessages, loadTicketMessages,
     selectTicket, minimizeActiveTicket, assume, close
   }
 })

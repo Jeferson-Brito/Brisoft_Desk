@@ -31,3 +31,18 @@ test('obtém o texto da mensagem original usada em uma reação', () => {
     '📷 Imagem'
   );
 });
+
+test('armazena e recupera o tamanho da mídia em bytes no cache', () => {
+  const ticketService = require('../src/services/ticket.service');
+  ticketService._test.rememberMediaSize('test-image-large.png', 6 * 1024 * 1024);
+  
+  assert.equal(
+    ticketService.getMediaSize('/media/test-image-large.png', 'test-image-large.png'),
+    6 * 1024 * 1024
+  );
+  assert.equal(
+    ticketService.getMediaSize('https://example.com/api/media/test-image-large.png'),
+    6 * 1024 * 1024
+  );
+});
+

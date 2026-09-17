@@ -355,7 +355,7 @@ onMounted(async () => {
   try { await loadDepartments(); await fetchData(true); bindSocket() }
   catch (mountError) { error.value = mountError.message; loading.value = false }
   clockTimer = setInterval(() => { now.value = new Date() }, 1000)
-  pollTimer = setInterval(() => fetchData(false), 1000)
+  pollTimer = setInterval(() => fetchData(false), 10000)
   document.addEventListener('fullscreenchange', onFullscreenChange)
   document.addEventListener('visibilitychange', onVisibilityChange)
 })

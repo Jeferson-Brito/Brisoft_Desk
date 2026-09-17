@@ -5,6 +5,15 @@ const PAGE_SIZE = 1000;
 let snapshotTableAvailable = null;
 let snapshotFallbackAvailable = null;
 const savedSnapshotKeys = new Set();
+const PERFORMANCE_CACHE_TTL_MS = 30 * 1000;
+const PAST_MONTH_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const performanceResultCache = new Map();
+const periodDataCache = new Map();
+
+function clearPerformanceCache() {
+  performanceResultCache.clear();
+  periodDataCache.clear();
+}
 
 function parseMonth(value, fallback = new Date()) {
   const match = String(value || '').match(/^(\d{4})-(\d{2})$/);
@@ -197,7 +206,19 @@ const FULL_SELECT = 'id, user_id, department_id, department, agent_name, encerra
 const SAFE_SELECT = 'id, user_id, department_id, department, agent_name, encerrado_por, status, is_employee, is_group, created_at, updated_at, assumed_at, closed_at, departments(id, name, color, sla_target_minutes)';
 
 class PerformanceService {
-  async loadPeriod(period, departmentId = null) {
+  async loadPeriod(period, departmentId = null, force = false) {
+    const scopeKey = Array.isArray(departmentId)
+      ? departmentId.slice().sort().join(',')
+      : (departmentId ? String(departmentId) : 'all');
+    const cacheKey = `${period.key}:${scopeKey}`;
+
+    if (!force) {
+      const cached = periodDataCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.data;
+      }
+    }
+
     const useFull = performanceColumnsAvailable !== false;
     const select = useFull ? FULL_SELECT : SAFE_SELECT;
     const applyDepartment = query => Array.isArray(departmentId)
@@ -226,11 +247,14 @@ class PerformanceService {
         fetchAll(() => supabase.from('ratings').select('id, ticket_id, agent_name, score, created_at').gte('created_at', period.start).lt('created_at', period.end).order('created_at')).catch(() => [])
       ]);
       if (useFull) performanceColumnsAvailable = true;
-      return { created, closed, active, ratings: ratings || [] };
+      const result = { created, closed, active, ratings: ratings || [] };
+      const ttl = period.isCurrent ? PERFORMANCE_CACHE_TTL_MS : PAST_MONTH_CACHE_TTL_MS;
+      periodDataCache.set(cacheKey, { data: result, expiresAt: Date.now() + ttl });
+      return result;
     } catch (err) {
       if (useFull && (err.code === '42703' || err.code === 'PGRST204' || /does not exist|schema cache|queued_at|started_at|first_response_at|finished_at|sla_minutes_target|sla_met/i.test(String(err.message || '')))) {
         performanceColumnsAvailable = false;
-        return this.loadPeriod(period, departmentId);
+        return this.loadPeriod(period, departmentId, force);
       }
       console.warn('Erro ao carregar período de desempenho:', err.message || err);
       return { created: [], closed: [], active: [], ratings: [] };
@@ -239,8 +263,20 @@ class PerformanceService {
 
   async getPerformance(user, filters = {}) {
     if (!isSupabaseConfigured()) return null;
+    const force = filters.force === true;
     const requestedPeriod = parseMonth(filters.month);
     const previousPeriod = parseMonth(requestedPeriod.previousKey);
+
+    const userScope = isAdmin(user) ? 'admin' : (isSupervisor(user) ? `sup:${user?.id}` : `agent:${user?.id}`);
+    const filterScope = `dept:${filters.departmentId || 'all'}:agent:${filters.agentId || 'all'}`;
+    const cacheKey = `${requestedPeriod.key}:${userScope}:${filterScope}`;
+
+    if (!force) {
+      const cached = performanceResultCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.data;
+      }
+    }
     const [{ data: users }, { data: departments }, supervisorLinksResult] = await Promise.all([
       supabase.from('users').select('id, name, role, department_id, avatar_url, is_active').order('name'),
       supabase.from('departments').select('id, name, color, sla_target_minutes').order('name'),
@@ -335,7 +371,7 @@ class PerformanceService {
 
     if (requestedPeriod.isCurrent && !(supervisor && !departmentId)) await this.saveSnapshot(previousPeriod, selectedUser, departmentId, previousMetrics);
 
-    return {
+    const result = {
       month: requestedPeriod.key,
       previousMonth: previousPeriod.key,
       isCurrentMonth: requestedPeriod.isCurrent,
@@ -354,6 +390,10 @@ class PerformanceService {
       snapshotEnabled: snapshotTableAvailable === true || snapshotFallbackAvailable === true,
       snapshotStorage: snapshotTableAvailable === true ? 'monthly_table' : (snapshotFallbackAvailable === true ? 'system_settings' : 'pending_migration')
     };
+
+    const ttl = requestedPeriod.isCurrent ? PERFORMANCE_CACHE_TTL_MS : PAST_MONTH_CACHE_TTL_MS;
+    performanceResultCache.set(cacheKey, { data: result, expiresAt: Date.now() + ttl });
+    return result;
   }
 
   async saveSnapshot(period, agent, departmentId, metrics) {
@@ -395,9 +435,22 @@ class PerformanceService {
     if (!fallbackError) savedSnapshotKeys.add(snapshotKey);
     return !fallbackError;
   }
+
+  clearCache() {
+    clearPerformanceCache();
+  }
 }
 
 const performanceService = new PerformanceService();
-performanceService._test = { parseMonth, calculateMetrics, calculateDailyAgentStats, buildComparison, formatDuration, localDateKey, isCustomerTicket };
+performanceService._test = {
+  parseMonth,
+  calculateMetrics,
+  calculateDailyAgentStats,
+  buildComparison,
+  formatDuration,
+  localDateKey,
+  isCustomerTicket,
+  clearPerformanceCache
+};
 
 module.exports = performanceService;

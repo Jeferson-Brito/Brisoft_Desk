@@ -39,6 +39,7 @@ const TICKETS_FILE = path.join(__dirname, '../../data/tickets.json');
 const MEDIA_DIR = path.join(__dirname, '../../public/media');
 const MEDIA_TICKET_CACHE_MAX = 5000;
 const mediaTicketCache = new Map();
+const mediaSizeCache = new Map();
 let remoteMessageColumnsAvailable = null;
 let conversationTrackingColumnsAvailable = null;
 let messageUserIdColumnAvailable = null;
@@ -147,6 +148,16 @@ function rememberMediaTicket(mediaUrl, ticketId) {
   }
 }
 
+function rememberMediaSize(mediaUrl, size) {
+  const filename = String(mediaUrl || '').split('/').pop()?.split('?')[0];
+  if (!filename || typeof size !== 'number' || size < 0) return;
+  mediaSizeCache.delete(filename);
+  mediaSizeCache.set(filename, size);
+  if (mediaSizeCache.size > MEDIA_TICKET_CACHE_MAX) {
+    mediaSizeCache.delete(mediaSizeCache.keys().next().value);
+  }
+}
+
 function saveTicketsToDisk(tickets) {
   clearTimeout(ticketBackupTimer);
   ticketBackupTimer = setTimeout(async () => {
@@ -192,6 +203,9 @@ async function getCachedDepartments() {
 }
 
 function scheduleKpiUpdate(io) {
+  try {
+    require('./performance.service').clearCache?.();
+  } catch (_) {}
   if (!io || kpiUpdateTimer) return;
   kpiUpdateTimer = setTimeout(() => {
     io.emit('kpis_updated');
@@ -406,6 +420,23 @@ class TicketService {
     departmentCache = null;
     departmentCacheExpiresAt = 0;
     departmentLoadPromise = null;
+  }
+
+  getMediaSize(mediaUrl, fileName) {
+    const rawUrl = String(mediaUrl || '');
+    const filename = rawUrl.split('/').pop()?.split('?')[0] || String(fileName || '');
+    if (!filename) return null;
+    if (mediaSizeCache.has(filename)) return mediaSizeCache.get(filename);
+    try {
+      const localPath = path.join(MEDIA_DIR, path.basename(filename));
+      if (fs.existsSync(localPath)) {
+        const stats = fs.statSync(localPath);
+        const size = stats.size;
+        rememberMediaSize(rawUrl, size);
+        return size;
+      }
+    } catch (_) {}
+    return null;
   }
 
   async processIncomingMessage(msgData, io, whatsappService) {
@@ -1263,9 +1294,12 @@ ${rendered}`,
 
       if (savedMsg) {
         if (mediaUrl) {
+          const mediaSize = msgData.fileSize || this.getMediaSize(mediaUrl, msgData.fileName);
           savedMsg.media_url = mediaUrl;
           savedMsg.mediaUrl = mediaUrl;
           savedMsg.type = mediaType;
+          savedMsg.media_size = mediaSize || null;
+          savedMsg.file_size = mediaSize || null;
         }
       }
       
@@ -1631,7 +1665,14 @@ ${rendered}`,
         conversationTrackingColumnsAvailable = true;
       }
       const savedMessage = assertSupabase(messageResult, 'Falha ao salvar resposta feita pelo WhatsApp');
-      if (mediaUrl) rememberMediaTicket(mediaUrl, ticket.id);
+      if (mediaUrl) {
+        rememberMediaTicket(mediaUrl, ticket.id);
+        const mediaSize = msgData.fileSize || this.getMediaSize(mediaUrl, fileName);
+        if (savedMessage) {
+          savedMessage.media_size = mediaSize || null;
+          savedMessage.file_size = mediaSize || null;
+        }
+      }
 
       const fullTicket = await this.getFullTicket(ticket.id);
       const emittedTicket = fullTicket || ticket;
@@ -1981,10 +2022,16 @@ ${rendered}`,
       if (error || !ticket) return null;
       if (user && !(await canUserAccessTicketDetails(user, ticket))) return null;
       ticket.messages = await this.get24hMessagesForTicket(ticket, user);
-      ticket.messages = ticket.messages.map(message => ({
-        ...message,
-        time: message.created_at ? makeTimeStr(new Date(message.created_at)) || message.time : message.time
-      }));
+      ticket.messages = ticket.messages.map(message => {
+        const mediaSize = message.media_size
+          || (message.media_url ? this.getMediaSize(message.media_url, message.file_name) : null);
+        return {
+          ...message,
+          media_size: mediaSize || message.media_size || null,
+          file_size: mediaSize || message.file_size || null,
+          time: message.created_at ? makeTimeStr(new Date(message.created_at)) || message.time : message.time
+        };
+      });
       ticket.clientName = ticket.client_name;
       ticket.avatarColor = ticket.avatar_color;
       ticket.unreadCount = ticket.unread_count || 0;
@@ -2141,7 +2188,14 @@ ${rendered}`,
       const messageResult = await supabase.from('messages').insert(messagePayload).select().single();
       if (messageResult.error?.code === '23505') return { type: 'duplicate', messageId: data.messageId };
       const message = assertSupabase(messageResult, 'Falha ao salvar mensagem do grupo');
-      if (data.mediaUrl) rememberMediaTicket(data.mediaUrl, ticket.id);
+      if (data.mediaUrl) {
+        rememberMediaTicket(data.mediaUrl, ticket.id);
+        const mediaSize = data.fileSize || this.getMediaSize(data.mediaUrl, data.fileName);
+        if (message) {
+          message.media_size = mediaSize || null;
+          message.file_size = mediaSize || null;
+        }
+      }
 
       const updatePayload = {
         preview: `${data.fromMe ? 'Você' : memberName}: ${preview}`.slice(0, 100),
@@ -2985,6 +3039,12 @@ ${rendered}`,
         messageUserIdColumnAvailable = true;
       }
       const savedMessage = assertSupabase(messageResult, 'Falha ao salvar mídia enviada');
+      if (savedMessage) {
+        savedMessage.media_size = buffer?.length || null;
+        savedMessage.file_size = buffer?.length || null;
+      }
+      rememberMediaTicket(mediaUrl, ticket.id);
+      if (buffer?.length) rememberMediaSize(mediaUrl, buffer.length);
       const preview = caption || ({ audio: '🎙️ Áudio', image: '📷 Imagem', video: '🎥 Vídeo', document: `📄 ${displayName}` }[mediaType]);
       const updatePayload = {
         preview,
@@ -3394,6 +3454,7 @@ ${rendered}`,
       }
       if (!message) return false;
       rememberMediaTicket(media.mediaUrl, media.ticketId);
+      if (media.fileSize) rememberMediaSize(media.mediaUrl, media.fileSize);
       const fullTicket = await this.getFullTicket(media.ticketId);
       if (io && fullTicket) {
         emitTicketEvent(io, 'ticket_updated', { ticket: fullTicket }, fullTicket);
@@ -3442,6 +3503,151 @@ ${rendered}`,
     if (ticketError || !ticket) return false;
     return canUserAccessTicketDetails(user, ticket);
   }
+
+  async handleAccountDisconnected(accountId, reason = 'manual_disconnect', io = null) {
+    if (!isSupabaseConfigured() || !accountId) return { success: false, closedCount: 0, inactivedGroupsCount: 0 };
+    try {
+      const targetChannels = accountId === 'default'
+        ? ['whatsapp', 'whatsapp:default']
+        : [`whatsapp:${accountId}`];
+
+      const now = new Date();
+      const timeStr = makeTimeStr(now);
+      const reasonLabel = reason === 'device_logout'
+        ? 'Desconexão pelo aparelho celular'
+        : 'Desconexão manual no painel';
+
+      // 1. Busca atendimentos individuais ativos pertencentes a esta conta
+      const { data: activeTickets, error: activeError } = await supabase
+        .from('tickets')
+        .select('id, client_name, department, department_id, agent_name, channel, is_group, status')
+        .in('channel', targetChannels)
+        .eq('is_group', false)
+        .in('status', ['aguardando', 'em_atendimento', 'chatbot', 'fora_horario']);
+
+      if (activeError) throw activeError;
+
+      const activeIds = (activeTickets || []).map(t => t.id).filter(Boolean);
+      if (activeIds.length) {
+        for (let i = 0; i < activeIds.length; i += 50) {
+          const chunk = activeIds.slice(i, i + 50);
+          const { error: updateError } = await supabase
+            .from('tickets')
+            .update({
+              status: 'finalizado',
+              assumed: false,
+              encerrado_em: timeStr,
+              encerrado_por: `Sistema (${reasonLabel})`,
+              closed_at: now.toISOString(),
+              updated_at: now.toISOString()
+            })
+            .in('id', chunk);
+
+          if (updateError) throw updateError;
+        }
+
+        const systemMessages = activeIds.map(id => ({
+          ticket_id: id,
+          sender: 'system',
+          type: 'divider',
+          time: timeStr,
+          text: `Atendimento encerrado automaticamente devido à desconexão do WhatsApp vinculado (${reasonLabel}).`
+        }));
+
+        for (let i = 0; i < systemMessages.length; i += 50) {
+          const chunk = systemMessages.slice(i, i + 50);
+          await supabase.from('messages').insert(chunk).catch(err => {
+            console.warn('Falha ao inserir mensagens de sistema de desconexão:', err.message);
+          });
+        }
+      }
+
+      // 2. Busca e inativa grupos vinculados a esta conta
+      const { data: groupTickets, error: groupError } = await supabase
+        .from('tickets')
+        .select('id, client_name, department_id, channel, group_jid, is_group, status')
+        .in('channel', targetChannels)
+        .eq('is_group', true)
+        .eq('status', 'grupo');
+
+      if (groupError) throw groupError;
+
+      const groupIds = (groupTickets || []).map(t => t.id).filter(Boolean);
+      if (groupIds.length) {
+        for (let i = 0; i < groupIds.length; i += 50) {
+          const chunk = groupIds.slice(i, i + 50);
+          const { error: groupUpdateError } = await supabase
+            .from('tickets')
+            .update({
+              status: 'grupo_inativo',
+              updated_at: now.toISOString()
+            })
+            .in('id', chunk);
+
+          if (groupUpdateError) throw groupUpdateError;
+        }
+      }
+
+      const allAffectedIds = [...activeIds, ...groupIds];
+
+      // 3. Notifica todos os clientes conectados via WebSocket em tempo real
+      if (io && allAffectedIds.length) {
+        io.emit('tickets_batch_removed', {
+          ticketIds: allAffectedIds,
+          accountId,
+          reason
+        });
+
+        for (const t of (activeTickets || [])) {
+          const updated = {
+            ...t,
+            status: 'finalizado',
+            encerrado_em: timeStr,
+            encerrado_por: `Sistema (${reasonLabel})`
+          };
+          emitTicketEvent(io, 'ticket_updated', { ticket: updated }, updated);
+        }
+
+        for (const g of (groupTickets || [])) {
+          const updatedGroup = {
+            ...g,
+            status: 'grupo_inativo'
+          };
+          emitTicketEvent(io, 'ticket_updated', { ticket: updatedGroup }, updatedGroup);
+        }
+
+        io.emit('kpis_updated');
+      }
+
+      console.log(`[WhatsApp:${accountId}] Desconexão processada: ${activeIds.length} atendimento(s) encerrado(s), ${groupIds.length} grupo(s) inativado(s).`);
+      return {
+        success: true,
+        closedCount: activeIds.length,
+        inactivedGroupsCount: groupIds.length,
+        affectedIds: allAffectedIds
+      };
+    } catch (error) {
+      console.error(`[WhatsApp:${accountId}] Falha ao processar desconexão de atendimentos:`, error.message);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getMediaSize(mediaUrl, fileName = null) {
+    const raw = String(fileName || mediaUrl || '').trim();
+    if (!raw) return 0;
+    const filename = path.basename(raw.split('?')[0]);
+    if (!filename || !/^[a-zA-Z0-9._-]+$/.test(filename)) return 0;
+    if (mediaSizeCache.has(filename)) return mediaSizeCache.get(filename);
+    try {
+      const localPath = path.join(MEDIA_DIR, filename);
+      if (fs.existsSync(localPath)) {
+        const size = fs.statSync(localPath).size;
+        rememberMediaSize(filename, size);
+        return size;
+      }
+    } catch (_) {}
+    return 0;
+  }
 }
 
 const ticketService = new TicketService();
@@ -3458,7 +3664,9 @@ ticketService._test = {
   isMissingConversationTrackingColumns,
   isMissingRemoteMessageColumns,
   isMissingMessageInteractionColumns,
-  messagePreview
+  messagePreview,
+  rememberMediaSize,
+  mediaSizeCache
 };
 
 module.exports = ticketService;

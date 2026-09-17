@@ -99,6 +99,13 @@ export function useSocket() {
       if (!ticket?.is_group) tickets.notifyKpisUpdated()
     })
 
+    socket.on('tickets_batch_removed', (data) => {
+      if (Array.isArray(data?.ticketIds) && data.ticketIds.length) {
+        tickets.removeTickets(data.ticketIds)
+        tickets.notifyKpisUpdated()
+      }
+    })
+
     socket.on('new_message', (data) => {
       const { ticketId, message, ticket, contact } = data
 

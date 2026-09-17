@@ -191,7 +191,7 @@
                   <i class="fa-solid fa-trash"></i> Remover conta
                 </button>
               </div>
-              <p class="disconnect-warning">Ao desconectar, a sessão deste número será removida. Os tickets e históricos permanecem salvos.</p>
+              <p class="disconnect-warning">Ao desconectar, a sessão deste número será removida e os atendimentos ativos serão finalizados e arquivados no histórico.</p>
             </div>
           </article>
         </div>

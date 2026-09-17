@@ -1,5 +1,5 @@
 import http from '@/api/http'
-import { getMediaSource, getProtectedMediaPath } from '@/utils/media-message'
+import { getMediaSource, getProtectedMediaPath, isLargeMedia } from '@/utils/media-message'
 
 const MAX_CACHED_MEDIA = 500
 const mediaCache = new Map()
@@ -79,8 +79,24 @@ export function clearProtectedMediaCache() {
   mediaCache.clear()
 }
 
+export async function fetchMediaInfo(source) {
+  const apiPath = getProtectedMediaPath(source)
+  if (!apiPath) return null
+  try {
+    const res = await http.get(`${apiPath}/info`, { timeout: 10000 })
+    return res.data?.success ? res.data : null
+  } catch {
+    return null
+  }
+}
+
 export async function preloadTicketMedia(messages = [], concurrency = 3) {
-  const sources = [...new Set(messages.map(getMediaSource).filter(source => getProtectedMediaPath(source)))]
+  const sources = [...new Set(
+    messages
+      .filter(msg => !isLargeMedia(msg, getMediaSource(msg)))
+      .map(getMediaSource)
+      .filter(source => getProtectedMediaPath(source))
+  )]
   let cursor = 0
   async function worker() {
     while (cursor < sources.length) {

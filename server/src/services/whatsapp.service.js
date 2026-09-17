@@ -749,7 +749,16 @@ class WhatsAppService {
         account.sock = null;
         console.warn(`[WhatsApp:${account.name}] conexão encerrada (código ${statusCode || 'desconhecido'}).`);
         this.emitAccounts();
-        if (!account.manualDisconnect && !loggedOut && account.active !== false) {
+        if (loggedOut) {
+          account.phone = null;
+          account.displayName = null;
+          fs.rmSync(path.join(ACCOUNTS_ROOT, account.id), { recursive: true, force: true });
+          cloudStorage.deleteSession(account.id).catch(() => {});
+          this.saveConfigs().catch(() => {});
+          ticketService.handleAccountDisconnected(account.id, 'device_logout', this.io).catch(error => {
+            console.error(`[WhatsApp:${account.name}] falha ao processar encerramento de atendimentos após logout do aparelho:`, error.message);
+          });
+        } else if (!account.manualDisconnect && account.active !== false) {
           clearTimeout(account.reconnectTimer);
           account.reconnectTimer = setTimeout(() => this.initialize(account.id).catch(() => {}), 5000);
         }
@@ -922,6 +931,7 @@ class WhatsAppService {
       mediaType: media.type,
       mediaUrl: media.url,
       fileName: media.fileName,
+      fileSize: media.fileSize,
       timestamp: msg.messageTimestamp,
       messageId: msg.key.id,
       whatsappAccountId: account.id,
@@ -960,22 +970,22 @@ class WhatsAppService {
     if (!accountId || !messageId) return;
     const now = Date.now();
     this.platformMessageIds.set(`${accountId}:${messageId}`, now);
-    if (this.platformMessageIds.size <= 10000) return;
+    if (this.platformMessageIds.size <= 3000) return;
     const expiration = now - (60 * 60 * 1000);
     for (const [key, timestamp] of this.platformMessageIds) {
-      if (timestamp < expiration || this.platformMessageIds.size > 9000) this.platformMessageIds.delete(key);
-      if (this.platformMessageIds.size <= 9000) break;
+      if (timestamp < expiration || this.platformMessageIds.size > 2500) this.platformMessageIds.delete(key);
+      if (this.platformMessageIds.size <= 2500) break;
     }
   }
 
   rememberMessageId(messageKey) {
     const now = Date.now();
     this.recentMessageIds.set(messageKey, now);
-    if (this.recentMessageIds.size <= 50000) return;
-    const expiration = now - (24 * 60 * 60 * 1000);
+    if (this.recentMessageIds.size <= 8000) return;
+    const expiration = now - (6 * 60 * 60 * 1000);
     for (const [key, timestamp] of this.recentMessageIds) {
-      if (timestamp < expiration || this.recentMessageIds.size > 50000) this.recentMessageIds.delete(key);
-      if (this.recentMessageIds.size <= 45000) break;
+      if (timestamp < expiration || this.recentMessageIds.size > 7000) this.recentMessageIds.delete(key);
+      if (this.recentMessageIds.size <= 7000) break;
     }
   }
 
@@ -1019,6 +1029,7 @@ class WhatsAppService {
       mediaType: media.type,
       mediaUrl: media.url,
       fileName: media.fileName,
+      fileSize: media.fileSize,
       timestamp: msg.messageTimestamp,
       messageId: msg.key.id,
       whatsappAccountId: account.id,
@@ -1072,6 +1083,7 @@ class WhatsAppService {
       mediaType: media.type,
       mediaUrl: media.url,
       fileName: media.fileName,
+      fileSize: media.fileSize,
       timestamp: msg.messageTimestamp,
       messageId: msg.key.id,
       whatsappAccountId: account.id,
@@ -1103,7 +1115,8 @@ class WhatsAppService {
         whatsappAccountId: account.id,
         mediaType: recovered.type,
         mediaUrl: recovered.url,
-        fileName: recovered.fileName
+        fileName: recovered.fileName,
+        fileSize: recovered.fileSize
       }, this.io);
       console.log(`[WhatsApp:${account.name}] mídia recuperada em segundo plano (${msg.key.id}).`);
       return true;
@@ -1147,12 +1160,12 @@ class WhatsAppService {
       fileName = `sticker_${Date.now()}_${messageToken}.webp`;
       fallbackText = '🖼️ [Figurinha]';
     }
-    if (!type) return { type: null, fileName: null, url: null, fallbackText: '' };
+    if (!type) return { type: null, fileName: null, url: null, fallbackText: '', fileSize: 0 };
 
     const declaredSize = mediaSizeBytes(mediaMessage?.fileLength);
     if (declaredSize > this.maxMediaBytes) {
       const limitMb = Math.round(this.maxMediaBytes / (1024 * 1024));
-      return { type, fileName, url: null, fallbackText: `⚠️ [Mídia acima do limite de ${limitMb} MB]` };
+      return { type, fileName, url: null, fallbackText: `⚠️ [Mídia acima do limite de ${limitMb} MB]`, fileSize: declaredSize };
     }
 
     try {
@@ -1182,7 +1195,7 @@ class WhatsAppService {
       if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new Error('O WhatsApp retornou um arquivo vazio.');
       if (buffer.length > this.maxMediaBytes) {
         const limitMb = Math.round(this.maxMediaBytes / (1024 * 1024));
-        return { type, fileName, url: null, fallbackText: `⚠️ [Mídia acima do limite de ${limitMb} MB]` };
+        return { type, fileName, url: null, fallbackText: `⚠️ [Mídia acima do limite de ${limitMb} MB]`, fileSize: buffer.length };
       }
       await fs.promises.mkdir(MEDIA_DIR, { recursive: true });
       await Promise.all([
@@ -1190,10 +1203,10 @@ class WhatsAppService {
         cloudStorage.uploadMedia(fileName, buffer, mediaMessage?.mimetype || 'application/octet-stream')
           .catch(error => console.warn(`[WhatsApp:${account.name}] mídia salva apenas localmente: ${error.message}`))
       ]);
-      return { type, fileName, url: `/api/media/${fileName}`, fallbackText };
+      return { type, fileName, url: `/api/media/${fileName}`, fallbackText, fileSize: buffer.length };
     } catch (error) {
       console.warn(`[WhatsApp:${account.name}] falha ao baixar mídia: ${error.message}`);
-      return { type, fileName, url: null, fallbackText };
+      return { type, fileName, url: null, fallbackText, fileSize: 0 };
     }
   }
 
@@ -1350,6 +1363,9 @@ class WhatsAppService {
     await cloudStorage.deleteSession(account.id).catch(error => console.warn(`[WhatsApp:${account.name}] falha ao remover sessão da nuvem: ${error.message}`));
     await this.saveConfigs();
     this.emitAccounts();
+    await ticketService.handleAccountDisconnected(account.id, 'manual_disconnect', this.io).catch(error => {
+      console.error(`[WhatsApp:${account.name}] falha ao processar encerramento de atendimentos na desconexão manual:`, error.message);
+    });
   }
 
   async removeAccount(accountId) {

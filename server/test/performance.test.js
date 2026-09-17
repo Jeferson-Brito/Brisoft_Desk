@@ -105,3 +105,10 @@ test('calcula atendimentos e média de avaliação diária por atendente', () =>
   assert.equal(daily.ratingAverage, 4);
   assert.equal(daily.ratingCount, 2);
 });
+
+test('permite invalidar o cache de desempenho em memória', () => {
+  assert.doesNotThrow(() => {
+    performanceService.clearCache();
+    performanceService._test.clearPerformanceCache();
+  });
+});
