@@ -380,6 +380,22 @@ function assertSupabase(result, context) {
   return result ? result.data : null;
 }
 
+function makeInitials(name, fallback = 'GR') {
+  if (!name) return fallback;
+  const words = String(name)
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length === 0) {
+    return Array.from(String(name).trim()).slice(0, 2).join('').toUpperCase() || fallback;
+  }
+  if (words.length === 1) {
+    return Array.from(words[0]).slice(0, 2).join('').toUpperCase() || fallback;
+  }
+  return words.slice(0, 2).map(w => Array.from(w)[0]).join('').toUpperCase() || fallback;
+}
+
 // O Supabase limita respostas a 1.000 linhas. Sem paginação, os tickets fora
 // da primeira página pareciam não possuir mensagens no histórico.
 async function fetchAllMessagesForTicketIds(ticketIds = []) {
@@ -2075,7 +2091,7 @@ ${rendered}`,
     if (!isSupabaseConfigured() || !account?.id || !group?.jid) return null;
     const channel = `whatsapp:${account.id}`;
     const department = await this.resolveWhatsAppGroupDepartment(account);
-    const name = String(group.subject || 'Grupo do WhatsApp').trim().slice(0, 255) || 'Grupo do WhatsApp';
+    const name = Array.from(String(group.subject || 'Grupo do WhatsApp').trim()).slice(0, 100).join('') || 'Grupo do WhatsApp';
     const now = new Date().toISOString();
     const { data: existing, error: findError } = await supabase.from('tickets')
       .select('*')
@@ -2086,7 +2102,7 @@ ${rendered}`,
 
     const payload = {
       client_name: name,
-      initials: name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase().slice(0, 2) || 'GR',
+      initials: makeInitials(name, 'GR'),
       jid: group.jid,
       raw_jid: group.jid,
       group_jid: group.jid,
@@ -3556,9 +3572,11 @@ ${rendered}`,
 
         for (let i = 0; i < systemMessages.length; i += 50) {
           const chunk = systemMessages.slice(i, i + 50);
-          await supabase.from('messages').insert(chunk).catch(err => {
-            console.warn('Falha ao inserir mensagens de sistema de desconexão:', err.message);
-          });
+          try {
+            await supabase.from('messages').insert(chunk);
+          } catch (insertErr) {
+            console.warn('Falha ao inserir mensagens de sistema de desconexão:', insertErr?.message || insertErr);
+          }
         }
       }
 
@@ -3666,7 +3684,8 @@ ticketService._test = {
   isMissingMessageInteractionColumns,
   messagePreview,
   rememberMediaSize,
-  mediaSizeCache
+  mediaSizeCache,
+  makeInitials
 };
 
 module.exports = ticketService;

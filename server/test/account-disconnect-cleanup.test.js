@@ -29,3 +29,24 @@ test('handleAccountDisconnected aceita motivos manual_disconnect e device_logout
   assert.equal(result.closedCount, 0);
   assert.equal(result.inactivedGroupsCount, 0);
 });
+
+test('makeInitials gera iniciais limpas e não quebra com emojis nem gera surrogates inválidos', () => {
+  const { makeInitials } = ticketService._test;
+  
+  // Grupo com emoji como #soucombatente 🛡️
+  const initialsCombatente = makeInitials('#soucombatente 🛡️');
+  assert.equal(initialsCombatente, 'SO');
+  
+  // Grupo com emoji no início
+  const initialsShield = makeInitials('🛡️ Suporte Técnico');
+  assert.equal(initialsShield, 'ST');
+  
+  // Grupo somente com emojis
+  const initialsEmojiOnly = makeInitials('🛡️🔥');
+  assert.equal(initialsEmojiOnly, '🛡️');
+
+  // Serialização JSON nunca deve falhar ou conter surrogates soltos
+  const json = JSON.stringify({ initials: initialsCombatente, emojiInitials: initialsEmojiOnly });
+  assert.ok(json.includes('SO'));
+});
+
