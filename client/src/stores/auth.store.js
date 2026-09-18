@@ -50,12 +50,25 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function login(email, password) {
-    const { data } = await authApi.login(email, password)
-    if (data.success && data.token) {
-      setSession(data.token, data.user)
-      return { success: true }
+    try {
+      const { data } = await authApi.login(email, password)
+      if (data.success && data.token) {
+        setSession(data.token, data.user)
+        return { success: true }
+      }
+      return { success: false, error: data.error || 'E-mail ou senha incorretos.' }
+    } catch (err) {
+      if (err.response?.data?.error) {
+        return { success: false, error: err.response.data.error }
+      }
+      if (err.response?.status === 401) {
+        return { success: false, error: 'E-mail ou senha incorretos. Verifique suas credenciais.' }
+      }
+      if (err.response) {
+        return { success: false, error: 'Não foi possível autenticar. Tente novamente.' }
+      }
+      return { success: false, error: 'Erro de conexão. Verifique se o servidor está online.' }
     }
-    return { success: false, error: data.error || 'Credenciais inválidas' }
   }
 
   async function logout() {

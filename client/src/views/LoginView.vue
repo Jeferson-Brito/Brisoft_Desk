@@ -124,12 +124,13 @@ async function handleSubmit() {
     if (result.success) {
       socket.connect()
       const redirect = String(route.query.redirect || '')
-      await router.replace(redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : { name: 'dashboard' })
+      const defaultDest = auth.isAdmin ? { name: 'dashboard' } : { name: 'atendimentos' }
+      await router.replace(redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : defaultDest)
     } else {
-      errorMsg.value = result.error || 'Credenciais inválidas. Tente novamente.'
+      errorMsg.value = result.error || 'E-mail ou senha incorretos. Tente novamente.'
     }
-  } catch {
-    errorMsg.value = 'Erro de conexão. Verifique se o servidor está online.'
+  } catch (err) {
+    errorMsg.value = err.response?.data?.error || err.message || 'Erro de conexão. Verifique se o servidor está online.'
   } finally {
     loading.value = false
   }

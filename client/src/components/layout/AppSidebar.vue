@@ -27,8 +27,8 @@
 
     <!-- Navigation Links (Column 1 Icons / Labels) -->
     <nav class="sidebar-nav">
-      <!-- Dashboard -->
-      <RouterLink class="nav-item" to="/" exact-active-class="active" title="Dashboard">
+      <!-- Dashboard (Visível apenas para Administradores) -->
+      <RouterLink v-if="auth.isAdmin" class="nav-item" to="/" exact-active-class="active" title="Dashboard">
         <i class="fa-solid fa-chart-pie"></i>
         <span class="nav-label">Dashboard</span>
       </RouterLink>
@@ -65,7 +65,10 @@
         <i class="fa-solid fa-chart-line"></i>
         <span class="nav-label">Desempenho</span>
       </RouterLink>
+    </nav>
 
+    <!-- Seção Inferior: Painel TV e Configurações (acima do perfil) -->
+    <div class="sidebar-nav-footer">
       <!-- Painel TV -->
       <RouterLink class="nav-item" to="/painel-tv" target="_blank" rel="noopener noreferrer" title="Abrir Painel TV em nova guia" @click="closeMobile">
         <i class="fa-solid fa-tv"></i>
@@ -77,7 +80,7 @@
         <i class="fa-solid fa-gear"></i>
         <span class="nav-label">Configurações</span>
       </RouterLink>
-    </nav>
+    </div>
 
     <!-- Sidebar Bottom: User Profile Avatar -->
     <div class="sidebar-bottom">
@@ -266,8 +269,8 @@ async function handleLogout() {
 }
 
 .sidebar.is-expanded .sidebar-header {
-  justify-content: flex-start;
-  padding-left: 10px;
+  justify-content: center;
+  padding: 0 10px 10px;
 }
 
 .brand-logo-container {
@@ -276,6 +279,7 @@ async function handleLogout() {
   justify-content: center;
   text-decoration: none;
   height: 100%;
+  width: 100%;
 }
 
 .brand-logo-symbol {
@@ -286,8 +290,24 @@ async function handleLogout() {
 
 .brand-logo-full {
   height: 32px;
-  max-width: 175px;
+  max-width: 165px;
   object-fit: contain;
+  margin: 0 auto;
+}
+
+.sidebar-nav-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding-top: 8px;
+  margin-top: auto;
+  border-top: 1px solid #e5e7eb;
+}
+
+.sidebar.is-expanded .sidebar-nav-footer {
+  align-items: stretch;
 }
 
 .sidebar-nav {
@@ -615,6 +635,10 @@ async function handleLogout() {
     width: 100%;
     justify-content: flex-start;
     padding: 10px 14px;
+  }
+  .sidebar-nav-footer {
+    width: 100%;
+    align-items: stretch;
   }
   .sidebar-overlay {
     display: block;

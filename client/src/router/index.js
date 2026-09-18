@@ -26,7 +26,7 @@ const routes = [
     component: AppLayout,
     meta: { requiresAuth: true },
     children: [
-      { path: '',                  name: 'dashboard',         component: DashboardView        },
+      { path: '',                  name: 'dashboard',         component: DashboardView, meta: { requiresAdmin: true } },
       { path: 'atendimentos',      name: 'atendimentos',      component: AtendimentosView      },
       { path: 'historico',         name: 'historico',         component: HistoricoView         },
       { path: 'desempenho',        name: 'desempenho',        component: AvaliacoesView        },
@@ -78,16 +78,17 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.requiresAdmin && !auth.isAdmin) {
-    return { name: 'dashboard' }
+    return { name: 'atendimentos' }
   }
 
   if (to.meta.requiresManager && !auth.canManageTeam) {
-    return { name: 'dashboard' }
+    return { name: 'atendimentos' }
   }
 
   if (to.name === 'login' && auth.isAuthenticated) {
     const redirect = String(to.query.redirect || '')
-    return redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : { name: 'dashboard' }
+    const defaultRoute = auth.isAdmin ? { name: 'dashboard' } : { name: 'atendimentos' }
+    return redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : defaultRoute
   }
 })
 

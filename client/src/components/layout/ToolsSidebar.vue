@@ -3,41 +3,243 @@
     <!-- Cabeçalho sutil do Sidebar de Ferramentas -->
     <div class="tools-header" title="Barra de Ferramentas Rápidas">
       <div class="tools-header-badge">
-        <i class="fa-solid fa-wrench"></i>
+        <i class="fa-solid fa-toolbox"></i>
       </div>
     </div>
 
-    <!-- Dock Container com os Ícones em Formato de Balões -->
+    <!-- Dock Container com os Ícones em Formato de Balões Flutuantes -->
     <div class="tools-dock-track">
       <!-- 1. Balão: Bloco de Notas -->
       <div class="tool-bubble-item">
         <button
           type="button"
-          class="tool-bubble-btn"
+          class="tool-bubble-btn tool-btn-notepad"
           :class="{ active: notepad.isOpen, 'has-dirty': hasDirtyTab }"
           title="Notas Rápidas"
           aria-label="Notas Rápidas"
-          @click="notepad.toggle"
+          @click="toggleNotepad"
         >
           <i class="fa-regular fa-note-sticky"></i>
           <span v-if="hasDirtyTab" class="bubble-dot-badge" title="Anotações não salvas"></span>
         </button>
         <div class="tool-bubble-tooltip">
-          <span>Notas</span>
+          <span>Notas Rápidas</span>
         </div>
       </div>
 
       <div class="tool-dock-divider"></div>
 
-      <!-- 2. Balão: Calculadora Rápida -->
+      <!-- 2. Balão: Gerador de Link WhatsApp (wa.me) -->
+      <div class="tool-bubble-item" ref="waWrapperRef">
+        <button
+          type="button"
+          class="tool-bubble-btn tool-btn-whatsapp"
+          :class="{ active: activePopover === 'whatsapp' }"
+          title="Link WhatsApp (wa.me)"
+          aria-label="Link WhatsApp"
+          @click="togglePopover('whatsapp')"
+        >
+          <i class="fa-brands fa-whatsapp"></i>
+        </button>
+        <div class="tool-bubble-tooltip">
+          <span>Link WhatsApp</span>
+        </div>
+
+        <!-- Popover Flutuante: Gerador de Link WhatsApp -->
+        <Teleport to="body">
+          <div
+            v-if="activePopover === 'whatsapp'"
+            class="tool-floating-popover wa-popover"
+            @click.stop
+          >
+            <div class="popover-header">
+              <div class="popover-header-title">
+                <i class="fa-brands fa-whatsapp wa-icon-header"></i>
+                <span>Link WhatsApp</span>
+              </div>
+              <button type="button" class="popover-close-btn" @click="closePopovers" title="Fechar (Esc)">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div class="popover-body">
+              <div class="tool-field-group">
+                <label class="tool-label">Número do WhatsApp (DDD + Número)</label>
+                <div class="tool-input-wrap">
+                  <span class="tool-input-prefix">+55</span>
+                  <input
+                    v-model="waPhone"
+                    type="tel"
+                    class="tool-input tool-input-with-prefix"
+                    placeholder="(11) 99999-9999"
+                    @input="formatWaPhone"
+                  />
+                </div>
+              </div>
+
+              <div class="tool-field-group">
+                <label class="tool-label">Mensagem pronta (opcional)</label>
+                <textarea
+                  v-model="waMessage"
+                  rows="2"
+                  class="tool-textarea"
+                  placeholder="Olá! Segue seu atendimento..."
+                ></textarea>
+              </div>
+
+              <div v-if="waLink" class="wa-preview-box">
+                <span class="wa-preview-label">Link gerado:</span>
+                <div class="wa-preview-url" :title="waLink">{{ waLink }}</div>
+              </div>
+
+              <div class="tool-actions-row">
+                <button
+                  type="button"
+                  class="tool-btn-primary"
+                  :disabled="!cleanWaPhone"
+                  @click="copyWaLink"
+                >
+                  <i class="fa-solid" :class="waCopied ? 'fa-check' : 'fa-copy'"></i>
+                  <span>{{ waCopied ? 'Copiado!' : 'Copiar Link' }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="tool-btn-secondary"
+                  :disabled="!cleanWaPhone"
+                  @click="openWaChat"
+                  title="Abrir conversa"
+                >
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                </button>
+                <button
+                  type="button"
+                  class="tool-btn-ghost"
+                  @click="clearWa"
+                  title="Limpar campos"
+                >
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </Teleport>
+      </div>
+
+      <!-- 3. Balão: Validador & Formatador CPF / CNPJ -->
+      <div class="tool-bubble-item" ref="docWrapperRef">
+        <button
+          type="button"
+          class="tool-bubble-btn tool-btn-cpf"
+          :class="{ active: activePopover === 'doc' }"
+          title="Validador CPF / CNPJ"
+          aria-label="Validador CPF/CNPJ"
+          @click="togglePopover('doc')"
+        >
+          <i class="fa-solid fa-id-card"></i>
+        </button>
+        <div class="tool-bubble-tooltip">
+          <span>Validador CPF/CNPJ</span>
+        </div>
+
+        <!-- Popover Flutuante: Validador CPF / CNPJ -->
+        <Teleport to="body">
+          <div
+            v-if="activePopover === 'doc'"
+            class="tool-floating-popover doc-popover"
+            @click.stop
+          >
+            <div class="popover-header">
+              <div class="popover-header-title">
+                <i class="fa-solid fa-id-card doc-icon-header"></i>
+                <span>Validador CPF / CNPJ</span>
+              </div>
+              <button type="button" class="popover-close-btn" @click="closePopovers" title="Fechar (Esc)">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div class="popover-body">
+              <div class="tool-field-group">
+                <label class="tool-label">Insira o CPF ou CNPJ (com ou sem pontuação)</label>
+                <input
+                  v-model="docInput"
+                  type="text"
+                  class="tool-input"
+                  placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                  maxlength="20"
+                />
+              </div>
+
+              <!-- Status Badge de Validação -->
+              <div class="doc-status-container">
+                <div v-if="docStatus === 'valid'" class="doc-badge doc-badge-valid">
+                  <i class="fa-solid fa-circle-check"></i>
+                  <span>{{ docType }} Válido</span>
+                </div>
+                <div v-else-if="docStatus === 'invalid'" class="doc-badge doc-badge-invalid">
+                  <i class="fa-solid fa-circle-xmark"></i>
+                  <span>{{ docType }} Inválido (Dígito incorreto)</span>
+                </div>
+                <div v-else class="doc-badge doc-badge-neutral">
+                  <i class="fa-solid fa-circle-info"></i>
+                  <span>Digite 11 (CPF) ou 14 (CNPJ) dígitos</span>
+                </div>
+              </div>
+
+              <!-- Resultados Formatados & Ações de Cópia -->
+              <div v-if="cleanDoc" class="doc-results-box">
+                <div class="doc-row">
+                  <span class="doc-row-label">Formatado:</span>
+                  <span class="doc-row-val">{{ formattedDoc }}</span>
+                  <button
+                    type="button"
+                    class="doc-copy-btn"
+                    @click="copyDocFormatted"
+                    :title="docCopiedFmt ? 'Copiado!' : 'Copiar formatado'"
+                  >
+                    <i class="fa-solid" :class="docCopiedFmt ? 'fa-check' : 'fa-copy'"></i>
+                  </button>
+                </div>
+                <div class="doc-row">
+                  <span class="doc-row-label">Apenas Números:</span>
+                  <span class="doc-row-val">{{ cleanDoc }}</span>
+                  <button
+                    type="button"
+                    class="doc-copy-btn"
+                    @click="copyDocClean"
+                    :title="docCopiedCln ? 'Copiado!' : 'Copiar apenas números'"
+                  >
+                    <i class="fa-solid" :class="docCopiedCln ? 'fa-check' : 'fa-copy'"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="tool-actions-row">
+                <button
+                  type="button"
+                  class="tool-btn-ghost"
+                  @click="docInput = ''"
+                  title="Limpar campo"
+                >
+                  <i class="fa-solid fa-trash-can"></i> Limpar
+                </button>
+              </div>
+            </div>
+          </div>
+        </Teleport>
+      </div>
+
+      <div class="tool-dock-divider"></div>
+
+      <!-- 4. Balão: Calculadora Rápida -->
       <div class="tool-bubble-item" ref="calcWrapperRef">
         <button
           type="button"
-          class="tool-bubble-btn tool-bubble-secondary"
-          :class="{ active: showCalculator }"
+          class="tool-bubble-btn tool-btn-calc"
+          :class="{ active: activePopover === 'calc' }"
           title="Calculadora Rápida"
           aria-label="Calculadora Rápida"
-          @click="toggleCalculator"
+          @click="togglePopover('calc')"
         >
           <i class="fa-solid fa-calculator"></i>
         </button>
@@ -48,16 +250,16 @@
         <!-- Popover Flutuante da Calculadora Rápida -->
         <Teleport to="body">
           <div
-            v-if="showCalculator"
-            class="calculator-floating-popover"
+            v-if="activePopover === 'calc'"
+            class="tool-floating-popover calc-popover"
             @click.stop
           >
-            <div class="calc-header">
-              <div class="calc-header-title">
-                <i class="fa-solid fa-calculator"></i>
+            <div class="popover-header">
+              <div class="popover-header-title">
+                <i class="fa-solid fa-calculator calc-icon-header"></i>
                 <span>Calculadora</span>
               </div>
-              <button type="button" class="calc-close-btn" @click="showCalculator = false" title="Fechar (Esc)">
+              <button type="button" class="popover-close-btn" @click="closePopovers" title="Fechar (Esc)">
                 <i class="fa-solid fa-xmark"></i>
               </button>
             </div>
@@ -94,35 +296,35 @@
         </Teleport>
       </div>
 
-      <!-- 3. Balão: Atalhos Rápidos do Sistema -->
+      <!-- 5. Balão: Atalhos Rápidos do Sistema -->
       <div class="tool-bubble-item" ref="shortcutsWrapperRef">
         <button
           type="button"
-          class="tool-bubble-btn tool-bubble-secondary"
-          :class="{ active: showShortcuts }"
+          class="tool-bubble-btn tool-btn-shortcuts"
+          :class="{ active: activePopover === 'shortcuts' }"
           title="Atalhos Rápidos"
           aria-label="Atalhos Rápidos"
-          @click="toggleShortcuts"
+          @click="togglePopover('shortcuts')"
         >
           <i class="fa-solid fa-keyboard"></i>
         </button>
         <div class="tool-bubble-tooltip">
-          <span>Atalhos</span>
+          <span>Atalhos Rápidos</span>
         </div>
 
         <!-- Popover Flutuante de Atalhos Rápidos -->
         <Teleport to="body">
           <div
-            v-if="showShortcuts"
-            class="shortcuts-floating-popover"
+            v-if="activePopover === 'shortcuts'"
+            class="tool-floating-popover shortcuts-popover"
             @click.stop
           >
-            <div class="shortcuts-header">
-              <div class="shortcuts-title">
-                <i class="fa-solid fa-keyboard"></i>
+            <div class="popover-header">
+              <div class="popover-header-title">
+                <i class="fa-solid fa-keyboard shortcuts-icon-header"></i>
                 <span>Atalhos Rápidos</span>
               </div>
-              <button type="button" class="calc-close-btn" @click="showShortcuts = false" title="Fechar (Esc)">
+              <button type="button" class="popover-close-btn" @click="closePopovers" title="Fechar (Esc)">
                 <i class="fa-solid fa-xmark"></i>
               </button>
             </div>
@@ -136,15 +338,15 @@
                 <kbd class="shortcut-kbd">Shift + Enter</kbd>
               </div>
               <div class="shortcut-row">
-                <span class="shortcut-desc">Mensagens rápidas</span>
+                <span class="shortcut-desc">Buscar mensagens rápidas</span>
                 <kbd class="shortcut-kbd">/</kbd>
               </div>
               <div class="shortcut-row">
-                <span class="shortcut-desc">Fechar janela/painel</span>
+                <span class="shortcut-desc">Fechar janela / painel</span>
                 <kbd class="shortcut-kbd">Esc</kbd>
               </div>
               <div class="shortcut-row">
-                <span class="shortcut-desc">Expandir/Recolher menu</span>
+                <span class="shortcut-desc">Recolher/Expandir menu</span>
                 <kbd class="shortcut-kbd">&gt; ou &lt;</kbd>
               </div>
             </div>
@@ -169,16 +371,181 @@ const hasDirtyTab = computed(() => {
   return notepad.tabs.some(t => t.isDirty)
 })
 
-// Estado da Calculadora Rápida
-const showCalculator = ref(false)
+// Controle de Popover Ativo (apenas 1 aberto por vez)
+const activePopover = ref(null) // 'whatsapp' | 'doc' | 'calc' | 'shortcuts' | null
+
+function togglePopover(name) {
+  if (activePopover.value === name) {
+    activePopover.value = null
+  } else {
+    activePopover.value = name
+    // Se o bloco de notas estiver aberto, mantemos; caso queira fechar, podemos fechar
+  }
+}
+
+function closePopovers() {
+  activePopover.value = null
+}
+
+function toggleNotepad() {
+  closePopovers()
+  notepad.toggle()
+}
+
+// ─── 1. GERADOR LINK WHATSAPP ────────────────────────────────────────────────
+const waPhone = ref('')
+const waMessage = ref('')
+const waCopied = ref(false)
+
+const cleanWaPhone = computed(() => {
+  return waPhone.value.replace(/\D/g, '')
+})
+
+function formatWaPhone() {
+  let digits = waPhone.value.replace(/\D/g, '')
+  if (digits.startsWith('55') && digits.length > 11) {
+    digits = digits.substring(2)
+  }
+  if (digits.length > 11) digits = digits.slice(0, 11)
+  
+  if (digits.length <= 2) {
+    waPhone.value = digits ? `(${digits}` : ''
+  } else if (digits.length <= 6) {
+    waPhone.value = `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+  } else if (digits.length <= 10) {
+    waPhone.value = `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
+  } else {
+    waPhone.value = `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`
+  }
+}
+
+const waLink = computed(() => {
+  const digits = cleanWaPhone.value
+  if (!digits) return ''
+  const fullNum = digits.startsWith('55') && digits.length >= 12 ? digits : `55${digits}`
+  const base = `https://wa.me/${fullNum}`
+  return waMessage.value.trim() ? `${base}?text=${encodeURIComponent(waMessage.value.trim())}` : base
+})
+
+async function copyWaLink() {
+  if (!waLink.value) return
+  try {
+    await navigator.clipboard.writeText(waLink.value)
+    waCopied.value = true
+    setTimeout(() => { waCopied.value = false }, 2000)
+  } catch (err) {
+    console.error('Erro ao copiar link:', err)
+  }
+}
+
+function openWaChat() {
+  if (!waLink.value) return
+  window.open(waLink.value, '_blank', 'noopener,noreferrer')
+}
+
+function clearWa() {
+  waPhone.value = ''
+  waMessage.value = ''
+  waCopied.value = false
+}
+
+// ─── 2. VALIDADOR CPF / CNPJ ─────────────────────────────────────────────────
+const docInput = ref('')
+const docCopiedFmt = ref(false)
+const docCopiedCln = ref(false)
+
+const cleanDoc = computed(() => docInput.value.replace(/\D/g, ''))
+
+function validateCPF(cpf) {
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false
+  let sum = 0
+  for (let i = 0; i < 9; i++) sum += parseInt(cpf.charAt(i), 10) * (10 - i)
+  let rev = 11 - (sum % 11)
+  if (rev === 10 || rev === 11) rev = 0
+  if (rev !== parseInt(cpf.charAt(9), 10)) return false
+  sum = 0
+  for (let i = 0; i < 10; i++) sum += parseInt(cpf.charAt(i), 10) * (11 - i)
+  rev = 11 - (sum % 11)
+  if (rev === 10 || rev === 11) rev = 0
+  return rev === parseInt(cpf.charAt(10), 10)
+}
+
+function validateCNPJ(cnpj) {
+  if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false
+  let size = cnpj.length - 2
+  let numbers = cnpj.substring(0, size)
+  const digits = cnpj.substring(size)
+  let sum = 0
+  let pos = size - 7
+  for (let i = size; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(size - i), 10) * pos--
+    if (pos < 2) pos = 9
+  }
+  let result = sum % 11 < 2 ? 0 : 11 - (sum % 11)
+  if (result !== parseInt(digits.charAt(0), 10)) return false
+  size += 1
+  numbers = cnpj.substring(0, size)
+  sum = 0
+  pos = size - 7
+  for (let i = size; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(size - i), 10) * pos--
+    if (pos < 2) pos = 9
+  }
+  result = sum % 11 < 2 ? 0 : 11 - (sum % 11)
+  return result === parseInt(digits.charAt(1), 10)
+}
+
+const docType = computed(() => {
+  const d = cleanDoc.value
+  if (d.length <= 11) return 'CPF'
+  return 'CNPJ'
+})
+
+const docStatus = computed(() => {
+  const d = cleanDoc.value
+  if (d.length === 11) {
+    return validateCPF(d) ? 'valid' : 'invalid'
+  }
+  if (d.length === 14) {
+    return validateCNPJ(d) ? 'valid' : 'invalid'
+  }
+  return 'incomplete'
+})
+
+const formattedDoc = computed(() => {
+  const d = cleanDoc.value
+  if (d.length <= 11) {
+    return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  }
+  return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
+})
+
+async function copyDocFormatted() {
+  if (!formattedDoc.value) return
+  try {
+    await navigator.clipboard.writeText(formattedDoc.value)
+    docCopiedFmt.value = true
+    setTimeout(() => { docCopiedFmt.value = false }, 2000)
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+async function copyDocClean() {
+  if (!cleanDoc.value) return
+  try {
+    await navigator.clipboard.writeText(cleanDoc.value)
+    docCopiedCln.value = true
+    setTimeout(() => { docCopiedCln.value = false }, 2000)
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+// ─── 3. CALCULADORA RÁPIDA ───────────────────────────────────────────────────
 const calcDisplay = ref('0')
 const calcExpr = ref('')
 const calcNewNum = ref(true)
-
-function toggleCalculator() {
-  showCalculator.value = !showCalculator.value
-  if (showCalculator.value) showShortcuts.value = false
-}
 
 function calcDigit(d) {
   if (calcNewNum.value || calcDisplay.value === '0') {
@@ -240,7 +607,6 @@ function calcEquals() {
     else if (op === '*') res = prev * current
     else if (op === '/') res = current !== 0 ? prev / current : 0
 
-    // Arredondar para até 6 casas decimais
     const rounded = Math.round(res * 1000000) / 1000000
     calcDisplay.value = String(rounded)
     calcExpr.value = `${prev} ${op} ${current} =`
@@ -251,19 +617,10 @@ function calcEquals() {
   }
 }
 
-// Estado dos Atalhos Rápidos
-const showShortcuts = ref(false)
-
-function toggleShortcuts() {
-  showShortcuts.value = !showShortcuts.value
-  if (showShortcuts.value) showCalculator.value = false
-}
-
-// Fechamento com Esc
+// ─── 4. TECLA ESC E CLIQUE FORA ──────────────────────────────────────────────
 function handleKeyDown(e) {
   if (e.key === 'Escape') {
-    if (showCalculator.value) showCalculator.value = false
-    if (showShortcuts.value) showShortcuts.value = false
+    closePopovers()
   }
 }
 
@@ -278,40 +635,45 @@ onUnmounted(() => {
 
 <style scoped>
 .tools-sidebar {
-  width: 48px;
-  min-width: 48px;
-  max-width: 48px;
-  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  width: 52px;
+  min-width: 52px;
+  max-width: 52px;
+  background: #f8fafc;
   border-left: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
   height: 100vh;
-  padding: 14px 0 16px;
+  padding: 12px 0 16px;
   box-sizing: border-box;
   flex-shrink: 0;
   z-index: 60;
   user-select: none;
   position: relative;
-  box-shadow: -2px 0 10px rgba(15, 23, 42, 0.02);
 }
 
-/* Cabeçalho compacto com ícone */
+/* Cabeçalho compacto com ícone de ferramentas */
 .tools-header {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .tools-header-badge {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: rgba(203, 213, 225, 0.4);
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: #e2e8f0;
   color: #64748b;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 11px;
+  transition: all 0.18s ease;
+}
+
+.tools-header-badge:hover {
+  background: #cbd5e1;
+  color: #1e293b;
 }
 
 /* Dock Container / Trilha dos Balões */
@@ -319,12 +681,12 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  background: rgba(226, 232, 240, 0.55);
+  gap: 8px;
+  background: #ffffff;
   padding: 8px 5px;
-  border-radius: 24px;
-  border: 1px solid rgba(203, 213, 225, 0.6);
-  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.05);
+  border-radius: 28px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 14px -2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
 /* Item Balão Individual */
@@ -342,42 +704,98 @@ onUnmounted(() => {
   border-radius: 50%;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  color: #475569;
+  color: #64748b;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   outline: none;
   padding: 0;
 }
 
 .tool-bubble-btn i {
-  font-size: 15px;
-  transition: all 0.2s ease;
+  font-size: 14.5px;
+  transition: all 0.18s ease;
 }
 
-.tool-bubble-btn:hover {
-  background: #ffffff;
-  border-color: #93c5fd;
+/* Cores específicas de hover por ferramenta */
+.tool-btn-notepad:hover {
+  border-color: #f59e0b;
+  color: #d97706;
+  transform: translateY(-2px) scale(1.08);
+  box-shadow: 0 6px 12px rgba(245, 158, 11, 0.2);
+}
+
+.tool-btn-whatsapp:hover {
+  border-color: #22c55e;
+  color: #16a34a;
+  transform: translateY(-2px) scale(1.08);
+  box-shadow: 0 6px 12px rgba(34, 197, 94, 0.22);
+}
+
+.tool-btn-cpf:hover {
+  border-color: #6366f1;
+  color: #4f46e5;
+  transform: translateY(-2px) scale(1.08);
+  box-shadow: 0 6px 12px rgba(99, 102, 241, 0.22);
+}
+
+.tool-btn-calc:hover {
+  border-color: #3b82f6;
   color: #2563eb;
-  transform: translateY(-2px) scale(1.1);
-  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.2);
+  transform: translateY(-2px) scale(1.08);
+  box-shadow: 0 6px 12px rgba(37, 99, 235, 0.2);
+}
+
+.tool-btn-shortcuts:hover {
+  border-color: #94a3b8;
+  color: #334155;
+  transform: translateY(-2px) scale(1.08);
+  box-shadow: 0 6px 12px rgba(71, 85, 105, 0.15);
 }
 
 .tool-bubble-btn:active {
-  transform: scale(0.95);
+  transform: scale(0.94);
 }
 
 /* Balão Ativo */
 .tool-bubble-btn.active {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  border-color: transparent;
+  background: #1e293b;
+  border-color: #0f172a;
   color: #ffffff;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
   transform: scale(1.05);
+}
+
+.tool-btn-whatsapp.active {
+  background: #16a34a;
+  border-color: #15803d;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.35);
+}
+
+.tool-btn-cpf.active {
+  background: #4f46e5;
+  border-color: #4338ca;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+}
+
+.tool-btn-calc.active {
+  background: #2563eb;
+  border-color: #1d4ed8;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+}
+
+.tool-btn-notepad.active {
+  background: #d97706;
+  border-color: #b45309;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);
 }
 
 .tool-bubble-btn.active i {
@@ -387,8 +805,8 @@ onUnmounted(() => {
 /* Badge de Anotações com Alterações */
 .bubble-dot-badge {
   position: absolute;
-  top: 1px;
-  right: 1px;
+  top: 0;
+  right: 0;
   width: 9px;
   height: 9px;
   border-radius: 50%;
@@ -398,11 +816,10 @@ onUnmounted(() => {
 
 /* Divisória da Dock */
 .tool-dock-divider {
-  width: 20px;
+  width: 18px;
   height: 1px;
-  background: #cbd5e1;
-  margin: 2px 0;
-  opacity: 0.8;
+  background: #e2e8f0;
+  margin: 1px 0;
 }
 
 /* Tooltip Balão Flutuante à Esquerda */
@@ -422,7 +839,7 @@ onUnmounted(() => {
   opacity: 0;
   visibility: hidden;
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
   z-index: 120;
 }
 
@@ -443,15 +860,15 @@ onUnmounted(() => {
   transform: translateY(-50%) translateX(0);
 }
 
-/* Popover Flutuante da Calculadora */
-.calculator-floating-popover {
+/* ─── POPOVERS FLUTUANTES GERAIS ─────────────────────────────────────────── */
+.tool-floating-popover {
   position: fixed;
-  right: 56px;
+  right: 60px;
   top: 60px;
-  width: 240px;
+  width: 300px;
   background: #ffffff;
   border-radius: 14px;
-  box-shadow: 0 14px 38px -6px rgba(15, 23, 42, 0.2), 0 4px 14px -2px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 16px 36px -6px rgba(15, 23, 42, 0.22), 0 4px 14px -2px rgba(15, 23, 42, 0.08);
   border: 1px solid #e2e8f0;
   z-index: 1500;
   overflow: hidden;
@@ -459,7 +876,23 @@ onUnmounted(() => {
   user-select: none;
 }
 
-.calc-header {
+.calc-popover {
+  width: 240px;
+}
+
+.wa-popover {
+  width: 310px;
+}
+
+.doc-popover {
+  width: 310px;
+}
+
+.shortcuts-popover {
+  width: 280px;
+}
+
+.popover-header {
   padding: 10px 14px;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
@@ -468,24 +901,39 @@ onUnmounted(() => {
   justify-content: space-between;
 }
 
-.calc-header-title {
+.popover-header-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 700;
   color: #0f172a;
 }
 
-.calc-header-title i {
-  color: #2563eb;
-  font-size: 13px;
+.wa-icon-header {
+  color: #16a34a;
+  font-size: 15px;
 }
 
-.calc-close-btn {
+.doc-icon-header {
+  color: #4f46e5;
+  font-size: 14px;
+}
+
+.calc-icon-header {
+  color: #2563eb;
+  font-size: 14px;
+}
+
+.shortcuts-icon-header {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.popover-close-btn {
   width: 22px;
   height: 22px;
-  border-radius: 5px;
+  border-radius: 6px;
   border: none;
   background: transparent;
   color: #64748b;
@@ -494,13 +942,289 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   font-size: 12px;
+  transition: all 0.15s ease;
 }
 
-.calc-close-btn:hover {
+.popover-close-btn:hover {
   background: #e2e8f0;
   color: #0f172a;
 }
 
+.popover-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Campos de Formulário nos Utilitários */
+.tool-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tool-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.tool-input-wrap {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.tool-input-prefix {
+  position: absolute;
+  left: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.tool-input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: #0f172a;
+  background: #f8fafc;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  box-sizing: border-box;
+}
+
+.tool-input-with-prefix {
+  padding-left: 38px;
+}
+
+.tool-input:focus {
+  border-color: #2563eb;
+  background: #ffffff;
+}
+
+.tool-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #0f172a;
+  background: #f8fafc;
+  outline: none;
+  resize: vertical;
+  min-height: 50px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.tool-textarea:focus {
+  border-color: #2563eb;
+  background: #ffffff;
+}
+
+/* Preview Box de WhatsApp */
+.wa-preview-box {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wa-preview-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #166534;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.wa-preview-url {
+  font-size: 11px;
+  color: #15803d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: monospace;
+}
+
+/* Botões de Ação */
+.tool-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.tool-btn-primary {
+  flex: 1;
+  height: 32px;
+  border-radius: 6px;
+  background: #16a34a;
+  color: #ffffff;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 0.15s ease;
+}
+
+.tool-btn-primary:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.tool-btn-primary:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.tool-btn-secondary {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #1e293b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all 0.15s ease;
+}
+
+.tool-btn-secondary:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.tool-btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tool-btn-ghost {
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.tool-btn-ghost:hover {
+  background: #f1f5f9;
+  color: #ef4444;
+}
+
+/* Badges de Status do Validador CPF/CNPJ */
+.doc-status-container {
+  display: flex;
+  align-items: center;
+}
+
+.doc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.doc-badge-valid {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.doc-badge-invalid {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+.doc-badge-neutral {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.doc-results-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.doc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.doc-row-label {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.doc-row-val {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: monospace;
+  color: #0f172a;
+}
+
+.doc-copy-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  transition: all 0.12s ease;
+}
+
+.doc-copy-btn:hover {
+  background: #f1f5f9;
+  color: #2563eb;
+  border-color: #93c5fd;
+}
+
+/* Calculadora */
 .calc-display-area {
   padding: 10px 14px;
   background: #f1f5f9;
@@ -582,46 +1306,9 @@ onUnmounted(() => {
   background: #1d4ed8;
 }
 
-/* Popover Flutuante de Atalhos */
-.shortcuts-floating-popover {
-  position: fixed;
-  right: 56px;
-  top: 100px;
-  width: 270px;
-  background: #ffffff;
-  border-radius: 14px;
-  box-shadow: 0 14px 38px -6px rgba(15, 23, 42, 0.2), 0 4px 14px -2px rgba(15, 23, 42, 0.08);
-  border: 1px solid #e2e8f0;
-  z-index: 1500;
-  overflow: hidden;
-  animation: popover-drop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  padding-bottom: 8px;
-}
-
-.shortcuts-header {
-  padding: 12px 14px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.shortcuts-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.shortcuts-title i {
-  color: #2563eb;
-}
-
+/* Atalhos Rápidos */
 .shortcuts-list {
-  padding: 10px 14px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;

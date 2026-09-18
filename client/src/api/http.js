@@ -21,6 +21,9 @@ http.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      if (error.config?.url?.includes('/auth/login')) {
+        return Promise.reject(error)
+      }
       const auth = useAuthStore()
       auth.clearSession()
       import('@/composables/useSocket').then(({ useSocket }) => useSocket().disconnect())

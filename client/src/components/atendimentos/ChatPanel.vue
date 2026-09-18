@@ -132,6 +132,9 @@
               <span>Adicionar participante</span>
             </button>
             <button
+              type="button"
+              class="actions-menu-item"
+              @click="showTransferModal = true; showActionsMenu = false"
             >
               <i class="fa-solid fa-arrow-right-arrow-left"></i>
               <span>Transferir atendimento</span>
