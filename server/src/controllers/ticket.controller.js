@@ -235,6 +235,23 @@ class TicketController {
     }
   }
 
+  async getClientHistory(req, res) {
+    try {
+      const ticketId = req.params.id;
+      const { search, dateFrom, dateTo, agentName } = req.query;
+      const history = await ticketService.getClientTicketHistory(req.user, ticketId, {
+        search,
+        dateFrom,
+        dateTo,
+        agentName
+      });
+      return res.json({ success: true, history });
+    } catch (err) {
+      console.error('❌ Erro no controller getClientHistory:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
   async updateContact(req, res) {
     try {
       const ticketId = req.params.id;

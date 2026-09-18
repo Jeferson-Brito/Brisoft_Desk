@@ -7,6 +7,7 @@ export const ticketsApi = {
   addCollaborator: (ticketId, userId) => http.post(`/tickets/${ticketId}/collaborators`, { userId }),
   removeCollaborator: (ticketId, userId) => http.delete(`/tickets/${ticketId}/collaborators/${userId}`),
   history:     ()                    => http.get('/tickets/history'),
+  getClientHistory: (ticketId, params = {}) => http.get(`/tickets/${ticketId}/client-history`, { params }),
   assume:        (ticketId)                        => http.post('/tickets/assume',           { ticketId }),
   transfer:      (ticketId, transferData)          => http.post('/tickets/transfer',         { ticketId, ...transferData }),
   close:         (ticketId)                        => http.post('/tickets/close',            { ticketId }),

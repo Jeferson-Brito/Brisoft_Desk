@@ -1,10 +1,14 @@
 <template>
   <Teleport to="body">
-    <div v-if="notepad.isOpen" class="notepad-drawer-container">
-      <!-- Backdrop sutil para fechar ao clicar fora em telas menores ou opcional -->
-      <div class="notepad-backdrop" @click="notepad.close"></div>
+    <!-- Backdrop sutil para fechar ao clicar fora -->
+    <Transition name="fade-backdrop">
+      <div v-if="notepad.isOpen" class="notepad-backdrop" @click="notepad.close"></div>
+    </Transition>
 
-      <div class="notepad-window">
+    <!-- Drawer com animação deslizante de entrada e saída -->
+    <Transition name="notepad-slide">
+      <div v-if="notepad.isOpen" class="notepad-drawer-container">
+        <div class="notepad-window">
         <!-- Windows 11 Notepad Top Header Bar -->
         <div class="notepad-header">
           <div class="notepad-title-group">
@@ -230,11 +234,12 @@
       </div>
     </div>
   </div>
-  </Teleport>
+  </Transition>
+</Teleport>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useNotepadStore } from '@/stores/notepad.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { usersApi } from '@/api/users.api'
@@ -248,7 +253,14 @@ const cursorCol = ref(1)
 const searchQuery = ref('')
 const usersList = ref([])
 
+function handleGlobalKeydown(e) {
+  if (e.key === 'Escape' && notepad.isOpen) {
+    notepad.close()
+  }
+}
+
 onMounted(async () => {
+  window.addEventListener('keydown', handleGlobalKeydown)
   if (auth.isAdmin) {
     try {
       const res = await usersApi.list()
@@ -261,6 +273,10 @@ onMounted(async () => {
   }
   // Carrega histórico
   notepad.fetchNotes()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown)
 })
 
 function handleTextInput() {
@@ -360,8 +376,39 @@ function formatDate(isoStr) {
   z-index: 1500;
   display: flex;
   flex-direction: column;
-  box-shadow: -6px 0 25px rgba(0, 0, 0, 0.12);
-  animation: slideInRight 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: -6px 0 28px rgba(0, 0, 0, 0.16);
+}
+
+/* Transições suaves de Entrada e Saída do Drawer */
+.notepad-slide-enter-active,
+.notepad-slide-leave-active {
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease;
+}
+
+.notepad-slide-enter-from,
+.notepad-slide-leave-to {
+  transform: translateX(100%);
+  opacity: 0.85;
+}
+
+/* Backdrop suave para fechar ao clicar fora */
+.notepad-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(1px);
+  z-index: 1490;
+  cursor: pointer;
+}
+
+.fade-backdrop-enter-active,
+.fade-backdrop-leave-active {
+  transition: opacity 0.22s ease;
+}
+
+.fade-backdrop-enter-from,
+.fade-backdrop-leave-to {
+  opacity: 0;
 }
 
 /* Switch estilo toggle para Salvamento Automático */
@@ -420,21 +467,6 @@ function formatDate(isoStr) {
 .autosave-label {
   font-size: 11px;
   color: #64748b;
-}
-
-@keyframes slideInRight {
-  from {
-    transform: translateX(30px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-.notepad-backdrop {
-  display: none;
 }
 
 .notepad-window {

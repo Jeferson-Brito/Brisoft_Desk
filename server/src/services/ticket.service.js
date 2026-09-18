@@ -336,6 +336,14 @@ function canUserAccessTicket(user, ticket) {
   if (!user || !ticket) return false;
   if (isAdmin(user)) return true;
   if (isSupervisor(user)) return departmentIds(user).includes(String(ticket.department_id || ''));
+
+  // Se o atendimento está em andamento com outro atendente, apenas o próprio atendente tem acesso direto
+  if (ticket.status === 'em_atendimento' && (ticket.user_id || ticket.agent_name)) {
+    const isOwner = (user.id && ticket.user_id && String(ticket.user_id) === String(user.id)) ||
+                    (user.name && ticket.agent_name === user.name);
+    return isOwner;
+  }
+
   return Boolean(
     (ticket.agent_name && ticket.agent_name === user.name) ||
     (ticket.department_id && String(ticket.department_id) === String(user.department_id)) ||
@@ -419,6 +427,8 @@ async function canUserAccessTicketDetails(user, ticket) {
   if (await isTicketCollaborator(user.id, ticket.id)) return true;
   if (ticket.status !== 'finalizado') return canUserAccessTicket(user, ticket);
   if (historyTicketVisibleToUser(user, ticket)) return true;
+  if (user.department_id && ticket.department_id && String(user.department_id) === String(ticket.department_id)) return true;
+  if (user.department && ticket.department && user.department.toLowerCase() === ticket.department.toLowerCase()) return true;
   return analystParticipatedInTicket(user, ticket.id);
 }
 
@@ -561,6 +571,14 @@ class TicketService {
     departmentCache = null;
     departmentCacheExpiresAt = 0;
     departmentLoadPromise = null;
+  }
+
+  canUserAccessTicket(user, ticket) {
+    return canUserAccessTicket(user, ticket);
+  }
+
+  canUserAccessTicketDetails(user, ticket) {
+    return canUserAccessTicketDetails(user, ticket);
   }
 
   getMediaSize(mediaUrl, fileName) {
@@ -2135,6 +2153,18 @@ ${rendered}`,
         }
       }
 
+      if (!isAdmin(user) && !isSupervisor(user)) {
+        tickets = tickets.filter(t => {
+          if (t.is_group || t.status === 'grupo') return true;
+          if (t.status === 'aguardando' || t.status === 'chatbot' || !t.user_id) return true;
+          const isOwner = (user?.id && t.user_id && String(t.user_id) === String(user.id)) ||
+                          (user?.name && t.agent_name === user.name);
+          if (isOwner) return true;
+          const isColab = (collaboratorsByTicket.get(t.id) || []).some(c => String(c.id) === String(user?.id));
+          return isColab;
+        });
+      }
+
       const rules = await getDisconnectRules();
       const retentionMs = rules.queue_retention_minutes * 60 * 1000;
       const discardMs = rules.discard_hours * 3600 * 1000;
@@ -2655,6 +2685,121 @@ ${rendered}`,
     } catch (e) {
       console.error('❌ Erro ao buscar histórico:', e);
       return [];
+    }
+  }
+
+  /**
+   * Retorna histórico de atendimentos finalizados de um cliente específico
+   * com suporte a busca textual em mensagens/resumos e filtros de data e atendente.
+   */
+  async getClientTicketHistory(user, ticketId, filters = {}) {
+    if (!isSupabaseConfigured()) return [];
+    try {
+      const currentTicket = await this.getFullTicket(ticketId, user);
+      if (!currentTicket) throw new Error('Atendimento não encontrado ou sem permissão de acesso.');
+
+      const phone = currentTicket.phone;
+      const contactId = currentTicket.contact_id;
+      const jid = currentTicket.jid;
+      const rawJid = currentTicket.raw_jid;
+
+      const lookups = [];
+      if (contactId) lookups.push(`contact_id.eq.${contactId}`);
+      if (phone) lookups.push(`phone.eq.${phone}`);
+      if (jid) lookups.push(`jid.eq.${jid}`);
+      if (rawJid && rawJid !== jid) lookups.push(`raw_jid.eq.${rawJid}`);
+
+      if (lookups.length === 0) return [];
+
+      let query = supabase
+        .from('tickets')
+        .select('id, client_name, phone, preview, agent_name, encerrado_por, created_at, closed_at, updated_at, department, department_id, channel, status')
+        .eq('status', 'finalizado')
+        .or(lookups.join(','));
+
+      // Se atendente comum, restringe ao departamento do atendimento atual ou dele
+      if (!isAdmin(user) && !isSupervisor(user) && currentTicket.department_id) {
+        query = query.eq('department_id', currentTicket.department_id);
+      } else if (filters.departmentId) {
+        query = query.eq('department_id', filters.departmentId);
+      }
+
+      if (filters.dateFrom) {
+        query = query.gte('created_at', filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        query = query.lte('created_at', filters.dateTo + 'T23:59:59.999Z');
+      }
+      if (filters.agentName) {
+        query = query.or(`agent_name.eq.${filters.agentName},encerrado_por.eq.${filters.agentName}`);
+      }
+
+      const { data: tickets, error } = await query.order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      if (!tickets || tickets.length === 0) return [];
+
+      let filteredTickets = tickets;
+
+      // Busca por palavra-chave (ex: "Nota Fiscal") no resumo ou no corpo das mensagens
+      if (filters.search && typeof filters.search === 'string' && filters.search.trim()) {
+        const term = filters.search.trim().toLowerCase();
+        const ticketIds = tickets.map(t => t.id);
+
+        let matchedTicketIds = new Set();
+        if (ticketIds.length > 0) {
+          const { data: matchedMsgs } = await supabase
+            .from('messages')
+            .select('ticket_id')
+            .in('ticket_id', ticketIds)
+            .ilike('text', `%${filters.search.trim()}%`);
+          (matchedMsgs || []).forEach(m => matchedTicketIds.add(String(m.ticket_id)));
+        }
+
+        filteredTickets = tickets.filter(t => {
+          if (matchedTicketIds.has(String(t.id))) return true;
+          if (t.preview && t.preview.toLowerCase().includes(term)) return true;
+          if (t.client_name && t.client_name.toLowerCase().includes(term)) return true;
+          if (t.agent_name && t.agent_name.toLowerCase().includes(term)) return true;
+          if (t.encerrado_por && t.encerrado_por.toLowerCase().includes(term)) return true;
+          return false;
+        });
+      }
+
+      return filteredTickets.map(t => {
+        const rawDate = t.closed_at || t.created_at || t.updated_at;
+        const dateObj = new Date(rawDate);
+        const formattedDate = !isNaN(dateObj.getTime())
+          ? dateObj.toLocaleDateString('pt-BR', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })
+          : '--';
+
+        let summary = String(t.preview || '')
+          .replace(/^WhatsApp:\s*/i, '')
+          .replace(/^[🎙️📷🎥📄]\s*/u, '')
+          .trim();
+        if (!summary) summary = 'Atendimento finalizado';
+        if (summary.length > 90) summary = summary.slice(0, 87) + '...';
+
+        return {
+          id: t.id,
+          date: formattedDate,
+          raw_date: rawDate,
+          agent_name: t.agent_name || t.encerrado_por || 'Atendente',
+          summary,
+          preview: t.preview,
+          department: t.department || 'Geral',
+          department_id: t.department_id,
+          channel: t.channel
+        };
+      });
+    } catch (err) {
+      console.error('❌ Erro em getClientTicketHistory:', err);
+      throw err;
     }
   }
 

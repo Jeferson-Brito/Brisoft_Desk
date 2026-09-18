@@ -81,6 +81,17 @@
         </button>
 
         <button
+          v-if="ticket && !ticket.is_group"
+          type="button"
+          class="header-tool-btn"
+          title="Histórico de atendimentos deste cliente"
+          aria-label="Histórico de atendimentos deste cliente"
+          @click="showClientHistoryModal = true"
+        >
+          <i class="fa-solid fa-clock-rotate-left"></i>
+        </button>
+
+        <button
           type="button"
           class="header-tool-btn"
           :class="{ active: showMessageSearch }"
@@ -104,14 +115,15 @@
           </button>
 
           <div v-if="showActionsMenu" class="actions-menu-dropdown">
+            <button type="button" class="actions-menu-item" @click="showClientHistoryModal = true; showActionsMenu = false;">
+              <i class="fa-solid fa-clock-rotate-left"></i>
+              <span>Histórico do cliente</span>
+            </button>
             <button type="button" class="actions-menu-item" @click="openCollaborators">
               <i class="fa-solid fa-user-plus"></i>
               <span>Adicionar participante</span>
             </button>
             <button
-              type="button"
-              class="actions-menu-item"
-              @click="openTransfer"
             >
               <i class="fa-solid fa-arrow-right-arrow-left"></i>
               <span>Transferir atendimento</span>
@@ -485,6 +497,7 @@
       @close="showTransferModal = false"
     />
     <ModalColaboradores v-if="showCollaboratorsModal && ticket" :ticket="ticket" @close="showCollaboratorsModal = false" @updated="updateCollaborators" />
+    <ModalHistoricoCliente :is-open="showClientHistoryModal" :ticket="ticket" @close="showClientHistoryModal = false" />
 
     <Teleport to="body">
       <div v-if="messageToDelete" class="modal-overlay active message-delete-overlay" @click.self="messageToDelete = null">
@@ -521,6 +534,7 @@ import { splitPersonLabel } from '@/utils/person-display'
 import ChatBubble from './ChatBubble.vue'
 import ModalTransferir from '@/components/modals/ModalTransferir.vue'
 import ModalColaboradores from '@/components/modals/ModalColaboradores.vue'
+import ModalHistoricoCliente from '@/components/modals/ModalHistoricoCliente.vue'
 
 const props = defineProps({
   ticket: {
@@ -582,6 +596,7 @@ const { stopIncomingCallAlert } = useSocket()
 
 const showTransferModal = ref(false)
 const showCollaboratorsModal = ref(false)
+const showClientHistoryModal = ref(false)
 const showActionsMenu = ref(false)
 const actionsDropdownRef = ref(null)
 const msgBoxRef = ref(null)

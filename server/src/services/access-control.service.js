@@ -1,11 +1,13 @@
 const { supabase, isSupabaseConfigured } = require('../config/supabase');
 
 function isAdmin(user) {
-  return user?.role === 'Administrador';
+  const role = String(user?.role || '').trim().toLowerCase();
+  return role === 'administrador' || role === 'admin';
 }
 
 function isSupervisor(user) {
-  return user?.role === 'Supervisor';
+  const role = String(user?.role || '').trim().toLowerCase();
+  return role === 'supervisor';
 }
 
 function normalizeIds(values = []) {

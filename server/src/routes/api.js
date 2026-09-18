@@ -81,6 +81,7 @@ router.get('/tickets/:id/collaborators', requireAuth, (req, res) => ticketContro
 router.post('/tickets/:id/collaborators', requireAuth, (req, res) => ticketController.addCollaborator(req, res));
 router.delete('/tickets/:id/collaborators/:userId', requireAuth, (req, res) => ticketController.removeCollaborator(req, res));
 router.get('/tickets/:id', requireAuth, (req, res) => ticketController.getTicket(req, res));
+router.get('/tickets/:id/client-history', requireAuth, (req, res) => ticketController.getClientHistory(req, res));
 router.put('/tickets/:id/contact', requireAuth, (req, res) => ticketController.updateContact(req, res));
 router.post('/tickets/start-conversation', requireAuth, (req, res) => ticketController.startConversation(req, res));
 router.post('/tickets/send-message', requireAuth, (req, res) => ticketController.sendMessage(req, res));

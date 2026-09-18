@@ -15,19 +15,38 @@ export const useTicketStore = defineStore('tickets', () => {
 
   // ─── Getters ─────────────────────────────────────────────────────────────────
 
-  // Tickets visíveis conforme perfil: admin vê tudo, analista vê só seu departamento
+  // Tickets visíveis conforme perfil: admin e supervisor veem tudo/depto, analista só vê seus próprios atendimentos ou se for colaborador
   const visibleTickets = computed(() => {
     const auth = useAuthStore()
     if (auth.isAdmin) return queue.value
 
     return queue.value.filter(t => {
+      // 1. Colaborador/participante adicionado vê sempre
       if ((t.collaborators || []).some(person => String(person.id) === String(auth.user?.id))) return true
-      // Ticket atribuído diretamente ao analista
+
+      // 2. Atendente responsável pelo atendimento
       if (t.user_id && auth.user?.id && t.user_id === auth.user.id) return true
+      if (auth.user?.name && t.agent_name === auth.user.name) return true
+
+      // 3. Supervisor do departamento
       if (auth.isSupervisor && t.department_id && auth.departmentIds.includes(String(t.department_id))) return true
-      // Ticket do departamento do analista
-      if (auth.departmentId && t.department_id && String(t.department_id) === String(auth.departmentId)) return true
-      if (auth.departmentName && t.department && t.department.toLowerCase() === auth.departmentName.toLowerCase()) return true
+
+      // 4. Grupos do WhatsApp do departamento
+      if (t.is_group || t.status === 'grupo') {
+        if (auth.departmentId && t.department_id && String(t.department_id) === String(auth.departmentId)) return true
+        if (auth.departmentName && t.department && t.department.toLowerCase() === auth.departmentName.toLowerCase()) return true
+        return false
+      }
+
+      // 5. Fila aguardando (sem atendente humano assumido): visível para o departamento
+      const isUnassigned = t.status === 'aguardando' || t.status === 'chatbot' || !t.user_id
+      if (isUnassigned) {
+        if (auth.departmentId && t.department_id && String(t.department_id) === String(auth.departmentId)) return true
+        if (auth.departmentName && t.department && t.department.toLowerCase() === auth.departmentName.toLowerCase()) return true
+        return !t.department_id
+      }
+
+      // 6. Em atendimento por outro atendente: NÃO VISÍVEL
       return false
     })
   })
