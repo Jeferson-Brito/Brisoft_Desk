@@ -2,17 +2,30 @@
   <aside
     class="sidebar"
     id="mainSidebar"
-    :class="{ 'mobile-open': mobileOpen }"
+    :class="{ 'mobile-open': mobileOpen, 'is-expanded': isExpanded }"
   >
+    <!-- Botão Balão de Expandir / Recolher na borda do menu -->
+    <button
+      type="button"
+      class="sidebar-toggle-bubble"
+      :title="isExpanded ? 'Recolher menu (<)' : 'Expandir menu (>)'"
+      :aria-label="isExpanded ? 'Recolher menu' : 'Expandir menu'"
+      @click="toggleExpanded"
+    >
+      <i class="fa-solid" :class="isExpanded ? 'fa-chevron-left' : 'fa-chevron-right'"></i>
+    </button>
+
     <!-- Brand Logo Header -->
     <div class="sidebar-header">
       <RouterLink to="/atendimentos" class="brand-logo-container" title="Brisoft Desk">
-        <img :src="iconUrl" alt="Brisoft Desk" class="brand-logo-symbol" />
-        <span class="brand-wordmark"><strong>Brisoft</strong><small>DESK</small></span>
+        <!-- Quando expandido: exibe logo horizontal completa com nome Brisoft Desk -->
+        <img v-if="isExpanded" :src="logoUrl" alt="Brisoft Desk" class="brand-logo-full" />
+        <!-- Quando recolhido: exibe ícone/logo atual -->
+        <img v-else :src="iconUrl" alt="Brisoft Desk" class="brand-logo-symbol" />
       </RouterLink>
     </div>
 
-    <!-- Navigation Links (Column 1 Icons) -->
+    <!-- Navigation Links (Column 1 Icons / Labels) -->
     <nav class="sidebar-nav">
       <!-- Dashboard -->
       <RouterLink class="nav-item" to="/" exact-active-class="active" title="Dashboard">
@@ -68,20 +81,28 @@
 
     <!-- Sidebar Bottom: User Profile Avatar -->
     <div class="sidebar-bottom">
-      <div ref="userMenuRef" class="user-menu-wrapper" style="position:relative;">
+      <div ref="userMenuRef" class="user-menu-wrapper" style="position:relative; width: 100%; display: flex; justify-content: center;">
         <button
           type="button"
           class="user-avatar-btn"
+          :class="{ 'expanded-user-btn': isExpanded }"
           :title="`${displayUserName} (${roleLabel})`"
           @click.stop="showUserDropdown = !showUserDropdown"
         >
-          <img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="Foto do perfil" />
-          <span v-else>{{ userInitials }}</span>
-          <span class="user-status-dot"></span>
+          <div class="user-avatar-circle">
+            <img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="Foto do perfil" />
+            <span v-else>{{ userInitials }}</span>
+            <span class="user-status-dot"></span>
+          </div>
+          <div v-if="isExpanded" class="user-info-expanded">
+            <span class="user-name-expanded">{{ displayUserName }}</span>
+            <span class="user-role-expanded">{{ roleLabel }}</span>
+          </div>
+          <i v-if="isExpanded" class="fa-solid fa-ellipsis-vertical user-more-icon"></i>
         </button>
 
         <!-- Dropdown Popup -->
-        <div v-if="showUserDropdown" class="user-popup-menu" @click.stop>
+        <div v-if="showUserDropdown" class="user-popup-menu" :class="{ 'expanded-popup': isExpanded }" @click.stop>
           <button type="button" class="user-popup-profile" @click="goTo('/perfil')">
             <span class="popup-avatar"><img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="" /><b v-else>{{ userInitials }}</b></span>
             <span class="user-popup-header"><strong>{{ displayUserName }}</strong><small>{{ roleLabel }}</small><span>{{ departmentLabel }}</span></span>
@@ -118,6 +139,7 @@ import { useAuthStore }      from '@/stores/auth.store'
 import { useTicketStore }    from '@/stores/tickets.store'
 import { useSidebarStore }   from '@/stores/sidebar.store'
 import iconUrl from '@/assets/img/icon.png'
+import logoUrl from '@/assets/img/logo.png'
 import { normalizePersonName } from '@/utils/person-display'
 
 const auth    = useAuthStore()
@@ -129,6 +151,11 @@ const sidebar = useSidebarStore()
 const showUserDropdown = ref(false)
 const userMenuRef = ref(null)
 const mobileOpen = computed(() => sidebar.mobileOpen)
+const isExpanded = computed(() => sidebar.isExpanded)
+
+function toggleExpanded() {
+  sidebar.toggleExpanded()
+}
 
 function closeMobile() { sidebar.close() }
 
@@ -180,6 +207,51 @@ async function handleLogout() {
   flex-shrink: 0;
   z-index: 60;
   user-select: none;
+  position: relative;
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), padding 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Sidebar expandido */
+.sidebar.is-expanded {
+  width: 220px;
+  min-width: 220px;
+  max-width: 220px;
+  padding: 10px 8px 14px;
+}
+
+/* Botão Balão na borda para Expandir / Recolher */
+.sidebar-toggle-bubble {
+  position: absolute;
+  top: 18px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.12), 0 1px 3px -1px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 80;
+  color: #64748b;
+  font-size: 10px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+  padding: 0;
+}
+
+.sidebar-toggle-bubble:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+  transform: scale(1.15);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+}
+
+.sidebar-toggle-bubble:active {
+  transform: scale(0.95);
 }
 
 .sidebar-header {
@@ -189,6 +261,13 @@ async function handleLogout() {
   width: 100%;
   padding-bottom: 10px;
   border-bottom: 1px solid #e5e7eb;
+  height: 48px;
+  box-sizing: border-box;
+}
+
+.sidebar.is-expanded .sidebar-header {
+  justify-content: flex-start;
+  padding-left: 10px;
 }
 
 .brand-logo-container {
@@ -196,6 +275,7 @@ async function handleLogout() {
   align-items: center;
   justify-content: center;
   text-decoration: none;
+  height: 100%;
 }
 
 .brand-logo-symbol {
@@ -204,8 +284,10 @@ async function handleLogout() {
   object-fit: contain;
 }
 
-.brand-wordmark {
-  display: none;
+.brand-logo-full {
+  height: 32px;
+  max-width: 175px;
+  object-fit: contain;
 }
 
 .sidebar-nav {
@@ -220,6 +302,10 @@ async function handleLogout() {
   overflow-x: hidden;
 }
 
+.sidebar.is-expanded .sidebar-nav {
+  align-items: stretch;
+}
+
 .nav-item {
   width: 40px;
   height: 40px;
@@ -232,15 +318,37 @@ async function handleLogout() {
   position: relative;
   transition: all 0.15s ease;
   cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sidebar.is-expanded .nav-item {
+  width: 100%;
+  padding: 0 12px;
+  justify-content: flex-start;
+  gap: 12px;
+  box-sizing: border-box;
 }
 
 .nav-item i {
   font-size: 16px;
   transition: color 0.15s ease;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .nav-label {
   display: none;
+}
+
+.sidebar.is-expanded .nav-label {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 500;
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .nav-item:hover {
@@ -277,6 +385,12 @@ async function handleLogout() {
   box-shadow: 0 0 0 2px #f3f4f6;
 }
 
+.sidebar.is-expanded .nav-badge {
+  position: static;
+  margin-left: auto;
+  box-shadow: none;
+}
+
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
@@ -285,6 +399,10 @@ async function handleLogout() {
   width: 100%;
   padding-top: 10px;
   border-top: 1px solid #e5e7eb;
+}
+
+.sidebar.is-expanded .sidebar-bottom {
+  align-items: stretch;
 }
 
 .user-avatar-btn {
@@ -303,8 +421,84 @@ async function handleLogout() {
   border: none;
   outline: none;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  padding: 0;
+  transition: all 0.2s ease;
 }
-.user-avatar-btn img{width:100%;height:100%;border-radius:50%;object-fit:cover}
+
+.user-avatar-circle {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.user-avatar-circle img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Quando expandido */
+.user-avatar-btn.expanded-user-btn {
+  width: 100%;
+  height: 44px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.user-avatar-btn.expanded-user-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.user-avatar-btn.expanded-user-btn .user-avatar-circle {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.user-info-expanded {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.25;
+}
+
+.user-name-expanded {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-role-expanded {
+  font-size: 10.5px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-more-icon {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-left: auto;
+}
 
 .user-status-dot {
   position: absolute;
@@ -330,6 +524,12 @@ async function handleLogout() {
   z-index: 100;
   display: flex;
   flex-direction: column;
+}
+
+.user-popup-menu.expanded-popup {
+  left: 0;
+  bottom: 52px;
+  width: 260px;
 }
 
 .user-popup-profile{width:100%;border:0;background:transparent;display:grid;grid-template-columns:46px 1fr 12px;align-items:center;gap:10px;padding:0;text-align:left;cursor:pointer;color:#334155}.popup-avatar{width:46px;height:46px;border-radius:50%;background:#dbeafe;color:#1d4ed8;display:grid;place-items:center;overflow:hidden}.popup-avatar img{width:100%;height:100%;object-fit:cover}.user-popup-profile>i{font-size:11px;color:#94a3b8}
@@ -402,6 +602,9 @@ async function handleLogout() {
   .sidebar.mobile-open {
     left: 0;
   }
+  .sidebar-toggle-bubble {
+    display: none;
+  }
   .nav-label {
     display: block;
     margin-left: 12px;
@@ -412,9 +615,6 @@ async function handleLogout() {
     width: 100%;
     justify-content: flex-start;
     padding: 10px 14px;
-  }
-  .brand-wordmark {
-    display: flex;
   }
   .sidebar-overlay {
     display: block;
