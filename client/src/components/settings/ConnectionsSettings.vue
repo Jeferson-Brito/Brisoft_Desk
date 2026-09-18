@@ -1,6 +1,6 @@
 <template>
   <div style="display:flex;flex-direction:column;gap:16px;">
-    <section class="connection-card">
+    <section v-if="auth.isAdmin" class="connection-card">
       <button class="connection-summary" type="button" @click="toggleServer">
         <span class="connection-icon server"><i class="fa-solid fa-server"></i></span>
         <span style="flex:1;text-align:left;">
@@ -59,8 +59,8 @@
           <div style="flex:1;">
             <label>Departamento padrão deste número</label>
             <select v-model="newAccountFallbackDepartmentId">
-              <option value="">Usar o padrão geral do bot</option>
-              <option v-for="dept in departments" :key="dept.id" :value="dept.id">{{ dept.name }}</option>
+              <option v-if="auth.isAdmin" value="">Usar o padrão geral do bot</option>
+              <option v-for="dept in availableDepartments" :key="dept.id" :value="dept.id">{{ dept.name }}</option>
             </select>
           </div>
           <button class="btn-primary" :disabled="busy" type="submit">Criar e gerar QR Code</button>
@@ -143,7 +143,7 @@
                   </label>
                   <select id="dept-select" v-model="routingDrafts[account.id].departmentId" class="dept-select">
                     <option value="" disabled>Selecione um departamento...</option>
-                    <option v-for="dept in departments" :key="dept.id" :value="dept.id">
+                    <option v-for="dept in availableDepartments" :key="dept.id" :value="dept.id">
                       {{ dept.name }}
                     </option>
                   </select>
@@ -151,8 +151,8 @@
                 <div v-else class="department-picker-row fallback-picker">
                   <label :for="`fallback-${account.id}`"><i class="fa-solid fa-mobile-screen"></i> Conversas feitas pelo celular:</label>
                   <select :id="`fallback-${account.id}`" v-model="routingDrafts[account.id].fallbackDepartmentId" class="dept-select">
-                    <option value="">Usar o departamento padrão geral do bot</option>
-                    <option v-for="dept in departments" :key="dept.id" :value="dept.id">{{ dept.name }}</option>
+                    <option v-if="auth.isAdmin" value="">Usar o departamento padrão geral do bot</option>
+                    <option v-for="dept in availableDepartments" :key="dept.id" :value="dept.id">{{ dept.name }}</option>
                   </select>
                   <small>Este destino é individual para este número e tem prioridade sobre o padrão do bot.</small>
                 </div>
@@ -199,7 +199,7 @@
     </section>
 
     <!-- Seção: Regras de Desconexão e Retenção de Fila -->
-    <section class="connection-card">
+    <section v-if="auth.isAdmin" class="connection-card">
       <div class="connection-summary" style="cursor:default;">
         <span class="connection-icon" style="background:#fef3c7;color:#d97706;">
           <i class="fa-solid fa-clock-rotate-left"></i>
@@ -264,8 +264,10 @@ import { connectionsApi } from '@/api/connections.api'
 import { departmentsApi } from '@/api/departments.api'
 import { settingsApi } from '@/api/settings.api'
 import { useUiStore } from '@/stores/ui.store'
+import { useAuthStore } from '@/stores/auth.store'
 
 const ui = useUiStore()
+const auth = useAuthStore()
 const serverExpanded = ref(false)
 const serverInfo = ref(null)
 const logs = ref([])
@@ -287,6 +289,16 @@ let refreshTimer = null
 const accounts = computed(() => ui.whatsappAccounts)
 const connectedCount = computed(() => accounts.value.filter(account => account.status === 'connected').length)
 
+const availableDepartments = computed(() => {
+  if (auth.isAdmin) return departments.value
+  const userDepts = [
+    ...(Array.isArray(auth.user?.department_ids) ? auth.user.department_ids : []),
+    auth.user?.department_id
+  ].filter(Boolean).map(String)
+  if (!userDepts.length) return departments.value
+  return departments.value.filter(d => userDepts.includes(String(d.id)))
+})
+
 watch(accounts, (newAccounts) => {
   if (selectedAccountId.value && !newAccounts.some(account => account.id === selectedAccountId.value)) {
     selectedAccountId.value = null
@@ -300,9 +312,10 @@ watch(accounts, (newAccounts) => {
 }, { deep: true })
 
 function initDraft(account) {
+  const defaultDept = availableDepartments.value[0]?.id || departments.value[0]?.id || ''
   routingDrafts.value[account.id] = {
     routingMode: account.routingMode || 'general',
-    departmentId: account.departmentId || (departments.value[0]?.id || ''),
+    departmentId: account.departmentId || defaultDept,
     fallbackDepartmentId: account.fallbackDepartmentId || ''
   }
 }

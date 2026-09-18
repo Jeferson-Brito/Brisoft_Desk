@@ -122,7 +122,7 @@ router.delete('/departments/:id', requireAuth, requireAdmin, (req, res) => depar
 
 // Rotas de Configurações (Settings)
 router.get('/settings', requireAuth, (req, res) => settingsController.getSettings(req, res));
-router.post('/settings', requireAuth, requireAdmin, (req, res) => settingsController.saveSetting(req, res));
+router.post('/settings', requireAuth, requireSupervisorOrAdmin, (req, res) => settingsController.saveSetting(req, res));
 
 // Diagnóstico do servidor (apenas administradores)
 router.get('/system/status', requireAuth, requireAdmin, (req, res) => systemController.getStatus(req, res));
@@ -139,11 +139,11 @@ router.delete('/contacts/:id', requireAuth, requireAdmin, (req, res) => contacts
 // Rotas do WhatsApp
 router.get('/whatsapp/status', requireAuth, (req, res) => whatsappController.getStatus(req, res));
 router.get('/whatsapp/accounts', requireAuth, (req, res) => whatsappController.listAccounts(req, res));
-router.post('/whatsapp/accounts', requireAuth, requireAdmin, (req, res) => whatsappController.createAccount(req, res));
-router.patch('/whatsapp/accounts/:id', requireAuth, requireAdmin, (req, res) => whatsappController.updateAccount(req, res));
-router.put('/whatsapp/accounts/:id', requireAuth, requireAdmin, (req, res) => whatsappController.updateAccount(req, res));
-router.post('/whatsapp/accounts/:id/connect', requireAuth, (req, res) => whatsappController.connectAccount(req, res));
-router.post('/whatsapp/accounts/:id/disconnect', requireAuth, requireAdmin, (req, res) => whatsappController.disconnectAccount(req, res));
-router.delete('/whatsapp/accounts/:id', requireAuth, requireAdmin, (req, res) => whatsappController.removeAccount(req, res));
+router.post('/whatsapp/accounts', requireAuth, requireSupervisorOrAdmin, (req, res) => whatsappController.createAccount(req, res));
+router.patch('/whatsapp/accounts/:id', requireAuth, requireSupervisorOrAdmin, (req, res) => whatsappController.updateAccount(req, res));
+router.put('/whatsapp/accounts/:id', requireAuth, requireSupervisorOrAdmin, (req, res) => whatsappController.updateAccount(req, res));
+router.post('/whatsapp/accounts/:id/connect', requireAuth, requireSupervisorOrAdmin, (req, res) => whatsappController.connectAccount(req, res));
+router.post('/whatsapp/accounts/:id/disconnect', requireAuth, requireSupervisorOrAdmin, (req, res) => whatsappController.disconnectAccount(req, res));
+router.delete('/whatsapp/accounts/:id', requireAuth, requireSupervisorOrAdmin, (req, res) => whatsappController.removeAccount(req, res));
 
 module.exports = router;

@@ -255,12 +255,15 @@ const usersList = ref([])
 
 function handleGlobalKeydown(e) {
   if (e.key === 'Escape' && notepad.isOpen) {
+    e.preventDefault()
+    e.stopPropagation()
+    e.stopImmediatePropagation()
     notepad.close()
   }
 }
 
 onMounted(async () => {
-  window.addEventListener('keydown', handleGlobalKeydown)
+  window.addEventListener('keydown', handleGlobalKeydown, true)
   if (auth.isAdmin) {
     try {
       const res = await usersApi.list()
@@ -276,7 +279,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleGlobalKeydown)
+  window.removeEventListener('keydown', handleGlobalKeydown, true)
 })
 
 function handleTextInput() {
@@ -391,14 +394,14 @@ function formatDate(isoStr) {
   opacity: 0.85;
 }
 
-/* Backdrop suave para fechar ao clicar fora */
+/* Backdrop transparente para fechar ao clicar fora sem borrar nem escurecer a tela */
 .notepad-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.16);
-  backdrop-filter: blur(1px);
+  background: transparent;
+  backdrop-filter: none;
   z-index: 1490;
-  cursor: pointer;
+  cursor: default;
 }
 
 .fade-backdrop-enter-active,

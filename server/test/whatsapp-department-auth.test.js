@@ -93,3 +93,20 @@ test('whatsappService.getStatusForUser filtra contas pelo departamento do atende
     whatsappService.accounts = originalAccounts;
   }
 });
+
+test('Supervisor tem autorização para gerenciar e conectar/desconectar WhatsApp de seus departamentos', () => {
+  const supervisor = {
+    id: 'sup-1',
+    role: 'Supervisor',
+    department_id: 'dept-vendas',
+    department_ids: ['dept-vendas', 'dept-pos-venda']
+  };
+
+  const accountVendas = { id: 'w1', name: 'WPP Vendas', departmentId: 'dept-vendas' };
+  const accountPosVenda = { id: 'w2', name: 'WPP Pós Venda', fallbackDepartmentId: 'dept-pos-venda' };
+  const accountFinanceiro = { id: 'w3', name: 'WPP Financeiro', departmentId: 'dept-financeiro' };
+
+  assert.equal(whatsappController.isUserAuthorizedForAccount(supervisor, accountVendas), true);
+  assert.equal(whatsappController.isUserAuthorizedForAccount(supervisor, accountPosVenda), true);
+  assert.equal(whatsappController.isUserAuthorizedForAccount(supervisor, accountFinanceiro), false);
+});

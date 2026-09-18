@@ -4,6 +4,7 @@
 
 const { supabase } = require('../config/supabase');
 const { DEFAULT_BOT_CONFIG, normalizeBotConfig, invalidateBotConfigCache } = require('../services/bot-config.service');
+const { isAdmin } = require('../services/access-control.service');
 
 class SettingsController {
   
@@ -38,6 +39,10 @@ class SettingsController {
     const { key, value } = req.body;
     if (!key || typeof value === 'undefined') {
       return res.status(400).json({ success: false, error: 'Chave (key) e valor (value) são obrigatórios.' });
+    }
+
+    if (!isAdmin(req.user) && key !== 'company_info') {
+      return res.status(403).json({ success: false, error: 'Apenas administradores podem alterar esta configuração.' });
     }
 
     try {

@@ -56,22 +56,21 @@ import ContactDrawer      from '@/components/atendimentos/ContactDrawer.vue'
 import ModalEncerrar      from '@/components/modals/ModalEncerrar.vue'
 import NewConversationModal from '@/components/atendimentos/NewConversationModal.vue'
 
+import { useNotepadStore } from '@/stores/notepad.store'
+
 const ticketStore = useTicketStore()
 const ui          = useUiStore()
 const auth        = useAuthStore()
+const notepadStore = useNotepadStore()
 
-const isDetailsOpen = ref(false)
-const showNewConversation = ref(false)
-const mobilePanel = ref('queue')
-
-const performance = ref({
-  today:   { departmentReceived: 0, agentCompleted: 0 },
-  metrics: { tma: '00:00:00', slaPercent: 0, ratingAverage: null }
-})
-let refreshTimer      = null
-let queueRefreshTimer = null
-let liveSyncRunning   = false
-let performanceRequestId = 0
+const mobilePanel          = ref('queue')
+const isDetailsOpen        = ref(false)
+const showNewConversation  = ref(false)
+const performance          = ref(null)
+let refreshTimer           = null
+let queueRefreshTimer      = null
+let performanceRequestId   = 0
+let liveSyncRunning        = false
 
 function onTicketSelected() {
   mobilePanel.value = 'chat'
@@ -79,6 +78,8 @@ function onTicketSelected() {
 
 function minimizeActiveChat(event) {
   if (event.key !== 'Escape' || !ticketStore.activeTicket) return
+  if (event.defaultPrevented) return
+  if (notepadStore.isOpen) return
   if (document.querySelector('.modal-overlay.active')) return
   ticketStore.minimizeActiveTicket()
   isDetailsOpen.value = false

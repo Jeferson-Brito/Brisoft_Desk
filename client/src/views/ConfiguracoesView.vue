@@ -3,7 +3,7 @@
     <!-- Coluna 1: Menu de Navegação das Configurações -->
     <div v-if="!standalone" class="settings-nav-sidebar">
       <div
-        v-if="authStore.isAdmin"
+        v-if="authStore.isAdmin || authStore.isSupervisor"
         class="settings-nav-item"
         :class="{ active: activeTab === 'conexoes' }"
         @click="activeTab = 'conexoes'"
@@ -11,20 +11,20 @@
         <i class="fa-solid fa-plug"></i>
         <div class="settings-nav-meta">
           <span class="settings-nav-title">Conexões</span>
-          <span class="settings-nav-desc">Servidor e contas do WhatsApp</span>
+          <span class="settings-nav-desc">Contas do WhatsApp</span>
         </div>
       </div>
 
       <div
-        v-if="authStore.isAdmin"
+        v-if="authStore.isAdmin || authStore.isSupervisor"
         class="settings-nav-item"
         :class="{ active: activeTab === 'geral' }"
         @click="activeTab = 'geral'"
       >
         <i class="fa-solid fa-sliders"></i>
         <div class="settings-nav-meta">
-          <span class="settings-nav-title">Geral & Empresa</span>
-          <span class="settings-nav-desc">Dados da empresa e preferências</span>
+          <span class="settings-nav-title">Informações da empresa</span>
+          <span class="settings-nav-desc">Dados da empresa e identificação</span>
         </div>
       </div>
 
@@ -49,8 +49,10 @@
       <div v-if="activeTab === 'conexoes'" class="settings-section-card">
         <div class="settings-section-header">
           <div>
-            <span class="settings-section-heading">Conexões e diagnóstico</span>
-            <div style="font-size:11px;color:#64748b;margin-top:3px;">Gerencie o servidor e todos os números de WhatsApp da empresa.</div>
+            <span class="settings-section-heading">Conexões e WhatsApp</span>
+            <div style="font-size:11px;color:#64748b;margin-top:3px;">
+              {{ authStore.isAdmin ? 'Gerencie o servidor e todos os números de WhatsApp da empresa.' : 'Gerencie as contas de WhatsApp vinculadas ao seu departamento.' }}
+            </div>
           </div>
         </div>
         <ConnectionsSettings />
