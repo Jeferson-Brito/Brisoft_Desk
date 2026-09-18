@@ -138,7 +138,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { useSocket } from '@/composables/useSocket'
 import { ticketsApi } from '@/api/tickets.api'
 import { departmentsApi } from '@/api/departments.api'
-import logoUrl from '@/assets/img/logo.png'
+import logoUrl from '@/assets/img/logo_tema_claro.png'
 
 const auth = useAuthStore()
 const ui = useUiStore()

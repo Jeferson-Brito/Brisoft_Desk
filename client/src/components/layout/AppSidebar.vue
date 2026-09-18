@@ -142,7 +142,7 @@ import { useAuthStore }      from '@/stores/auth.store'
 import { useTicketStore }    from '@/stores/tickets.store'
 import { useSidebarStore }   from '@/stores/sidebar.store'
 import iconUrl from '@/assets/img/icon.png'
-import logoUrl from '@/assets/img/logo.png'
+import logoUrl from '@/assets/img/logo_tema_claro.png'
 import { normalizePersonName } from '@/utils/person-display'
 
 const auth    = useAuthStore()

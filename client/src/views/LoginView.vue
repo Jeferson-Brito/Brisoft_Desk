@@ -10,12 +10,7 @@
 
         <!-- Logo -->
         <div class="login-logo-wrap">
-          <img :src="logoUrl" alt="Grupo Combate" class="login-logo" @error="e => e.target.style.display='none'" />
-          <div class="login-brand-tag">
-            <span class="login-brand-dot"></span>
-            Central de Atendimento
-            <span class="login-brand-dot"></span>
-          </div>
+          <img :src="logoUrl" alt="Brisoft Desk" class="login-logo" @error="e => e.target.style.display='none'" />
         </div>
 
         <h1 class="login-title">Bem-vindo de volta</h1>
@@ -79,10 +74,6 @@
           </button>
 
         </form>
-
-        <div class="login-footer">
-          Central de Atendimento &mdash; Grupo Combate
-        </div>
       </div>
 
       <div class="login-page-footer">
@@ -97,7 +88,7 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 import { useSocket }    from '@/composables/useSocket'
-import logoUrl from '@/assets/img/logo.png'
+import logoUrl from '@/assets/img/logo_tema_escuro.png'
 
 const router   = useRouter()
 const route    = useRoute()
