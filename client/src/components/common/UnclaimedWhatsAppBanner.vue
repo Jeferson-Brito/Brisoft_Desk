@@ -115,22 +115,19 @@ function playAlertChime() {
     const AudioContext = window.AudioContext || window.webkitAudioContext
     if (!AudioContext) return
     const ctx = new AudioContext()
-    const playTone = (freq, start, dur) => {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.type = 'sine'
-      osc.frequency.setValueAtTime(freq, start)
-      gain.gain.setValueAtTime(0.001, start)
-      gain.gain.linearRampToValueAtTime(0.2, start + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.001, start + dur)
-      osc.start(start)
-      osc.stop(start + dur + 0.02)
-    }
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'sine'
     const t = ctx.currentTime
-    playTone(587.33, t, 0.16)        // D5
-    playTone(880.00, t + 0.14, 0.24) // A5
+    osc.frequency.setValueAtTime(880, t)
+    osc.frequency.exponentialRampToValueAtTime(1200, t + 0.08)
+    gain.gain.setValueAtTime(0.001, t)
+    gain.gain.linearRampToValueAtTime(0.2, t + 0.01)
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.11)
+    osc.start(t)
+    osc.stop(t + 0.12)
   } catch {}
 }
 

@@ -80,16 +80,24 @@
           <span>{{ isAssuming ? 'Assumindo...' : 'Assumir' }}</span>
         </button>
 
-        <button
-          v-if="ticket && !ticket.is_group"
-          type="button"
-          class="header-tool-btn"
-          title="Histórico de atendimentos deste cliente"
-          aria-label="Histórico de atendimentos deste cliente"
-          @click="showClientHistoryModal = true"
-        >
-          <i class="fa-solid fa-clock-rotate-left"></i>
-        </button>
+        <!-- Janelinha de Histórico do Cliente (Dropdown ancorado abaixo do botão) -->
+        <div v-if="ticket && !ticket.is_group" class="history-dropdown-wrapper" style="position: relative;">
+          <button
+            type="button"
+            class="header-tool-btn"
+            :class="{ active: showClientHistoryModal }"
+            title="Histórico de atendimentos deste cliente"
+            aria-label="Histórico de atendimentos deste cliente"
+            @click="showClientHistoryModal = !showClientHistoryModal"
+          >
+            <i class="fa-solid fa-clock-rotate-left"></i>
+          </button>
+          <ModalHistoricoCliente
+            :is-open="showClientHistoryModal"
+            :ticket="ticket"
+            @close="showClientHistoryModal = false"
+          />
+        </div>
 
         <button
           type="button"
@@ -497,7 +505,6 @@
       @close="showTransferModal = false"
     />
     <ModalColaboradores v-if="showCollaboratorsModal && ticket" :ticket="ticket" @close="showCollaboratorsModal = false" @updated="updateCollaborators" />
-    <ModalHistoricoCliente :is-open="showClientHistoryModal" :ticket="ticket" @close="showClientHistoryModal = false" />
 
     <Teleport to="body">
       <div v-if="messageToDelete" class="modal-overlay active message-delete-overlay" @click.self="messageToDelete = null">

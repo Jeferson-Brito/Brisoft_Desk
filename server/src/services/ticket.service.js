@@ -2713,15 +2713,17 @@ ${rendered}`,
 
       let query = supabase
         .from('tickets')
-        .select('id, client_name, phone, preview, agent_name, encerrado_por, created_at, closed_at, updated_at, department, department_id, channel, status')
+        .select('id, client_name, phone, preview, agent_name, encerrado_por, user_id, created_at, closed_at, updated_at, department, department_id, channel, status')
         .eq('status', 'finalizado')
         .or(lookups.join(','));
 
-      // Se atendente comum, restringe ao departamento do atendimento atual ou dele
-      if (!isAdmin(user) && !isSupervisor(user) && currentTicket.department_id) {
-        query = query.eq('department_id', currentTicket.department_id);
-      } else if (filters.departmentId) {
-        query = query.eq('department_id', filters.departmentId);
+      // O histórico exibido deve ser EXCLUSIVAMENTE do departamento do atendimento em questão
+      const targetDeptId = currentTicket.department_id || filters.departmentId;
+      const targetDeptName = currentTicket.department;
+      if (targetDeptId) {
+        query = query.eq('department_id', targetDeptId);
+      } else if (targetDeptName) {
+        query = query.eq('department', targetDeptName);
       }
 
       if (filters.dateFrom) {
@@ -2765,6 +2767,34 @@ ${rendered}`,
         });
       }
 
+      // Busca fotos/avatares dos atendentes
+      const userIds = [...new Set(filteredTickets.map(t => t.user_id).filter(Boolean))];
+      const agentNames = [...new Set(filteredTickets.map(t => t.agent_name || t.encerrado_por).filter(Boolean))];
+      const avatarMap = new Map();
+
+      if (userIds.length > 0 || agentNames.length > 0) {
+        try {
+          const userFilters = [];
+          if (userIds.length > 0) userFilters.push(`id.in.(${userIds.join(',')})`);
+          if (agentNames.length > 0) {
+            const cleanNames = agentNames.map(n => `"${n.replace(/"/g, '')}"`).join(',');
+            userFilters.push(`name.in.(${cleanNames})`);
+          }
+          if (userFilters.length > 0) {
+            const { data: userData } = await supabase
+              .from('users')
+              .select('id, name, avatar_url')
+              .or(userFilters.join(','));
+            (userData || []).forEach(u => {
+              if (u.id) avatarMap.set(String(u.id), u.avatar_url);
+              if (u.name) avatarMap.set(u.name.toLowerCase().trim(), u.avatar_url);
+            });
+          }
+        } catch (avatarErr) {
+          console.warn('Falha ao carregar avatares dos atendentes para o histórico:', avatarErr.message);
+        }
+      }
+
       return filteredTickets.map(t => {
         const rawDate = t.closed_at || t.created_at || t.updated_at;
         const dateObj = new Date(rawDate);
@@ -2785,15 +2815,20 @@ ${rendered}`,
         if (!summary) summary = 'Atendimento finalizado';
         if (summary.length > 90) summary = summary.slice(0, 87) + '...';
 
+        const agentName = t.agent_name || t.encerrado_por || 'Atendente';
+        const agentAvatar = (t.user_id && avatarMap.get(String(t.user_id))) ||
+                            avatarMap.get(agentName.toLowerCase().trim()) || null;
+
         return {
           id: t.id,
           date: formattedDate,
           raw_date: rawDate,
-          agent_name: t.agent_name || t.encerrado_por || 'Atendente',
+          agent_name: agentName,
+          agent_avatar_url: agentAvatar,
           summary,
           preview: t.preview,
-          department: t.department || 'Geral',
-          department_id: t.department_id,
+          department: t.department || targetDeptName || 'Geral',
+          department_id: t.department_id || targetDeptId || null,
           channel: t.channel
         };
       });
