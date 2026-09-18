@@ -8,6 +8,7 @@
         <RouterView />
       </div>
     </main>
+    <ToolsSidebar />
   </div>
 </template>
 
@@ -16,6 +17,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppTopbar  from '@/components/layout/AppTopbar.vue'
+import ToolsSidebar from '@/components/layout/ToolsSidebar.vue'
 
 const route = useRoute()
 const isInboxView = computed(() => route.path.startsWith('/atendimentos'))

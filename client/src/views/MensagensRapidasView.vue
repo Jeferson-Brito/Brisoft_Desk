@@ -45,6 +45,15 @@
                 </div>
 
                 <div class="qm-popover-group">
+                  <label><i class="fa-solid fa-layer-group"></i> Disponibilidade</label>
+                  <select v-model="scopeFilter" class="qm-popover-select" aria-label="Filtrar por disponibilidade">
+                    <option value="all">Todas as disponibilidades</option>
+                    <option value="global">Apenas Globais</option>
+                    <option value="department">Apenas Departamentais</option>
+                  </select>
+                </div>
+
+                <div class="qm-popover-group">
                   <label><i class="fa-solid fa-arrow-down-a-z"></i> Ordenar por</label>
                   <select v-model="sortBy" class="qm-popover-select" aria-label="Ordenar mensagens">
                     <option value="title">Título A–Z</option>
@@ -71,8 +80,8 @@
           </Transition>
         </div>
 
-        <!-- Botão Nova Mensagem na Toolbar -->
-        <button v-if="auth.canManageTeam" class="btn-primary qm-create-btn" @click="openCreate">
+        <!-- Botão Nova Mensagem na Toolbar (Disponível para todos os usuários) -->
+        <button class="btn-primary qm-create-btn" @click="openCreate">
           <i class="fa-solid fa-plus"></i> Nova mensagem
         </button>
       </div>
@@ -113,7 +122,13 @@
           </div>
           <div class="qm-card-heading">
             <strong>{{ msg.title }}</strong>
-            <span>{{ msg.category || 'Geral' }}</span>
+            <div class="qm-card-subheading">
+              <span>{{ msg.category || 'Geral' }}</span>
+              <span class="qm-scope-pill" :class="msg.scope === 'department' ? 'dept' : 'global'">
+                <i :class="msg.scope === 'department' ? 'fa-solid fa-building-user' : 'fa-solid fa-globe'"></i>
+                {{ msg.scope === 'department' ? (msg.department_name || 'Departamento') : 'Global' }}
+              </span>
+            </div>
           </div>
           <span class="qm-status" :class="msg.is_active ? 'active' : 'inactive'">
             <i class="fa-solid fa-circle"></i> {{ msg.is_active ? 'Ativa' : 'Inativa' }}
@@ -160,6 +175,43 @@
                 <div class="form-group">
                   <label>Título <span>*</span></label>
                   <input v-model="form.title" type="text" required maxlength="120" placeholder="Ex.: Confirmação de atendimento" class="form-control" />
+                </div>
+
+                <!-- Seleção de Disponibilidade / Departamento -->
+                <div class="form-group">
+                  <label>Disponibilidade da mensagem <span>*</span></label>
+                  <div class="qm-scope-selector">
+                    <label class="qm-scope-option" :class="{ selected: form.scope === 'global' }">
+                      <input type="radio" value="global" v-model="form.scope" />
+                      <div class="scope-option-info">
+                        <i class="fa-solid fa-globe"></i>
+                        <div>
+                          <strong>Global</strong>
+                          <small>Todos os atendentes e setores</small>
+                        </div>
+                      </div>
+                    </label>
+                    <label class="qm-scope-option" :class="{ selected: form.scope === 'department' }">
+                      <input type="radio" value="department" v-model="form.scope" />
+                      <div class="scope-option-info">
+                        <i class="fa-solid fa-building-user"></i>
+                        <div>
+                          <strong>Departamental</strong>
+                          <small>Apenas o setor vinculado</small>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div v-if="form.scope === 'department'" class="form-group">
+                  <label>Departamento do Setor <span>*</span></label>
+                  <select v-model="form.department_id" class="form-control" required>
+                    <option value="" disabled>Selecione um departamento...</option>
+                    <option v-for="dept in allowedDepartments" :key="dept.id" :value="dept.id">
+                      {{ dept.name }}
+                    </option>
+                  </select>
                 </div>
 
                 <div class="qm-two-columns">
@@ -218,6 +270,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { quickMessagesApi } from '@/api/quick-messages.api'
+import { departmentsApi } from '@/api/departments.api'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 
@@ -226,27 +279,44 @@ const ui = useUiStore()
 const searchTerm = ref('')
 const selectedCategory = ref('all')
 const statusFilter = ref('all')
+const scopeFilter = ref('all')
 const sortBy = ref('title')
 const showFilterPopover = ref(false)
 const qmFilterDropdownRef = ref(null)
 const messages = ref([])
+const departments = ref([])
 const loading = ref(true)
 const showForm = ref(false)
 const editingId = ref(null)
 const saving = ref(false)
 
-const emptyForm = () => ({ title: '', category: 'Atendimento', shortcut: '', content: '', is_active: true })
+const allowedDepartments = computed(() => {
+  if (auth.isAdmin) return departments.value
+  const userDepts = auth.departmentIds || []
+  return departments.value.filter(d => userDepts.includes(String(d.id)))
+})
+
+const emptyForm = () => ({
+  title: '',
+  category: 'Atendimento',
+  shortcut: '',
+  content: '',
+  scope: 'global',
+  department_id: allowedDepartments.value[0]?.id || auth.departmentId || '',
+  is_active: true
+})
 const form = ref(emptyForm())
 const categories = computed(() => [...new Set(messages.value.map(item => item.category || 'Geral'))].sort((a, b) => a.localeCompare(b, 'pt-BR')))
 const activeCount = computed(() => messages.value.filter(item => item.is_active).length)
-const hasFilters = computed(() => Boolean(searchTerm.value.trim()) || selectedCategory.value !== 'all' || statusFilter.value !== 'all')
+const hasFilters = computed(() => Boolean(searchTerm.value.trim()) || selectedCategory.value !== 'all' || statusFilter.value !== 'all' || scopeFilter.value !== 'all')
 
 const hasActiveCustomFilters = computed(() => {
-  return statusFilter.value !== 'all' || sortBy.value !== 'title'
+  return statusFilter.value !== 'all' || scopeFilter.value !== 'all' || sortBy.value !== 'title'
 })
 
 function resetQuickFilters() {
   statusFilter.value = 'all'
+  scopeFilter.value = 'all'
   sortBy.value = 'title'
 }
 
@@ -259,11 +329,13 @@ function handleQmClickOutside(event) {
 const filteredMessages = computed(() => {
   const term = searchTerm.value.trim().toLocaleLowerCase('pt-BR')
   const list = messages.value.filter(item => {
-    const searchable = `${item.title} ${item.content} ${item.shortcut || ''} ${item.category || ''}`.toLocaleLowerCase('pt-BR')
+    const searchable = `${item.title} ${item.content} ${item.shortcut || ''} ${item.category || ''} ${item.department_name || ''}`.toLocaleLowerCase('pt-BR')
     if (term && !searchable.includes(term)) return false
     if (selectedCategory.value !== 'all' && (item.category || 'Geral') !== selectedCategory.value) return false
     if (statusFilter.value === 'active' && !item.is_active) return false
     if (statusFilter.value === 'inactive' && item.is_active) return false
+    if (scopeFilter.value === 'global' && item.scope === 'department' && item.department_id) return false
+    if (scopeFilter.value === 'department' && (item.scope !== 'department' || !item.department_id)) return false
     return true
   })
   return [...list].sort((a, b) => {
@@ -272,6 +344,13 @@ const filteredMessages = computed(() => {
     return a.title.localeCompare(b.title, 'pt-BR')
   })
 })
+
+async function loadDepartments() {
+  try {
+    const { data } = await departmentsApi.list()
+    departments.value = data.departments || []
+  } catch (_) {}
+}
 
 async function loadMessages() {
   loading.value = true
@@ -286,11 +365,13 @@ async function loadMessages() {
 }
 
 function categoryCount(category) { return messages.value.filter(item => (item.category || 'Geral') === category).length }
-function canManageMessage(message) { return auth.isAdmin || (auth.isSupervisor && String(message.created_by_id || '') === String(auth.user?.id || '')) }
+function canManageMessage(message) {
+  return auth.isAdmin || String(message.created_by_id || '') === String(auth.user?.id || '')
+}
 function authorLabel(message) {
   const author = message.created_by_name || 'Sistema'
-  if (!message.created_at) return `Mensagem rápida criada por ${author}`
-  return `Mensagem rápida criada por ${author} em ${new Date(message.created_at).toLocaleDateString('pt-BR')}`
+  if (!message.created_at) return `Criada por ${author}`
+  return `Criada por ${author} em ${new Date(message.created_at).toLocaleDateString('pt-BR')}`
 }
 function categoryStyle(category = 'Geral') {
   const palettes = [
@@ -300,12 +381,24 @@ function categoryStyle(category = 'Geral') {
   const index = [...category].reduce((total, char) => total + char.charCodeAt(0), 0) % palettes.length
   return { backgroundColor: palettes[index][0], color: palettes[index][1] }
 }
-function clearFilters() { searchTerm.value = ''; selectedCategory.value = 'all'; statusFilter.value = 'all' }
+function clearFilters() { searchTerm.value = ''; selectedCategory.value = 'all'; statusFilter.value = 'all'; scopeFilter.value = 'all' }
 function closeForm() { if (!saving.value) showForm.value = false }
-function openCreate() { editingId.value = null; form.value = emptyForm(); showForm.value = true }
+function openCreate() {
+  editingId.value = null
+  form.value = emptyForm()
+  showForm.value = true
+}
 function openEdit(message) {
   editingId.value = message.id
-  form.value = { title: message.title || '', category: message.category || 'Atendimento', shortcut: message.shortcut || '', content: message.content || '', is_active: message.is_active !== false }
+  form.value = {
+    title: message.title || '',
+    category: message.category || 'Atendimento',
+    shortcut: message.shortcut || '',
+    content: message.content || '',
+    scope: message.scope || (message.department_id ? 'department' : 'global'),
+    department_id: message.department_id || (allowedDepartments.value[0]?.id || ''),
+    is_active: message.is_active !== false
+  }
   showForm.value = true
 }
 function sanitizeShortcut() { form.value.shortcut = form.value.shortcut.toLowerCase().replace(/^\/+/, '').replace(/[^a-z0-9_-]/g, '') }
@@ -318,10 +411,20 @@ async function saveMessage() {
   if (!form.value.title.trim() || !form.value.content.trim()) return ui.showToast('Informe o título e a mensagem.', 'error')
   const duplicateShortcut = form.value.shortcut && messages.value.some(item => item.id !== editingId.value && item.shortcut === form.value.shortcut)
   if (duplicateShortcut) return ui.showToast('Esse atalho já está sendo utilizado.', 'error')
+  
   saving.value = true
   try {
-    if (editingId.value) await quickMessagesApi.update(editingId.value, form.value)
-    else await quickMessagesApi.create(form.value)
+    const payload = { ...form.value }
+    if (payload.scope === 'department') {
+      const dept = departments.value.find(d => String(d.id) === String(payload.department_id))
+      payload.department_name = dept?.name || null
+    } else {
+      payload.department_id = null
+      payload.department_name = null
+    }
+
+    if (editingId.value) await quickMessagesApi.update(editingId.value, payload)
+    else await quickMessagesApi.create(payload)
     ui.showToast(editingId.value ? 'Mensagem atualizada com sucesso!' : 'Mensagem criada com sucesso!')
     showForm.value = false
     await loadMessages()
@@ -336,9 +439,10 @@ async function removeMessage(message) {
   catch (error) { ui.showToast(error.response?.data?.error || 'Não foi possível excluir a mensagem.', 'error') }
 }
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('click', handleQmClickOutside)
-  loadMessages()
+  await loadDepartments()
+  await loadMessages()
 })
 
 onBeforeUnmount(() => {
@@ -606,6 +710,92 @@ onBeforeUnmount(() => {
 .qm-preview-bubble strong { display: block; margin-bottom: 4px; color: #166534; font-size: 11px; }
 .qm-preview-bubble p { margin: 0; color: #14532d; font-size: 11.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .qm-preview-bubble small { display: block; margin-top: 8px; color: #4d7c5a; font: 600 9.5px monospace; }
+
+.qm-card-subheading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.qm-scope-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  line-height: 1.4;
+}
+
+.qm-scope-pill.global {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.qm-scope-pill.dept {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.qm-scope-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.qm-scope-option {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  transition: all 0.15s ease;
+}
+
+.qm-scope-option:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.qm-scope-option.selected {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.qm-scope-option input[type="radio"] {
+  accent-color: #2563eb;
+}
+
+.scope-option-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scope-option-info i {
+  font-size: 16px;
+  color: #3b82f6;
+}
+
+.scope-option-info strong {
+  display: block;
+  font-size: 12px;
+  color: #1e293b;
+}
+
+.scope-option-info small {
+  display: block;
+  font-size: 10.5px;
+  color: #64748b;
+}
 
 @media (max-width: 900px) {
   .qm-summary { grid-template-columns: minmax(0, 1fr) auto; gap: 14px; }

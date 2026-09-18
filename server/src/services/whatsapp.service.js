@@ -871,34 +871,46 @@ class WhatsAppService {
 
   async syncAccountGroups(account) {
     if (!account?.sock || account.status !== 'connected') return [];
-    const all = await account.sock.groupFetchAllParticipating();
-    const metadata = Object.values(all || {});
-    const groups = await Promise.all(metadata.map(async group => ({
-      jid: group.id,
-      subject: group.subject || 'Grupo do WhatsApp',
-      participantCount: Array.isArray(group.participants) ? group.participants.length : 0,
-      avatarUrl: await this.profilePictureUrl(account, group.id)
-    })));
-    const accountInfo = {
-      id: account.id,
-      departmentId: account.departmentId,
-      departmentName: account.departmentName,
-      fallbackDepartmentId: account.fallbackDepartmentId,
-      fallbackDepartmentName: account.fallbackDepartmentName
-    };
-    const synced = await ticketService.syncWhatsAppGroups(accountInfo, groups, this.io);
-    this.refreshAccountAvatars(account).catch(error => console.warn(`[WhatsApp:${account.name}] falha ao atualizar fotos: ${error.message}`));
-    return synced;
+    try {
+      const all = await account.sock.groupFetchAllParticipating();
+      const metadata = Object.values(all || {});
+      const groups = metadata.map(group => ({
+        jid: group.id,
+        subject: group.subject || 'Grupo do WhatsApp',
+        participantCount: Array.isArray(group.participants) ? group.participants.length : 0,
+        avatarUrl: null
+      }));
+      const accountInfo = {
+        id: account.id,
+        departmentId: account.departmentId,
+        departmentName: account.departmentName,
+        fallbackDepartmentId: account.fallbackDepartmentId,
+        fallbackDepartmentName: account.fallbackDepartmentName
+      };
+      const synced = await ticketService.syncWhatsAppGroups(accountInfo, groups, this.io);
+      // Atualiza fotos em segundo plano de forma escalonada (sem travar o servidor)
+      setTimeout(() => {
+        this.refreshAccountAvatars(account).catch(error => console.warn(`[WhatsApp:${account.name}] falha ao atualizar fotos: ${error.message}`));
+      }, 2000);
+      return synced;
+    } catch (err) {
+      console.warn(`[WhatsApp:${account.name}] falha ao sincronizar grupos:`, err.message);
+      return [];
+    }
   }
 
   async refreshAccountAvatars(account) {
+    if (!account?.sock || account.status !== 'connected') return;
     const targets = await ticketService.getWhatsAppAvatarTargets(account.id);
-    for (let offset = 0; offset < targets.length; offset += 5) {
-      await Promise.all(targets.slice(offset, offset + 5).map(async target => {
+    for (let offset = 0; offset < targets.length; offset += 3) {
+      if (account.status !== 'connected') break;
+      await Promise.all(targets.slice(offset, offset + 3).map(async target => {
         const jid = target.group_jid || (target.phone ? `${String(target.phone).replace(/\D/g, '')}@s.whatsapp.net` : null) || target.jid || target.raw_jid;
         const url = await this.profilePictureUrl(account, jid);
         if (url) await ticketService.updateTicketAvatar(target.id, url, this.io);
       }));
+      // Pausa de 200ms entre blocos para não saturar a rede e liberar o garbage collector
+      await new Promise(r => setTimeout(r, 200));
     }
   }
 

@@ -16,6 +16,7 @@ const usersController = require('../controllers/users.controller');
 const systemController = require('../controllers/system.controller');
 const contactsController = require('../controllers/contacts.controller');
 const quickMessageController = require('../controllers/quick-message.controller');
+const notesController = require('../controllers/notes.controller');
 const wallboardController = require('../controllers/wallboard.controller');
 const cloudStorage = require('../services/cloud-storage.service');
 const fs = require('fs');
@@ -100,11 +101,17 @@ router.get('/performance', requireAuth, (req, res) => ticketController.getPerfor
 router.get('/wallboard', requireAuth, (req, res) => wallboardController.getData(req, res));
 router.put('/wallboard/config', requireAuth, requireAdmin, (req, res) => wallboardController.saveConfig(req, res));
 
-// Mensagens rápidas: atendentes consultam; administradores gerenciam.
+// Mensagens rápidas: todos os usuários autenticados podem criar e utilizar.
 router.get('/quick-messages', requireAuth, (req, res) => quickMessageController.list(req, res));
-router.post('/quick-messages', requireAuth, requireSupervisorOrAdmin, (req, res) => quickMessageController.create(req, res));
-router.put('/quick-messages/:id', requireAuth, requireSupervisorOrAdmin, (req, res) => quickMessageController.update(req, res));
-router.delete('/quick-messages/:id', requireAuth, requireSupervisorOrAdmin, (req, res) => quickMessageController.remove(req, res));
+router.post('/quick-messages', requireAuth, (req, res) => quickMessageController.create(req, res));
+router.put('/quick-messages/:id', requireAuth, (req, res) => quickMessageController.update(req, res));
+router.delete('/quick-messages/:id', requireAuth, (req, res) => quickMessageController.remove(req, res));
+
+// Anotações rápidas (Bloco de Notas)
+router.get('/notes', requireAuth, (req, res) => notesController.list(req, res));
+router.post('/notes', requireAuth, (req, res) => notesController.save(req, res));
+router.put('/notes/:id', requireAuth, (req, res) => notesController.save(req, res));
+router.delete('/notes/:id', requireAuth, (req, res) => notesController.remove(req, res));
 
 // Rotas de Departamentos
 router.get('/departments', requireAuth, (req, res) => departmentController.listDepartments(req, res));

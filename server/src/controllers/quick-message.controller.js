@@ -3,7 +3,7 @@ const quickMessageService = require('../services/quick-message.service');
 class QuickMessageController {
   async list(req, res) {
     try {
-      const messages = await quickMessageService.list(req.user.role === 'Analista');
+      const messages = await quickMessageService.list(req.user, req.user?.role === 'Analista');
       return res.json({ success: true, messages });
     } catch (error) {
       return res.status(500).json({ success: false, error: error.message });

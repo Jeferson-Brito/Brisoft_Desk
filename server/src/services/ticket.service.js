@@ -2162,6 +2162,11 @@ ${rendered}`,
       created = true;
     }
 
+    if (options?.light) {
+      if (io && ticket) emitTicketEvent(io, created ? 'ticket_created' : 'ticket_updated', { ticket }, ticket);
+      return ticket;
+    }
+
     const fullTicket = await this.getFullTicket(ticket.id);
     if (io && fullTicket) emitTicketEvent(io, created ? 'ticket_created' : 'ticket_updated', { ticket: fullTicket }, fullTicket);
     return fullTicket || ticket;
@@ -2173,7 +2178,7 @@ ${rendered}`,
     const synced = [];
     for (const group of groups) {
       try {
-        const ticket = await this.ensureWhatsAppGroupTicket(account, group, io);
+        const ticket = await this.ensureWhatsAppGroupTicket(account, group, io, { light: true });
         if (ticket) synced.push(ticket);
       } catch (error) {
         console.warn(`Falha ao sincronizar grupo ${group?.subject || group?.jid}: ${error.message}`);
@@ -3545,7 +3550,8 @@ ${rendered}`,
   }
 
   async handleAccountDisconnected(accountId, reason = 'manual_disconnect', io = null) {
-    if (!isSupabaseConfigured() || !accountId) return { success: false, closedCount: 0, inactivedGroupsCount: 0 };
+    if (!accountId) return { success: false, closedCount: 0, inactivedGroupsCount: 0 };
+    if (!isSupabaseConfigured()) return { success: true, closedCount: 0, inactivedGroupsCount: 0 };
     try {
       const targetChannels = accountId === 'default'
         ? ['whatsapp', 'whatsapp:default']

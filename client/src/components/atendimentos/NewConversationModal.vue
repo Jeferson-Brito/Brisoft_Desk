@@ -51,7 +51,17 @@
               :disabled="startingId === contact.id"
               @click="startConversation(contact)"
             >
-              <span class="conversation-avatar">{{ initials(contact.name) }}</span>
+              <span class="conversation-avatar" :style="{ background: contactAvatarUrl(contact) && !failedAvatars[contact.id] ? 'transparent' : avatarColor(contact.name) }">
+                <img
+                  v-if="contactAvatarUrl(contact) && !failedAvatars[contact.id]"
+                  :src="contactAvatarUrl(contact)"
+                  alt=""
+                  class="conversation-avatar-img"
+                  referrerpolicy="no-referrer"
+                  @error="failedAvatars[contact.id] = true"
+                />
+                <span v-else>{{ initials(contact.name) }}</span>
+              </span>
               <span class="conversation-contact-info">
                 <strong>{{ contact.name }}</strong>
                 <small><i class="fa-brands fa-whatsapp"></i> {{ formatPhone(contact.phone) }}<template v-if="contact.email"> • {{ contact.email }}</template></small>
@@ -114,6 +124,25 @@ const filteredContacts = computed(() => {
       .some(value => String(value || '').toLocaleLowerCase('pt-BR').includes(term))
   }).slice(0, 100)
 })
+
+const failedAvatars = ref({})
+const avatarColors = ['#2563eb', '#7c3aed', '#db2777', '#059669', '#d97706', '#dc2626', '#0891b2']
+
+function avatarColor(name) {
+  const hash = [...String(name || 'CL')].reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  return avatarColors[Math.abs(hash) % avatarColors.length]
+}
+
+function contactAvatarUrl(contact) {
+  if (contact?.avatar_url) return contact.avatar_url
+  if (contact?.photo_url) return contact.photo_url
+  const phone = String(contact?.phone || '').replace(/\D/g, '')
+  const match = (ticketStore.tickets || []).find(t => {
+    const tPhone = String(t.phone || '').replace(/\D/g, '')
+    return (phone && tPhone.endsWith(phone.slice(-8))) || (t.contact_id && String(t.contact_id) === String(contact.id))
+  })
+  return match?.avatar_url || null
+}
 
 function initials(name) {
   return String(name || 'CL').split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase()
@@ -306,16 +335,26 @@ onMounted(async () => {
 }
 
 .conversation-avatar {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
   display: grid;
   place-items: center;
   border-radius: 50%;
   background: var(--brand-primary);
   color: #ffffff;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
+  overflow: hidden;
+  position: relative;
+}
+
+.conversation-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
 }
 
 .conversation-contact-info {
