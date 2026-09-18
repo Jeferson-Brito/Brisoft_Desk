@@ -396,6 +396,31 @@ function makeInitials(name, fallback = 'GR') {
   return words.slice(0, 2).map(w => Array.from(w)[0]).join('').toUpperCase() || fallback;
 }
 
+function parseRatingInput(text) {
+  if (typeof text !== 'string') return null;
+  const clean = text.trim();
+  const match = clean.match(/^([1-5])\s*(?:estrelas?|⭐|\*)?$/i);
+  if (match) return parseInt(match[1], 10);
+  if (clean.length <= 2) {
+    const raw = parseInt(clean, 10);
+    if (!isNaN(raw) && raw >= 1 && raw <= 5) return raw;
+  }
+  return null;
+}
+
+function isRatingEligibleTicket(ticket, ratingWindowMinutes, nowMs = Date.now()) {
+  if (!ticket || ticket.is_employee || ticket.status !== 'finalizado') return false;
+  const upTime = new Date(ticket.updated_at || ticket.closed_at).getTime();
+  if (isNaN(upTime)) return false;
+  const elapsedMs = Math.max(0, nowMs - upTime);
+  const configuredMs = (Number(ratingWindowMinutes) || 45) * 60 * 1000;
+  const withinConfiguredWindow = elapsedMs < configuredMs;
+  // Se o atendimento foi encerrado aguardando avaliação e o cliente ainda não avaliou,
+  // aceitamos a avaliação com tolerância estendida de até 24 horas.
+  const isAwaitingRating = Boolean(ticket.awaiting_rating) && elapsedMs < (24 * 60 * 60 * 1000);
+  return withinConfiguredWindow || isAwaitingRating;
+}
+
 // O Supabase limita respostas a 1.000 linhas. Sem paginação, os tickets fora
 // da primeira página pareciam não possuir mensagens no histórico.
 async function fetchAllMessagesForTicketIds(ticketIds = []) {
@@ -834,12 +859,11 @@ ${rendered}`,
 
       // 2. Se NÃO houver ticket ativo, verifica se é uma resposta de avaliação (1 a 5) para um ticket finalizado
       if (!ticket) {
-        const cleanText = text.trim();
-        const rawRating = parseInt(cleanText, 10);
-        if (!isNaN(rawRating) && rawRating >= 1 && rawRating <= 5 && cleanText.length <= 2) {
+        const rawRating = parseRatingInput(text);
+        if (rawRating !== null) {
           let ratingTicketQuery = supabase
             .from('tickets')
-            .select('id, status, phone, jid, raw_jid, encerrado_por, agent_name, department_id, updated_at, is_employee')
+            .select('id, status, phone, jid, raw_jid, encerrado_por, agent_name, department_id, updated_at, closed_at, is_employee, awaiting_rating')
             .or(`phone.eq.${phone},jid.eq.${from}`)
             .eq('status', 'finalizado');
           ratingTicketQuery = scopeWhatsAppChannel(ratingTicketQuery);
@@ -849,14 +873,14 @@ ${rendered}`,
 
           if (closedTickets && closedTickets.length > 0) {
             const nowMs = Date.now();
-            const targetTicket = closedTickets.find(ct => {
-              if (ct.is_employee) return false;
-              const upTime = new Date(ct.updated_at).getTime();
-              return (nowMs - upTime) < (botConfig.rating_window_minutes * 60 * 1000);
-            });
+            const targetTicket = closedTickets.find(ct => isRatingEligibleTicket(ct, botConfig.rating_window_minutes, nowMs));
 
             if (targetTicket) {
               console.log(`⭐ Avaliação confirmada: ${rawRating} estrelas | Ticket ${targetTicket.id}`);
+
+              try {
+                await supabase.from('tickets').update({ awaiting_rating: false, updated_at: new Date().toISOString() }).eq('id', targetTicket.id);
+              } catch (_) {}
 
               try {
                 const ratingResult = await supabase.from('ratings').insert({
@@ -3685,7 +3709,9 @@ ticketService._test = {
   messagePreview,
   rememberMediaSize,
   mediaSizeCache,
-  makeInitials
+  makeInitials,
+  parseRatingInput,
+  isRatingEligibleTicket
 };
 
 module.exports = ticketService;
