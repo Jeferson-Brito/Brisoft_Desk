@@ -6,7 +6,7 @@
         type="button"
         class="nav-item"
         :class="{ active: notepad.isOpen }"
-        title="Bloco de Notas"
+        title="Notas"
         @click="notepad.toggle"
       >
         <i class="fa-regular fa-note-sticky"></i>

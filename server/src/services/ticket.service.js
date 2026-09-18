@@ -439,6 +439,40 @@ function emitTicketEvent(io, event, payload, ticket) {
   target.emit(event, payload);
 }
 
+const unclaimedActivityThrottle = new Map();
+
+function emitUnclaimedWhatsAppActivity(io, ticket, previewText) {
+  if (!io || !ticket) return;
+  const now = Date.now();
+  const lastAlert = unclaimedActivityThrottle.get(ticket.id) || 0;
+  if (now - lastAlert < 20000) {
+    return;
+  }
+  unclaimedActivityThrottle.set(ticket.id, now);
+  if (unclaimedActivityThrottle.size > 1000) {
+    for (const [key, time] of unclaimedActivityThrottle) {
+      if (now - time > 60000) unclaimedActivityThrottle.delete(key);
+    }
+  }
+
+  const payload = {
+    ticketId: ticket.id,
+    ticket,
+    clientName: ticket.client_name || 'Cliente',
+    department: ticket.department || null,
+    departmentId: ticket.department_id || null,
+    channel: ticket.channel,
+    preview: previewText || ticket.preview || 'Mensagem enviada pelo WhatsApp',
+    timestamp: now
+  };
+
+  if (ticket.department_id) {
+    io.to('admins').to(`department:${ticket.department_id}`).emit('unclaimed_whatsapp_activity', payload);
+  } else {
+    io.emit('unclaimed_whatsapp_activity', payload);
+  }
+}
+
 function assertSupabase(result, context) {
   if (result && result.error) {
     throw new Error(`${context}: ${result.error.message}`);
@@ -1786,6 +1820,10 @@ ${rendered}`,
         emitTicketEvent(io, createdTicket ? 'ticket_created' : 'ticket_updated', { ticket: emittedTicket }, emittedTicket);
         emitTicketEvent(io, 'new_message', { ticketId: ticket.id, message: savedMessage, ticket: emittedTicket }, emittedTicket);
         scheduleKpiUpdate(io);
+
+        if (!emittedTicket.user_id && emittedTicket.status !== 'finalizado') {
+          emitUnclaimedWhatsAppActivity(io, emittedTicket, text || previewText);
+        }
       }
       if (matchesExternalClosureMessage(text)) {
         await this.finalizeExternalTicket(emittedTicket, {

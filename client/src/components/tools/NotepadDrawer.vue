@@ -1,62 +1,63 @@
 <template>
-  <div v-if="notepad.isOpen" class="notepad-drawer-container">
-    <!-- Backdrop sutil para fechar ao clicar fora em telas menores ou opcional -->
-    <div class="notepad-backdrop" @click="notepad.close"></div>
+  <Teleport to="body">
+    <div v-if="notepad.isOpen" class="notepad-drawer-container">
+      <!-- Backdrop sutil para fechar ao clicar fora em telas menores ou opcional -->
+      <div class="notepad-backdrop" @click="notepad.close"></div>
 
-    <div class="notepad-window">
-      <!-- Windows 11 Notepad Top Header Bar -->
-      <div class="notepad-header">
-        <div class="notepad-title-group">
-          <div class="notepad-app-icon">
-            <i class="fa-regular fa-note-sticky"></i>
+      <div class="notepad-window">
+        <!-- Windows 11 Notepad Top Header Bar -->
+        <div class="notepad-header">
+          <div class="notepad-title-group">
+            <div class="notepad-app-icon">
+              <i class="fa-regular fa-note-sticky"></i>
+            </div>
+            <span class="notepad-title">Notas</span>
           </div>
-          <span class="notepad-title">Bloco de Notas</span>
+
+          <div class="notepad-header-actions">
+            <!-- Interruptor de Salvamento Automático -->
+            <label class="autosave-switch" title="Salvar automaticamente alterações no servidor">
+              <input type="checkbox" :checked="notepad.autoSave" @change="notepad.toggleAutoSave" />
+              <span class="slider"></span>
+              <span class="autosave-label">Salvar auto</span>
+            </label>
+
+            <button
+              type="button"
+              class="header-btn"
+              :class="{ active: notepad.isHistoryOpen }"
+              @click="toggleHistory"
+              title="Anotações salvas no servidor"
+            >
+              <i class="fa-solid fa-folder-open"></i>
+              <span>Notas Salvas</span>
+              <span v-if="notepad.savedNotes.length > 0" class="header-count-badge">
+                {{ notepad.savedNotes.length }}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="header-btn primary"
+              :disabled="notepad.isSaving"
+              @click="handleSave"
+              title="Salvar nota atual na nuvem"
+            >
+              <i v-if="notepad.isSaving" class="fa-solid fa-spinner fa-spin"></i>
+              <i v-else class="fa-regular fa-floppy-disk"></i>
+              <span>{{ notepad.isSaving ? 'Salvando...' : 'Salvar' }}</span>
+            </button>
+
+            <button
+              type="button"
+              class="header-close-btn"
+              @click="notepad.close"
+              title="Fechar Notas"
+            >
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
         </div>
-
-        <div class="notepad-header-actions">
-          <!-- Interruptor de Salvamento Automático -->
-          <label class="autosave-switch" title="Salvar automaticamente alterações no servidor">
-            <input type="checkbox" :checked="notepad.autoSave" @change="notepad.toggleAutoSave" />
-            <span class="slider"></span>
-            <span class="autosave-label">Salvar auto</span>
-          </label>
-
-          <button
-            type="button"
-            class="header-btn"
-            :class="{ active: notepad.isHistoryOpen }"
-            @click="toggleHistory"
-            title="Anotações salvas no servidor"
-          >
-            <i class="fa-solid fa-folder-open"></i>
-            <span>Notas Salvas</span>
-            <span v-if="notepad.savedNotes.length > 0" class="header-count-badge">
-              {{ notepad.savedNotes.length }}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            class="header-btn primary"
-            :disabled="notepad.isSaving"
-            @click="handleSave"
-            title="Salvar nota atual na nuvem"
-          >
-            <i v-if="notepad.isSaving" class="fa-solid fa-spinner fa-spin"></i>
-            <i v-else class="fa-regular fa-floppy-disk"></i>
-            <span>{{ notepad.isSaving ? 'Salvando...' : 'Salvar' }}</span>
-          </button>
-
-          <button
-            type="button"
-            class="header-close-btn"
-            @click="notepad.close"
-            title="Fechar Bloco de Notas"
-          >
-            <i class="fa-solid fa-xmark"></i>
-          </button>
-        </div>
-      </div>
 
       <!-- Abas estilo Windows 11 -->
       <div class="notepad-tabs-bar">
@@ -229,6 +230,7 @@
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -354,7 +356,8 @@ function formatDate(isoStr) {
   bottom: 0;
   width: 520px;
   max-width: calc(100vw - 60px);
-  z-index: 59;
+  height: 100vh;
+  z-index: 1500;
   display: flex;
   flex-direction: column;
   box-shadow: -6px 0 25px rgba(0, 0, 0, 0.12);

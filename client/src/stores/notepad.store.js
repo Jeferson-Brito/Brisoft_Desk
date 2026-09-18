@@ -3,8 +3,17 @@ import { ref, computed, watch } from 'vue'
 import { notesApi } from '@/api/notes.api'
 import { useAuthStore } from '@/stores/auth.store'
 
-const STORAGE_KEY_TABS = 'brisoft_notepad_tabs'
-const STORAGE_KEY_ACTIVE = 'brisoft_notepad_active_tab'
+function getStorageKeyTabs(userId) {
+  return `brisoft_notes_tabs_${userId || 'guest'}`
+}
+
+function getStorageKeyActive(userId) {
+  return `brisoft_notes_active_${userId || 'guest'}`
+}
+
+function getStorageKeyAutoSave(userId) {
+  return `brisoft_notes_autosave_${userId || 'guest'}`
+}
 
 function createDefaultTab(index = 1) {
   return {
@@ -26,62 +35,102 @@ export const useNotepadStore = defineStore('notepad', () => {
   const savedNotes = ref([])
   const filterUserId = ref('')
   const searchQuery = ref('')
-  const autoSave = ref(localStorage.getItem('brisoft_notepad_autosave') === 'true')
+  const autoSave = ref(false)
   let autoSaveTimeout = null
+
+  // Abas abertas no editor isoladas por usuário
+  const tabs = ref([])
+  const activeTabId = ref('')
+  let currentLoadedUserId = null
+
+  function loadUserSession(userId) {
+    if (!userId) {
+      tabs.value = []
+      activeTabId.value = ''
+      savedNotes.value = []
+      currentLoadedUserId = null
+      autoSave.value = false
+      return
+    }
+
+    currentLoadedUserId = userId
+
+    // Carregar preferência de auto-save do usuário
+    try {
+      const savedAutoSave = localStorage.getItem(getStorageKeyAutoSave(userId))
+      autoSave.value = savedAutoSave === 'true'
+    } catch {
+      autoSave.value = false
+    }
+
+    // Carregar rascunhos e abas do usuário logado
+    let loadedTabs = []
+    try {
+      const raw = localStorage.getItem(getStorageKeyTabs(userId))
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          loadedTabs = parsed
+        }
+      }
+    } catch (e) {
+      console.warn('Falha ao restaurar notas do usuário:', e)
+    }
+
+    if (loadedTabs.length === 0) {
+      const firstTab = createDefaultTab(1)
+      tabs.value = [firstTab]
+      activeTabId.value = firstTab.id
+    } else {
+      tabs.value = loadedTabs
+      const savedActive = localStorage.getItem(getStorageKeyActive(userId))
+      if (savedActive && loadedTabs.some(t => t.id === savedActive)) {
+        activeTabId.value = savedActive
+      } else {
+        activeTabId.value = loadedTabs[0].id
+      }
+    }
+  }
+
+  // Inicializa caso o usuário já esteja autenticado
+  if (auth.user?.id) {
+    loadUserSession(auth.user.id)
+  }
+
+  // Reage à troca ou logout de usuário
+  watch(() => auth.user?.id, (newUserId) => {
+    if (newUserId !== currentLoadedUserId) {
+      loadUserSession(newUserId)
+    }
+  })
 
   function toggleAutoSave() {
     autoSave.value = !autoSave.value
-    try {
-      localStorage.setItem('brisoft_notepad_autosave', autoSave.value ? 'true' : 'false')
-    } catch (e) {
-      console.warn('Erro ao salvar preferência de auto-save:', e)
-    }
-  }
-
-  // Abas abertas no editor
-  const tabs = ref([])
-  const activeTabId = ref('')
-
-  // Carregar abas do localStorage
-  try {
-    const rawTabs = localStorage.getItem(STORAGE_KEY_TABS)
-    if (rawTabs) {
-      const parsed = JSON.parse(rawTabs)
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        tabs.value = parsed
+    if (auth.user?.id) {
+      try {
+        localStorage.setItem(getStorageKeyAutoSave(auth.user.id), autoSave.value ? 'true' : 'false')
+      } catch (e) {
+        console.warn('Erro ao salvar preferência de auto-save:', e)
       }
     }
-  } catch (e) {
-    console.error('Falha ao restaurar abas do bloco de notas:', e)
   }
 
-  if (tabs.value.length === 0) {
-    const firstTab = createDefaultTab(1)
-    tabs.value = [firstTab]
-    activeTabId.value = firstTab.id
-  } else {
-    const savedActive = localStorage.getItem(STORAGE_KEY_ACTIVE)
-    if (savedActive && tabs.value.some(t => t.id === savedActive)) {
-      activeTabId.value = savedActive
-    } else {
-      activeTabId.value = tabs.value[0].id
-    }
-  }
-
-  // Persistir abas localmente no navegador
+  // Persistir abas localmente no navegador por usuário
   watch(tabs, (newTabs) => {
+    if (!auth.user?.id) return
     try {
-      localStorage.setItem(STORAGE_KEY_TABS, JSON.stringify(newTabs))
+      localStorage.setItem(getStorageKeyTabs(auth.user.id), JSON.stringify(newTabs))
     } catch (e) {
-      console.warn('Erro ao persistir abas:', e)
+      console.warn('Erro ao persistir abas do usuário:', e)
     }
   }, { deep: true })
 
   watch(activeTabId, (newId) => {
+    if (!auth.user?.id) return
     try {
-      localStorage.setItem(STORAGE_KEY_ACTIVE, newId)
+      localStorage.setItem(getStorageKeyActive(auth.user.id), newId)
     } catch (e) {
-      console.warn('Erro ao persistir aba ativa:', e)
+      console.warn('Erro ao persistir aba ativa do usuário:', e)
     }
   })
 
@@ -91,10 +140,16 @@ export const useNotepadStore = defineStore('notepad', () => {
 
   function toggle() {
     isOpen.value = !isOpen.value
+    if (isOpen.value && (!tabs.value || tabs.value.length === 0) && auth.user?.id) {
+      loadUserSession(auth.user.id)
+    }
   }
 
   function open() {
     isOpen.value = true
+    if ((!tabs.value || tabs.value.length === 0) && auth.user?.id) {
+      loadUserSession(auth.user.id)
+    }
   }
 
   function close() {
@@ -116,14 +171,20 @@ export const useNotepadStore = defineStore('notepad', () => {
   }
 
   function closeTab(tabId) {
-    if (tabs.value.length === 1) {
+    if (tabs.value.length <= 1) {
       // Se for a última aba, apenas reseta ela
-      const single = tabs.value[0]
-      single.title = 'Sem título 1'
-      single.content = ''
-      single.savedId = null
-      single.isDirty = false
-      single.updatedAt = new Date().toISOString()
+      if (tabs.value.length === 1) {
+        const single = tabs.value[0]
+        single.title = 'Sem título 1'
+        single.content = ''
+        single.savedId = null
+        single.isDirty = false
+        single.updatedAt = new Date().toISOString()
+      } else {
+        const first = createDefaultTab(1)
+        tabs.value = [first]
+        activeTabId.value = first.id
+      }
       return
     }
 
@@ -156,7 +217,7 @@ export const useNotepadStore = defineStore('notepad', () => {
     }
   }
 
-  // Carregar histórico de notas do servidor
+  // Carregar histórico de notas do servidor (salvas no banco)
   async function fetchNotes() {
     historyLoading.value = true
     try {
@@ -210,7 +271,6 @@ export const useNotepadStore = defineStore('notepad', () => {
 
   // Carregar uma nota salva numa aba
   function openSavedNoteInTab(savedNote) {
-    // Verifica se já está aberta em alguma aba
     const existing = tabs.value.find(t => t.savedId === savedNote.id)
     if (existing) {
       activeTabId.value = existing.id
@@ -218,7 +278,6 @@ export const useNotepadStore = defineStore('notepad', () => {
       return
     }
 
-    // Se a aba atual estiver vazia e sem id salvo, aproveita ela
     const current = activeTab.value
     if (current && !current.savedId && !current.content && current.title.startsWith('Sem título')) {
       current.savedId = savedNote.id
@@ -230,7 +289,6 @@ export const useNotepadStore = defineStore('notepad', () => {
       return
     }
 
-    // Caso contrário, abre em nova aba
     addTab(savedNote)
     isHistoryOpen.value = false
   }
@@ -241,7 +299,6 @@ export const useNotepadStore = defineStore('notepad', () => {
       const res = await notesApi.remove(id)
       if (res.data?.success) {
         savedNotes.value = savedNotes.value.filter(n => n.id !== id)
-        // Se alguma aba tinha esse savedId, desvincula
         tabs.value.forEach(t => {
           if (t.savedId === id) {
             t.savedId = null
@@ -280,6 +337,7 @@ export const useNotepadStore = defineStore('notepad', () => {
     fetchNotes,
     saveCurrentNote,
     openSavedNoteInTab,
-    deleteNote
+    deleteNote,
+    loadUserSession
   }
 })

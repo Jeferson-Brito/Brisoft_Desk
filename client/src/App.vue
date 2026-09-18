@@ -14,6 +14,9 @@
 
     <!-- Alerta Flutuante de Desconexão do WhatsApp -->
     <FloatingWhatsAppAlert v-if="ready && auth.isAuthenticated" />
+
+    <!-- Alerta no topo para atendimento iniciado diretamente no WhatsApp sem atendente atribuído -->
+    <UnclaimedWhatsAppBanner v-if="ready && auth.isAuthenticated" />
   </div>
 </template>
 
@@ -23,6 +26,7 @@ import { useAuthStore }  from '@/stores/auth.store'
 import { useSocket }     from '@/composables/useSocket'
 import AppToast          from '@/components/common/AppToast.vue'
 import FloatingWhatsAppAlert from '@/components/common/FloatingWhatsAppAlert.vue'
+import UnclaimedWhatsAppBanner from '@/components/common/UnclaimedWhatsAppBanner.vue'
 
 const auth   = useAuthStore()
 const socket = useSocket()
