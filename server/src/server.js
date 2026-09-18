@@ -152,9 +152,7 @@ io.on('connection', (socket) => {
   if (socket.user.role === 'Administrador') socket.join('admins');
 
   // Envia status atual do WhatsApp assim que o cliente conecta
-  socket.emit('whatsapp_status', socket.user.role === 'Administrador'
-    ? whatsappService.getStatus()
-    : whatsappService.getPublicStatus());
+  socket.emit('whatsapp_status', whatsappService.getStatusForUser(socket.user));
 
   socket.on('disconnect', () => {
     if (socket.authExpiryTimer) clearTimeout(socket.authExpiryTimer);

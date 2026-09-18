@@ -11,6 +11,9 @@
 
     <!-- Toast notifications globais -->
     <AppToast />
+
+    <!-- Alerta Flutuante de Desconexão do WhatsApp -->
+    <FloatingWhatsAppAlert v-if="ready && auth.isAuthenticated" />
   </div>
 </template>
 
@@ -19,6 +22,7 @@ import { ref, onMounted } from 'vue'
 import { useAuthStore }  from '@/stores/auth.store'
 import { useSocket }     from '@/composables/useSocket'
 import AppToast          from '@/components/common/AppToast.vue'
+import FloatingWhatsAppAlert from '@/components/common/FloatingWhatsAppAlert.vue'
 
 const auth   = useAuthStore()
 const socket = useSocket()

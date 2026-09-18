@@ -69,12 +69,22 @@ export function useSocket() {
     // ── WhatsApp ─────────────────────────────────────────────────────────────
     socket.on('whatsapp_status', (data) => {
       ui.whatsappStatus = data.status
-      if (auth.isAdmin && Array.isArray(data.accounts)) ui.whatsappAccounts = data.accounts
+      if (Array.isArray(data.accounts)) {
+        ui.whatsappAccounts = data.accounts
+      }
     })
 
     socket.on('whatsapp_accounts_updated', (data) => {
-      if (!auth.isAdmin) return
-      ui.whatsappAccounts = data.accounts || []
+      if (!Array.isArray(data?.accounts)) return
+      if (auth.isAdmin) {
+        ui.whatsappAccounts = data.accounts
+      } else {
+        const existing = new Map((ui.whatsappAccounts || []).map(a => [a.id, a]))
+        for (const acc of data.accounts) {
+          existing.set(acc.id, acc)
+        }
+        ui.whatsappAccounts = [...existing.values()]
+      }
     })
 
     // ── Tickets em tempo real ─────────────────────────────────────────────────

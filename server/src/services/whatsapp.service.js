@@ -1407,9 +1407,46 @@ class WhatsAppService {
     return { status: accounts.some(a => a.status === 'connected') ? 'connected' : 'disconnected', connectedCount: accounts.filter(a => a.status === 'connected').length };
   }
 
+  getStatusForUser(user) {
+    if (!user) return this.getPublicStatus();
+    if (user.role === 'Administrador') return this.getStatus();
+
+    const userDepts = new Set([
+      ...(Array.isArray(user.department_ids) ? user.department_ids : []),
+      user.department_id
+    ].filter(Boolean).map(String));
+
+    const accounts = this.getAccounts(true).filter(acc => {
+      const accDept = acc.departmentId ? String(acc.departmentId) : null;
+      const fallbackDept = acc.fallbackDepartmentId ? String(acc.fallbackDepartmentId) : null;
+      return (accDept && userDepts.has(accDept)) || (fallbackDept && userDepts.has(fallbackDept));
+    });
+
+    return {
+      ...this.getPublicStatus(),
+      accounts
+    };
+  }
+
   emitAccounts() {
     if (!this.io) return;
-    this.io.to('admins').emit('whatsapp_accounts_updated', { accounts: this.getAccounts(true) });
+    const allAccountsWithQr = this.getAccounts(true);
+    // Administradores recebem todas as contas com QR
+    this.io.to('admins').emit('whatsapp_accounts_updated', { accounts: allAccountsWithQr });
+
+    // Departamentos recebem as contas vinculadas com QR
+    const deptMap = new Map();
+    for (const account of allAccountsWithQr) {
+      const depts = new Set([account.departmentId, account.fallbackDepartmentId].filter(Boolean).map(String));
+      for (const deptId of depts) {
+        if (!deptMap.has(deptId)) deptMap.set(deptId, []);
+        deptMap.get(deptId).push(account);
+      }
+    }
+    for (const [deptId, deptAccounts] of deptMap.entries()) {
+      this.io.to(`department:${deptId}`).emit('whatsapp_accounts_updated', { accounts: deptAccounts });
+    }
+
     this.io.emit('whatsapp_status', this.getPublicStatus());
   }
 }

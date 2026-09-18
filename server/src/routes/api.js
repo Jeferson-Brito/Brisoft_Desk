@@ -130,11 +130,11 @@ router.delete('/contacts/:id', requireAuth, requireAdmin, (req, res) => contacts
 
 // Rotas do WhatsApp
 router.get('/whatsapp/status', requireAuth, (req, res) => whatsappController.getStatus(req, res));
-router.get('/whatsapp/accounts', requireAuth, requireAdmin, (req, res) => whatsappController.listAccounts(req, res));
+router.get('/whatsapp/accounts', requireAuth, (req, res) => whatsappController.listAccounts(req, res));
 router.post('/whatsapp/accounts', requireAuth, requireAdmin, (req, res) => whatsappController.createAccount(req, res));
 router.patch('/whatsapp/accounts/:id', requireAuth, requireAdmin, (req, res) => whatsappController.updateAccount(req, res));
 router.put('/whatsapp/accounts/:id', requireAuth, requireAdmin, (req, res) => whatsappController.updateAccount(req, res));
-router.post('/whatsapp/accounts/:id/connect', requireAuth, requireAdmin, (req, res) => whatsappController.connectAccount(req, res));
+router.post('/whatsapp/accounts/:id/connect', requireAuth, (req, res) => whatsappController.connectAccount(req, res));
 router.post('/whatsapp/accounts/:id/disconnect', requireAuth, requireAdmin, (req, res) => whatsappController.disconnectAccount(req, res));
 router.delete('/whatsapp/accounts/:id', requireAuth, requireAdmin, (req, res) => whatsappController.removeAccount(req, res));
 
