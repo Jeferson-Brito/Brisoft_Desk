@@ -14,6 +14,13 @@
         </div>
 
         <div class="notepad-header-actions">
+          <!-- Interruptor de Salvamento Automático -->
+          <label class="autosave-switch" title="Salvar automaticamente alterações no servidor">
+            <input type="checkbox" :checked="notepad.autoSave" @change="notepad.toggleAutoSave" />
+            <span class="slider"></span>
+            <span class="autosave-label">Salvar auto</span>
+          </label>
+
           <button
             type="button"
             class="header-btn"
@@ -343,15 +350,73 @@ function formatDate(isoStr) {
 .notepad-drawer-container {
   position: fixed;
   top: 0;
-  right: 60px; /* Encostado exatamente no Sidebar de Ferramentas */
+  right: 44px; /* Encostado exatamente no Sidebar de Ferramentas (44px) */
   bottom: 0;
   width: 520px;
-  max-width: calc(100vw - 120px);
+  max-width: calc(100vw - 60px);
   z-index: 59;
   display: flex;
   flex-direction: column;
   box-shadow: -6px 0 25px rgba(0, 0, 0, 0.12);
   animation: slideInRight 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Switch estilo toggle para Salvamento Automático */
+.autosave-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11.5px;
+  color: #475569;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.autosave-switch:hover {
+  background: #f1f5f9;
+}
+
+.autosave-switch input {
+  display: none;
+}
+
+.autosave-switch .slider {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  background-color: #cbd5e1;
+  border-radius: 999px;
+  transition: background-color 0.2s ease;
+}
+
+.autosave-switch .slider::before {
+  content: "";
+  position: absolute;
+  height: 12px;
+  width: 12px;
+  left: 2px;
+  bottom: 2px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.autosave-switch input:checked + .slider {
+  background-color: #10b981;
+}
+
+.autosave-switch input:checked + .slider::before {
+  transform: translateX(12px);
+}
+
+.autosave-label {
+  font-size: 11px;
+  color: #64748b;
 }
 
 @keyframes slideInRight {

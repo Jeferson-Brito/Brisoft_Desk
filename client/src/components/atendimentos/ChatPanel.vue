@@ -340,12 +340,18 @@
         <button type="button" class="btn-icon" title="Cancelar" @click="cancelMessageContext"><i class="fa-solid fa-xmark"></i></button>
       </div>
 
-      <div class="chat-input-row">
+      <!-- Alerta quando WhatsApp está desconectado -->
+      <div v-if="ticket?.whatsapp_disconnected" class="whatsapp-disconnected-alert-box">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span>O WhatsApp deste departamento está desconectado. Reconecte o WhatsApp para poder enviar mensagens.</span>
+      </div>
+
+      <div class="chat-input-row" :class="{ 'is-disconnected': ticket?.whatsapp_disconnected }">
         <div class="chat-input-actions">
           <button type="button" class="btn-icon" :class="{ active: showQuickMessages }" title="Mensagens rápidas" @click="toggleQuickMessages">
             <i class="fa-solid fa-bolt"></i>
           </button>
-          <button type="button" class="btn-icon" title="Anexar arquivo" :disabled="sendingMedia || isRecording" @click="fileInputRef?.click()">
+          <button type="button" class="btn-icon" title="Anexar arquivo" :disabled="sendingMedia || isRecording || ticket?.whatsapp_disconnected" @click="fileInputRef?.click()">
             <i class="fa-solid fa-paperclip"></i>
           </button>
           <button type="button" class="btn-icon" :class="{ active: showEmojiPicker }" title="Emojis" @click="toggleEmojiPicker">
@@ -366,7 +372,8 @@
           v-model="inputMsg"
           id="chatMessageInput"
           rows="1"
-          :placeholder="editingMessage ? 'Corrija sua mensagem...' : (chatMode === 'observacao' ? 'Digite uma observação interna (visível apenas para atendentes)...' : 'Digite sua mensagem...')"
+          :disabled="ticket?.whatsapp_disconnected && chatMode !== 'observacao'"
+          :placeholder="ticket?.whatsapp_disconnected && chatMode !== 'observacao' ? 'WhatsApp desconectado. Reconecte para responder este contato...' : (editingMessage ? 'Corrija sua mensagem...' : (chatMode === 'observacao' ? 'Digite uma observação interna (visível apenas para atendentes)...' : 'Digite sua mensagem...'))"
           @input="adjustTextareaHeight"
           @paste="handleComposerPaste"
           @keydown.enter.exact.prevent="sendMessage"
@@ -377,7 +384,7 @@
           type="button"
           class="btn-primary composer-send-btn"
           title="Gravar áudio"
-          :disabled="sendingMedia"
+          :disabled="sendingMedia || ticket?.whatsapp_disconnected"
           @click="startRecording"
         >
           <i class="fa-solid fa-microphone"></i>
@@ -386,8 +393,8 @@
           v-else-if="!isRecording"
           type="button"
           class="btn-primary composer-send-btn"
-          title="Enviar (Enter)"
-          :disabled="sendingMedia"
+          :title="ticket?.whatsapp_disconnected ? 'WhatsApp desconectado' : 'Enviar (Enter)'"
+          :disabled="sendingMedia || (ticket?.whatsapp_disconnected && chatMode !== 'observacao')"
           @click="sendMessage"
         >
           <i class="fa-solid fa-paper-plane" style="font-size:12px;"></i>
@@ -1111,6 +1118,10 @@ function handleComposerPaste(event) {
 
 async function sendMediaFile(file, mediaType = detectMediaType(file), caption = '', voiceNote = false) {
   if (!props.ticket || !file) return
+  if (props.ticket?.whatsapp_disconnected) {
+    ui.showToast('O WhatsApp deste departamento está desconectado. Reconecte o WhatsApp para enviar mensagens.', 'warning')
+    return
+  }
   if (file.size > 25 * 1024 * 1024) {
     ui.showToast('O arquivo ultrapassa o limite de 25 MB.', 'error')
     return
@@ -1243,6 +1254,11 @@ function stopRecording(shouldSend) {
 async function sendMessage() {
   const text = inputMsg.value.trim()
   if (!props.ticket) return
+
+  if (props.ticket?.whatsapp_disconnected && chatMode.value !== 'observacao') {
+    ui.showToast('O WhatsApp deste departamento está desconectado. Reconecte o WhatsApp para enviar mensagens.', 'warning')
+    return
+  }
 
   if (pastedImage.value && !editingMessage.value && chatMode.value === 'responder') {
     const image = pastedImage.value.file
@@ -2202,5 +2218,30 @@ watch(inputMsg, (newVal) => {
 .chat-back-btn:hover {
   background: #e2e8f0;
   color: var(--text-main);
+}
+
+.whatsapp-disconnected-alert-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  margin: 0 16px 8px 16px;
+  animation: fadeIn 0.2s ease;
+}
+
+.whatsapp-disconnected-alert-box i {
+  font-size: 14px;
+  color: #dc2626;
+  flex-shrink: 0;
+}
+
+.chat-input-row.is-disconnected {
+  opacity: 0.85;
 }
 </style>

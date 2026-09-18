@@ -738,11 +738,16 @@ class WhatsAppService {
         await this.saveConfigs();
         this.emitAccounts();
         this.syncAccountGroups(account).catch(error => console.warn(`[WhatsApp:${account.name}] falha ao sincronizar grupos: ${error.message}`));
+        ticketService.handleAccountReconnected(account.id, this.io).catch(error => console.warn(`[WhatsApp:${account.name}] falha ao restaurar atendimentos: ${error.message}`));
       }
 
       if (connection === 'close') {
+        if (account.isShuttingDown) {
+          console.log(`[WhatsApp:${account.name}] conexão fechada para encerramento gracioso do servidor.`);
+          return;
+        }
         const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const loggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401;
+        const loggedOut = statusCode === DisconnectReason.loggedOut;
         account.status = 'disconnected';
         account.qrCode = null;
         account.initializing = false;
@@ -756,9 +761,10 @@ class WhatsAppService {
           cloudStorage.deleteSession(account.id).catch(() => {});
           this.saveConfigs().catch(() => {});
           ticketService.handleAccountDisconnected(account.id, 'device_logout', this.io).catch(error => {
-            console.error(`[WhatsApp:${account.name}] falha ao processar encerramento de atendimentos após logout do aparelho:`, error.message);
+            console.error(`[WhatsApp:${account.name}] falha ao processar desconexão após logout do aparelho:`, error.message);
           });
         } else if (!account.manualDisconnect && account.active !== false) {
+          ticketService.handleAccountDisconnected(account.id, 'connection_lost', this.io).catch(() => {});
           clearTimeout(account.reconnectTimer);
           account.reconnectTimer = setTimeout(() => this.initialize(account.id).catch(() => {}), 5000);
         }
@@ -1412,6 +1418,20 @@ class WhatsAppService {
   getStatus() {
     const accounts = this.getAccounts(true);
     return { status: accounts.some(a => a.status === 'connected') ? 'connected' : accounts.some(a => a.status === 'scan_qr') ? 'scan_qr' : 'disconnected', accounts };
+  }
+
+  async closeAllSockets(reason = 'shutdown') {
+    console.log(`Fechando conexões do WhatsApp de forma limpa (${reason})...`);
+    for (const account of this.accounts.values()) {
+      account.isShuttingDown = true;
+      clearTimeout(account.reconnectTimer);
+      if (account.sock) {
+        try {
+          account.sock.end(new Error(`Server shutdown: ${reason}`));
+        } catch (_) {}
+        account.sock = null;
+      }
+    }
   }
 
   getPublicStatus() {

@@ -26,6 +26,17 @@ export const useNotepadStore = defineStore('notepad', () => {
   const savedNotes = ref([])
   const filterUserId = ref('')
   const searchQuery = ref('')
+  const autoSave = ref(localStorage.getItem('brisoft_notepad_autosave') === 'true')
+  let autoSaveTimeout = null
+
+  function toggleAutoSave() {
+    autoSave.value = !autoSave.value
+    try {
+      localStorage.setItem('brisoft_notepad_autosave', autoSave.value ? 'true' : 'false')
+    } catch (e) {
+      console.warn('Erro ao salvar preferência de auto-save:', e)
+    }
+  }
 
   // Abas abertas no editor
   const tabs = ref([])
@@ -136,6 +147,12 @@ export const useNotepadStore = defineStore('notepad', () => {
     if (activeTab.value) {
       activeTab.value.isDirty = true
       activeTab.value.updatedAt = new Date().toISOString()
+      if (autoSave.value) {
+        clearTimeout(autoSaveTimeout)
+        autoSaveTimeout = setTimeout(() => {
+          saveCurrentNote()
+        }, 1200)
+      }
     }
   }
 
@@ -248,6 +265,8 @@ export const useNotepadStore = defineStore('notepad', () => {
     savedNotes,
     filterUserId,
     searchQuery,
+    autoSave,
+    toggleAutoSave,
     tabs,
     activeTabId,
     activeTab,

@@ -193,6 +193,11 @@ async function gracefulShutdown(signal) {
   console.log(`Encerramento solicitado (${signal}). Salvando sessões...`);
   let backupTimeout;
   if (businessHoursTimer) clearInterval(businessHoursTimer);
+  try {
+    await whatsappService.closeAllSockets(signal);
+  } catch (err) {
+    console.warn('Erro ao fechar sockets no shutdown:', err.message);
+  }
   await Promise.race([
     whatsappService.backupAllSessions(),
     new Promise(resolve => {

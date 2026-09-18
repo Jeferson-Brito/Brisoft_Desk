@@ -22,6 +22,10 @@ class SettingsController {
         });
       }
       settings.bot_config = normalizeBotConfig(settings.bot_config || DEFAULT_BOT_CONFIG);
+      settings.whatsapp_disconnect_rules = settings.whatsapp_disconnect_rules || {
+        queue_retention_minutes: 60,
+        discard_hours: 24
+      };
 
       return res.json({ success: true, settings });
     } catch (error) {
@@ -38,6 +42,12 @@ class SettingsController {
 
     try {
       let normalizedValue = value;
+      if (key === 'whatsapp_disconnect_rules') {
+        normalizedValue = {
+          queue_retention_minutes: Math.max(1, Math.min(10080, Number(value?.queue_retention_minutes) || 60)),
+          discard_hours: Math.max(1, Math.min(720, Number(value?.discard_hours) || 24))
+        };
+      }
       if (key === 'bot_config') {
         if (!value || typeof value !== 'object' || Array.isArray(value)) {
           return res.status(400).json({ success: false, error: 'Configuração do bot inválida.' });

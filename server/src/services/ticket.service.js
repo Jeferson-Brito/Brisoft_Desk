@@ -70,6 +70,72 @@ let departmentLoadPromise = null;
 let ticketBackupTimer = null;
 let kpiUpdateTimer = null;
 
+// Regras de retenção na fila e descarte configuráveis pelo Administrador
+const DISCONNECT_RULES_KEY = 'whatsapp_disconnect_rules';
+const DEFAULT_DISCONNECT_RULES = {
+  queue_retention_minutes: 60, // 1 hora na fila após desconexão
+  discard_hours: 24             // 24 horas até descarte definitivo se não reconectado
+};
+let disconnectRulesCache = null;
+let disconnectRulesCacheExpiresAt = 0;
+
+// Mapa de contas do WhatsApp desconectadas: accountId -> { disconnected_at, reason }
+const DISCONNECTED_ACCOUNTS_KEY = 'whatsapp_disconnected_accounts';
+let disconnectedAccountsMap = new Map();
+
+async function getDisconnectRules() {
+  if (disconnectRulesCache && Date.now() < disconnectRulesCacheExpiresAt) {
+    return disconnectRulesCache;
+  }
+  if (!isSupabaseConfigured()) return DEFAULT_DISCONNECT_RULES;
+  try {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', DISCONNECT_RULES_KEY)
+      .maybeSingle();
+    const rules = {
+      queue_retention_minutes: Math.max(1, Number(data?.value?.queue_retention_minutes) || DEFAULT_DISCONNECT_RULES.queue_retention_minutes),
+      discard_hours: Math.max(1, Number(data?.value?.discard_hours) || DEFAULT_DISCONNECT_RULES.discard_hours)
+    };
+    disconnectRulesCache = rules;
+    disconnectRulesCacheExpiresAt = Date.now() + 30000;
+    return rules;
+  } catch (_) {
+    return DEFAULT_DISCONNECT_RULES;
+  }
+}
+
+async function persistDisconnectedAccounts() {
+  if (!isSupabaseConfigured()) return;
+  try {
+    const value = Object.fromEntries(disconnectedAccountsMap.entries());
+    await supabase
+      .from('system_settings')
+      .upsert({ key: DISCONNECTED_ACCOUNTS_KEY, value, updated_at: new Date() }, { onConflict: 'key' });
+  } catch (e) {
+    console.warn('Erro ao salvar contas desconectadas:', e.message);
+  }
+}
+
+function getChannelAccountId(channel) {
+  if (!channel) return 'default';
+  if (channel.startsWith('whatsapp:')) return channel.slice('whatsapp:'.length);
+  if (channel === 'whatsapp') return 'default';
+  return channel;
+}
+
+function isChannelDisconnected(channel) {
+  const accountId = getChannelAccountId(channel);
+  return disconnectedAccountsMap.has(String(accountId));
+}
+
+function getChannelDisconnectInfo(channel) {
+  const accountId = getChannelAccountId(channel);
+  return disconnectedAccountsMap.get(String(accountId)) || null;
+}
+
+
 function isMissingMessageUserIdColumn(error) {
   return error?.code === '42703' || error?.code === 'PGRST204' || /user_id/i.test(error?.message || '');
 }
@@ -2031,6 +2097,42 @@ ${rendered}`,
         }
       }
 
+      const rules = await getDisconnectRules();
+      const retentionMs = rules.queue_retention_minutes * 60 * 1000;
+      const discardMs = rules.discard_hours * 3600 * 1000;
+      const nowMs = Date.now();
+
+      const expiredDiscardIds = [];
+      const expiredGroupDiscardIds = [];
+
+      tickets = tickets.filter(t => {
+        const disconnectInfo = getChannelDisconnectInfo(t.channel);
+        if (disconnectInfo && disconnectInfo.disconnected_at) {
+          const diffMs = nowMs - new Date(disconnectInfo.disconnected_at).getTime();
+          t.whatsapp_disconnected = true;
+          t.whatsapp_disconnected_at = disconnectInfo.disconnected_at;
+
+          // Se ultrapassou o prazo de descarte definitivo (ex: 24h)
+          if (diffMs > discardMs) {
+            if (t.is_group) expiredGroupDiscardIds.push(t.id);
+            else expiredDiscardIds.push(t.id);
+            return false;
+          }
+
+          // Se ultrapassou o tempo de fila (ex: 1h), oculta da fila ativa mas mantém no banco
+          if (diffMs > retentionMs) {
+            return false;
+          }
+        } else {
+          t.whatsapp_disconnected = false;
+        }
+        return true;
+      });
+
+      if (expiredDiscardIds.length > 0 || expiredGroupDiscardIds.length > 0) {
+        this.discardExpiredDisconnectedTickets(expiredDiscardIds, expiredGroupDiscardIds).catch(() => {});
+      }
+
       for (let t of tickets) {
         // A listagem da fila carrega apenas resumos. As mensagens são buscadas
         // sob demanda quando o atendente abre uma conversa.
@@ -2061,6 +2163,9 @@ ${rendered}`,
         .single();
       if (error || !ticket) return null;
       if (user && !(await canUserAccessTicketDetails(user, ticket))) return null;
+      const fullDisconnectInfo = getChannelDisconnectInfo(ticket.channel);
+      ticket.whatsapp_disconnected = !!fullDisconnectInfo;
+      ticket.whatsapp_disconnected_at = fullDisconnectInfo?.disconnected_at || null;
       ticket.messages = await this.get24hMessagesForTicket(ticket, user);
       ticket.messages = ticket.messages.map(message => {
         const mediaSize = message.media_size
@@ -2761,6 +2866,9 @@ ${rendered}`,
       .single();
 
     if (!ticket || !canUserAccessTicket(currentUser, ticket)) return { success: false, error: 'Ticket nao encontrado' };
+    if (isChannelDisconnected(ticket.channel)) {
+      return { success: false, error: 'O WhatsApp deste departamento está desconectado. Reconecte o WhatsApp para enviar mensagens.' };
+    }
     const agentName = currentUser.name || 'Atendente';
     const now = new Date(); const t = makeTimeStr(now);
     const targetJid = preferredWhatsAppJid(ticket.phone, ticket.jid || ticket.raw_jid);
@@ -2995,6 +3103,9 @@ ${rendered}`,
         .maybeSingle();
       if (ticketError) throw ticketError;
       if (!ticket || !canUserAccessTicket(currentUser, ticket)) return { success: false, error: 'Ticket nao encontrado' };
+      if (isChannelDisconnected(ticket.channel)) {
+        return { success: false, error: 'O WhatsApp deste departamento está desconectado. Reconecte o WhatsApp para enviar mensagens.' };
+      }
 
       let mimeType = String(metadata.mimeType || 'application/octet-stream').slice(0, 120).toLowerCase();
       const requestedType = String(metadata.mediaType || '').toLowerCase();
@@ -3551,132 +3662,82 @@ ${rendered}`,
 
   async handleAccountDisconnected(accountId, reason = 'manual_disconnect', io = null) {
     if (!accountId) return { success: false, closedCount: 0, inactivedGroupsCount: 0 };
-    if (!isSupabaseConfigured()) return { success: true, closedCount: 0, inactivedGroupsCount: 0 };
-    try {
-      const targetChannels = accountId === 'default'
-        ? ['whatsapp', 'whatsapp:default']
-        : [`whatsapp:${accountId}`];
 
+    const now = new Date();
+    disconnectedAccountsMap.set(String(accountId), {
+      disconnected_at: now.toISOString(),
+      reason
+    });
+    await persistDisconnectedAccounts();
+
+    const rules = await getDisconnectRules();
+    console.log(`[WhatsApp:${accountId}] Conta desconectada (${reason}). Chats permanecerão na fila por ${rules.queue_retention_minutes}min e serão descartados após ${rules.discard_hours}h se não reconectados.`);
+
+    if (io) {
+      io.emit('whatsapp_account_disconnected', {
+        accountId,
+        reason,
+        disconnected_at: now.toISOString(),
+        retentionMinutes: rules.queue_retention_minutes,
+        discardHours: rules.discard_hours
+      });
+      io.emit('tickets_updated');
+    }
+
+    return {
+      success: true,
+      closedCount: 0,
+      inactivedGroupsCount: 0,
+      retainedInQueue: true,
+      retentionMinutes: rules.queue_retention_minutes
+    };
+  }
+
+  async handleAccountReconnected(accountId, io = null) {
+    if (!accountId) return;
+    const key = String(accountId);
+    if (disconnectedAccountsMap.has(key)) {
+      disconnectedAccountsMap.delete(key);
+      await persistDisconnectedAccounts();
+      console.log(`[WhatsApp:${accountId}] Conta reconectada com sucesso. Fila e atendimentos restaurados.`);
+
+      if (io) {
+        io.emit('whatsapp_account_reconnected', { accountId });
+        io.emit('tickets_updated');
+        scheduleKpiUpdate(io);
+      }
+    }
+  }
+
+  async discardExpiredDisconnectedTickets(ticketIds = [], groupIds = []) {
+    if (!isSupabaseConfigured()) return;
+    try {
       const now = new Date();
       const timeStr = makeTimeStr(now);
-      const reasonLabel = reason === 'device_logout'
-        ? 'Desconexão pelo aparelho celular'
-        : 'Desconexão manual no painel';
-
-      // 1. Busca atendimentos individuais ativos pertencentes a esta conta
-      const { data: activeTickets, error: activeError } = await supabase
-        .from('tickets')
-        .select('id, client_name, department, department_id, agent_name, channel, is_group, status')
-        .in('channel', targetChannels)
-        .eq('is_group', false)
-        .in('status', ['aguardando', 'em_atendimento', 'chatbot', 'fora_horario']);
-
-      if (activeError) throw activeError;
-
-      const activeIds = (activeTickets || []).map(t => t.id).filter(Boolean);
-      if (activeIds.length) {
-        for (let i = 0; i < activeIds.length; i += 50) {
-          const chunk = activeIds.slice(i, i + 50);
-          const { error: updateError } = await supabase
-            .from('tickets')
-            .update({
-              status: 'finalizado',
-              assumed: false,
-              encerrado_em: timeStr,
-              encerrado_por: `Sistema (${reasonLabel})`,
-              closed_at: now.toISOString(),
-              updated_at: now.toISOString()
-            })
-            .in('id', chunk);
-
-          if (updateError) throw updateError;
-        }
-
-        const systemMessages = activeIds.map(id => ({
-          ticket_id: id,
-          sender: 'system',
-          type: 'divider',
-          time: timeStr,
-          text: `Atendimento encerrado automaticamente devido à desconexão do WhatsApp vinculado (${reasonLabel}).`
-        }));
-
-        for (let i = 0; i < systemMessages.length; i += 50) {
-          const chunk = systemMessages.slice(i, i + 50);
-          try {
-            await supabase.from('messages').insert(chunk);
-          } catch (insertErr) {
-            console.warn('Falha ao inserir mensagens de sistema de desconexão:', insertErr?.message || insertErr);
-          }
-        }
-      }
-
-      // 2. Busca e inativa grupos vinculados a esta conta
-      const { data: groupTickets, error: groupError } = await supabase
-        .from('tickets')
-        .select('id, client_name, department_id, channel, group_jid, is_group, status')
-        .in('channel', targetChannels)
-        .eq('is_group', true)
-        .eq('status', 'grupo');
-
-      if (groupError) throw groupError;
-
-      const groupIds = (groupTickets || []).map(t => t.id).filter(Boolean);
-      if (groupIds.length) {
-        for (let i = 0; i < groupIds.length; i += 50) {
-          const chunk = groupIds.slice(i, i + 50);
-          const { error: groupUpdateError } = await supabase
-            .from('tickets')
-            .update({
-              status: 'grupo_inativo',
-              updated_at: now.toISOString()
-            })
-            .in('id', chunk);
-
-          if (groupUpdateError) throw groupUpdateError;
-        }
-      }
-
-      const allAffectedIds = [...activeIds, ...groupIds];
-
-      // 3. Notifica todos os clientes conectados via WebSocket em tempo real
-      if (io && allAffectedIds.length) {
-        io.emit('tickets_batch_removed', {
-          ticketIds: allAffectedIds,
-          accountId,
-          reason
-        });
-
-        for (const t of (activeTickets || [])) {
-          const updated = {
-            ...t,
+      if (ticketIds.length) {
+        await supabase
+          .from('tickets')
+          .update({
             status: 'finalizado',
+            assumed: false,
             encerrado_em: timeStr,
-            encerrado_por: `Sistema (${reasonLabel})`
-          };
-          emitTicketEvent(io, 'ticket_updated', { ticket: updated }, updated);
-        }
-
-        for (const g of (groupTickets || [])) {
-          const updatedGroup = {
-            ...g,
-            status: 'grupo_inativo'
-          };
-          emitTicketEvent(io, 'ticket_updated', { ticket: updatedGroup }, updatedGroup);
-        }
-
-        io.emit('kpis_updated');
+            encerrado_por: 'Sistema (Descarte por desconexão prolongada do WhatsApp)',
+            closed_at: now.toISOString(),
+            updated_at: now.toISOString()
+          })
+          .in('id', ticketIds);
       }
-
-      console.log(`[WhatsApp:${accountId}] Desconexão processada: ${activeIds.length} atendimento(s) encerrado(s), ${groupIds.length} grupo(s) inativado(s).`);
-      return {
-        success: true,
-        closedCount: activeIds.length,
-        inactivedGroupsCount: groupIds.length,
-        affectedIds: allAffectedIds
-      };
+      if (groupIds.length) {
+        await supabase
+          .from('tickets')
+          .update({
+            status: 'grupo_inativo',
+            updated_at: now.toISOString()
+          })
+          .in('id', groupIds);
+      }
     } catch (error) {
-      console.error(`[WhatsApp:${accountId}] Falha ao processar desconexão de atendimentos:`, error.message);
-      return { success: false, error: error.message };
+      console.error('Falha ao descartar atendimentos expirados por desconexão:', error.message);
     }
   }
 

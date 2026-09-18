@@ -191,9 +191,67 @@
                   <i class="fa-solid fa-trash"></i> Remover conta
                 </button>
               </div>
-              <p class="disconnect-warning">Ao desconectar, a sessão deste número será removida e os atendimentos ativos serão finalizados e arquivados no histórico.</p>
+              <p class="disconnect-warning">Ao desconectar, as conversas permanecerão na fila pelo tempo de retenção configurado (com envio temporariamente bloqueado até a reconexão) e serão descartadas apenas se o prazo limite for atingido.</p>
             </div>
           </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Seção: Regras de Desconexão e Retenção de Fila -->
+    <section class="connection-card">
+      <div class="connection-summary" style="cursor:default;">
+        <span class="connection-icon" style="background:#fef3c7;color:#d97706;">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+        </span>
+        <span style="flex:1;text-align:left;">
+          <strong>Regras de Desconexão e Retenção do WhatsApp</strong>
+          <small>Defina quanto tempo os chats continuam na fila e quando devem ser descartados se não houver reconexão</small>
+        </span>
+        <button
+          class="btn-primary"
+          :disabled="savingDisconnectRules"
+          type="button"
+          @click="saveDisconnectRules"
+        >
+          <i v-if="savingDisconnectRules" class="fa-solid fa-spinner fa-spin"></i>
+          <i v-else class="fa-solid fa-floppy-disk"></i>
+          Salvar Regras
+        </button>
+      </div>
+
+      <div class="connection-details">
+        <div class="rules-grid">
+          <div class="rule-field">
+            <label>
+              <i class="fa-solid fa-hourglass-half"></i> Tempo das conversas na fila após desconexão
+            </label>
+            <select v-model.number="disconnectRules.queue_retention_minutes" class="rule-select">
+              <option :value="15">15 minutos</option>
+              <option :value="30">30 minutos</option>
+              <option :value="60">1 hora (Padrão)</option>
+              <option :value="120">2 horas</option>
+              <option :value="240">4 horas</option>
+              <option :value="480">8 horas</option>
+              <option :value="1440">24 horas</option>
+            </select>
+            <small>Durante este período, os chats continuam na fila (com envio de mensagens pausado até o WhatsApp ser reconectado).</small>
+          </div>
+
+          <div class="rule-field">
+            <label>
+              <i class="fa-solid fa-calendar-xmark"></i> Prazo limite para descarte definitivo
+            </label>
+            <select v-model.number="disconnectRules.discard_hours" class="rule-select">
+              <option :value="6">6 horas</option>
+              <option :value="12">12 horas</option>
+              <option :value="24">24 horas (Padrão)</option>
+              <option :value="48">48 horas (2 dias)</option>
+              <option :value="72">72 horas (3 dias)</option>
+              <option :value="168">7 dias</option>
+            </select>
+            <small>Após sair da fila, as conversas continuam salvas. Se a reconexão ocorrer dentro deste prazo, elas retornam atualizadas. Após este prazo, os atendimentos e grupos são encerrados definitivamente.</small>
+          </div>
         </div>
       </div>
     </section>
@@ -204,6 +262,7 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { connectionsApi } from '@/api/connections.api'
 import { departmentsApi } from '@/api/departments.api'
+import { settingsApi } from '@/api/settings.api'
 import { useUiStore } from '@/stores/ui.store'
 
 const ui = useUiStore()
@@ -218,6 +277,11 @@ const busy = ref(false)
 const departments = ref([])
 const routingDrafts = ref({})
 const savingRouting = ref({})
+const savingDisconnectRules = ref(false)
+const disconnectRules = ref({
+  queue_retention_minutes: 60,
+  discard_hours: 24
+})
 let refreshTimer = null
 
 const accounts = computed(() => ui.whatsappAccounts)
@@ -385,11 +449,41 @@ function formatLogTime(value) { return new Intl.DateTimeFormat('pt-BR', { hour: 
 function formatUptime(seconds = 0) { const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); return `${h}h ${m}min` }
 function formatPhone(phone = '') { const digits = String(phone).replace(/\D/g, ''); return digits.length > 10 ? `+${digits}` : digits }
 
+async function saveDisconnectRules() {
+  savingDisconnectRules.value = true
+  try {
+    const res = await settingsApi.save('whatsapp_disconnect_rules', disconnectRules.value)
+    if (res.data?.success) {
+      ui.showToast('Regras de desconexão salvas com sucesso.', 'success')
+    } else {
+      ui.showToast(res.data?.error || 'Erro ao salvar regras.', 'error')
+    }
+  } catch (err) {
+    ui.showToast(err.response?.data?.error || 'Falha ao salvar regras de desconexão.', 'error')
+  } finally {
+    savingDisconnectRules.value = false
+  }
+}
+
+async function loadDisconnectRules() {
+  try {
+    const res = await settingsApi.get()
+    if (res.data?.settings?.whatsapp_disconnect_rules) {
+      disconnectRules.value = {
+        queue_retention_minutes: Number(res.data.settings.whatsapp_disconnect_rules.queue_retention_minutes) || 60,
+        discard_hours: Number(res.data.settings.whatsapp_disconnect_rules.discard_hours) || 24
+      }
+    }
+  } catch (err) {
+    console.warn('Falha ao carregar regras de desconexão:', err)
+  }
+}
+
 onMounted(async () => {
   try {
-    await Promise.all([loadDepartments(), loadAccounts()])
+    await Promise.all([loadDepartments(), loadAccounts(), loadDisconnectRules()])
   } catch {
-    ui.showToast('Não foi possível carregar as contas do WhatsApp.', 'error')
+    ui.showToast('Não foi possível carregar as configurações.', 'error')
   }
   refreshTimer = setInterval(() => {
     if (serverExpanded.value) loadServerData()
@@ -401,6 +495,52 @@ onBeforeUnmount(() => clearInterval(refreshTimer))
 </script>
 
 <style scoped>
+.rules-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 6px 0;
+}
+.rule-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rule-field label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rule-field label i {
+  color: #d97706;
+}
+.rule-select {
+  padding: 8px 10px;
+  font-size: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1e293b;
+  outline: none;
+  cursor: pointer;
+}
+.rule-select:focus {
+  border-color: #d97706;
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.15);
+}
+.rule-field small {
+  font-size: 10.5px;
+  color: #64748b;
+  line-height: 1.4;
+}
+@media (max-width: 768px) {
+  .rules-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .connection-card{border:1px solid #e2e8f0;border-radius:10px;background:#fff;overflow:hidden}.connection-summary,.account-summary{width:100%;border:0;background:#fff;padding:14px;display:flex;align-items:center;gap:12px;color:#1e293b}.connection-summary{cursor:pointer}.connection-summary small,.account-summary small{display:block;color:#64748b;font-size:11px;margin-top:2px}.connection-icon,.account-avatar{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}.connection-icon.server{background:#eff6ff;color:#2563eb}.connection-icon.whatsapp,.account-avatar{background:#ecfdf5;color:#16a34a}.connection-status{font-size:10.5px;font-weight:700;border-radius:20px;padding:4px 9px}.connection-status.connected{background:#dcfce7;color:#15803d}.connection-status.pending{background:#fef3c7;color:#b45309}.connection-status.disconnected{background:#fee2e2;color:#b91c1c}.connection-details{border-top:1px solid #e2e8f0;padding:14px}.server-info-grid,.account-data{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.server-info-grid div,.account-data div{padding:10px;background:#f8fafc;border-radius:7px}.server-info-grid span,.account-data span{display:block;color:#64748b;font-size:10px;margin-bottom:3px}.server-info-grid strong,.account-data strong{font-size:11.5px}.log-viewer{background:#0f172a;color:#cbd5e1;border-radius:8px;max-height:340px;overflow:auto;padding:10px;font:11px/1.5 Consolas,monospace}.log-entry{display:grid;grid-template-columns:68px 45px 1fr;gap:7px;padding:3px 0;border-bottom:1px solid rgba(148,163,184,.08)}.log-entry time{color:#64748b}.log-entry.error{color:#fca5a5}.log-entry.warn{color:#fde68a}.log-level{text-transform:uppercase;font-size:9px;font-weight:700}.new-account-form{display:flex;align-items:flex-end;gap:8px;padding:12px;background:#f8fafc;border-radius:8px;margin-bottom:12px}.new-account-form label{display:block;font-size:11px;font-weight:700;color:#475569;margin-bottom:4px}.new-account-form input{width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px}.accounts-list{display:flex;flex-direction:column;gap:8px}.account-item{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;transition:border-color .15s}.account-item.expanded{border-color:#86efac}.account-details{border-top:1px solid #e2e8f0;padding:14px;background:#fcfdfd}.account-data{grid-template-columns:repeat(3,minmax(0,1fr))}.qr-area{text-align:center;padding:16px}.qr-area img{width:220px;height:220px;object-fit:contain;border:1px solid #e2e8f0;border-radius:10px}.qr-area p{font-size:11px;color:#64748b}.qr-loading{padding:60px;color:#64748b}.account-actions{display:flex;gap:8px;margin-top:14px}.btn-danger-soft{border:1px solid #fecaca;background:#fff1f2;color:#be123c;border-radius:6px;padding:7px 11px;font-size:11.5px;font-weight:700}.disconnect-warning{font-size:10.5px;color:#94a3b8;margin:9px 0 0}.empty-accounts,.empty-text{padding:28px;text-align:center;color:#64748b}.empty-accounts{display:flex;flex-direction:column;gap:5px}.empty-accounts i{font-size:28px;color:#86efac}
 
 /* Routing styles */
