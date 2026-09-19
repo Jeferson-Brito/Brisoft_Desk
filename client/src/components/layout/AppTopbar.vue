@@ -7,31 +7,31 @@
       aria-label="Abrir menu lateral"
       @click="sidebar.toggle()"
     >
-      <i class="fa-solid fa-bars"></i>
+      <span class="topbar-icon-box"><i class="ri-menu-line"></i></span>
     </button>
 
     <!-- Trilho de Navegação de Abas (Estilo da Imagem de Referência) -->
     <div class="topbar-tabs-track" aria-label="Navegação do módulo">
       <!-- Aba Ativa: Fila de Atendimento com Badge de Contagem -->
       <div class="topbar-nav-pill active" title="Fila de Atendimento">
-        <i class="fa-regular fa-folder pill-icon"></i>
+        <span class="pill-icon-box"><i class="ri-folder-line"></i></span>
         <span class="pill-label">Fila de Atendimento</span>
         <span class="pill-count-badge">{{ waitingCount || totalTicketsCount || 30 }}</span>
       </div>
 
       <!-- Abas Secundárias (Chatbot, Conversas, Campanhas) -->
       <div class="topbar-nav-pill" title="Assistente Virtual / Chatbot">
-        <i class="fa-solid fa-robot"></i>
+        <span class="pill-icon-box"><i class="ri-robot-line"></i></span>
         <span>Chatbot</span>
       </div>
 
       <div class="topbar-nav-pill" title="Histórico de Conversas">
-        <i class="fa-regular fa-comment-dots"></i>
+        <span class="pill-icon-box"><i class="ri-chat-3-line"></i></span>
         <span>Conversas</span>
       </div>
 
       <div class="topbar-nav-pill" title="Campanhas e Disparos">
-        <i class="fa-solid fa-bullhorn"></i>
+        <span class="pill-icon-box"><i class="ri-megaphone-line"></i></span>
         <span>Campanhas</span>
       </div>
     </div>
@@ -119,7 +119,7 @@
         title="Iniciar novo atendimento"
         @click="ui.openModal('new_conversation')"
       >
-        <i class="fa-solid fa-plus"></i>
+        <span class="btn-icon-box"><i class="ri-add-line"></i></span>
         <span>Novo atendimento</span>
       </button>
     </div>
@@ -355,6 +355,48 @@ onUnmounted(() => {
   padding: 1px 7px;
   border-radius: 10px;
   margin-left: 2px;
+}
+
+.pill-icon-box {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pill-icon-box i {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.btn-icon-box {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.btn-icon-box i {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.topbar-icon-box {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.topbar-icon-box i {
+  font-size: 18px;
+  line-height: 1;
 }
 
 .topbar-fallback-title {

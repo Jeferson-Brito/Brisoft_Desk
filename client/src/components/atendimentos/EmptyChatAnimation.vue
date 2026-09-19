@@ -15,14 +15,14 @@
       <!-- Hub Central Animado -->
       <div class="central-avatar-glow">
         <div class="central-avatar-core">
-          <i class="fa-solid fa-headset central-icon"></i>
+          <i class="ri-customer-service-2-line central-icon"></i>
         </div>
       </div>
 
       <!-- Balão 1 (Top-Right): Mensagem com Digitação Animada -->
       <div class="floating-bubble bubble-customer">
         <div class="bubble-avatar-mini client">
-          <i class="fa-solid fa-user"></i>
+          <i class="ri-user-line"></i>
         </div>
         <div class="typing-indicator">
           <span class="dot dot-1"></span>
@@ -34,15 +34,15 @@
       <!-- Balão 2 (Bottom-Left): Resposta Rápida / Confirmação -->
       <div class="floating-bubble bubble-agent">
         <div class="bubble-avatar-mini agent">
-          <i class="fa-solid fa-bolt"></i>
+          <i class="ri-flashlight-line"></i>
         </div>
         <span class="bubble-text">Pronto para atender</span>
-        <i class="fa-solid fa-check-double check-icon"></i>
+        <i class="ri-check-double-line check-icon"></i>
       </div>
 
       <!-- Balão 3 (Top-Left): Ícone WhatsApp / Conexão Ativa -->
       <div class="floating-bubble bubble-channel">
-        <i class="fa-brands fa-whatsapp channel-icon"></i>
+        <i class="ri-whatsapp-line channel-icon"></i>
         <span class="pulse-dot"></span>
       </div>
     </div>
@@ -396,6 +396,7 @@
 }
 
 .empty-chat-title {
+  font-family: var(--font-heading);
   margin: 0 0 6px 0;
   font-size: 15px;
   font-weight: 700;

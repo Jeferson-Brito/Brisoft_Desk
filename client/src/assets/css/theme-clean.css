@@ -3,21 +3,50 @@
    A unified, high-density, professional visual layer for all screens.
    ========================================================================== */
 
+:root {
+  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
 body {
   background: var(--bg-app);
   color: var(--text-main);
-  font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-body);
   font-size: 13px;
-  letter-spacing: 0;
+  letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Sora: Títulos, Nomes e Números de KPI */
+h1, h2, h3, h4, h5, h6,
+.font-heading,
+.chat-contact-title,
+.queue-title-bold,
+.topbar-fallback-title,
+.queue-contact-name,
+.user-name-expanded,
+.kpi-mini-value,
+.kpi-number,
+.kpi-val,
+.kpi-big-num {
+  font-family: var(--font-heading);
+}
+
+/* Plus Jakarta Sans: Corpo do texto, botões, formulários e abas */
 button,
 input,
 select,
-textarea {
-  font: inherit;
+textarea,
+p,
+span,
+.nav-label,
+.chat-mode-btn,
+.tag-department-chip,
+.tag-role-pill,
+.queue-status-tab,
+.topbar-nav-pill {
+  font-family: var(--font-body);
 }
 
 button:focus-visible,

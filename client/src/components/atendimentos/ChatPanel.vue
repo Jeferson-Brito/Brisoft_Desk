@@ -9,7 +9,7 @@
         title="Voltar para fila"
         @click="$emit('go-back')"
       >
-        <i class="fa-solid fa-chevron-left"></i>
+        <span class="header-icon-box"><i class="ri-arrow-left-s-line"></i></span>
       </button>
 
       <!-- Título: Nome do Cliente (clique para abrir detalhes) -->
@@ -26,14 +26,14 @@
         <div class="chat-contact-copy">
           <div class="chat-contact-name-line">
             <h2 class="chat-contact-title">{{ headerPerson.name || 'Cliente' }}</h2>
-            <i v-if="!ticket.is_group" class="fa-solid chat-contact-chevron" :class="isDetailsOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-            <span v-if="ticket.is_group" class="group-contact-badge"><i class="fa-solid fa-users"></i> {{ groupParticipantLabel }}</span>
+            <i v-if="!ticket.is_group" class="ri-arrow-down-s-line chat-contact-chevron" :class="{ 'rotate-180': isDetailsOpen }"></i>
+            <span v-if="ticket.is_group" class="group-contact-badge"><span class="badge-icon-box"><i class="ri-group-line"></i></span> {{ groupParticipantLabel }}</span>
             <span class="employee-contact-badge" title="Funcionário da empresa">Funcionário</span>
           </div>
           <div class="chat-contact-subtitle">
             <span v-if="headerPerson.role">{{ headerPerson.role }}</span>
-            <span v-else-if="ticket?.department"><i class="fa-solid fa-location-dot" style="font-size:10px;margin-right:3px;color:#94a3b8;"></i>{{ ticket.department }}</span>
-            <span v-else><i class="fa-solid fa-location-dot" style="font-size:10px;margin-right:3px;color:#94a3b8;"></i>Monitorando 24h</span>
+            <span v-else-if="ticket?.department"><span class="subtitle-icon-box"><i class="ri-map-pin-line"></i></span>{{ ticket.department }}</span>
+            <span v-else><span class="subtitle-icon-box"><i class="ri-map-pin-line"></i></span>Monitorando 24h</span>
           </div>
         </div>
       </div>
@@ -41,10 +41,10 @@
       <!-- Ações à Direita (estilo Image 2: Phone, Video, Calendar, Search, 3 Dots) -->
       <div class="chat-header-tools">
         <button type="button" class="header-tool-btn" title="Ligação">
-          <i class="fa-solid fa-phone"></i>
+          <span class="tool-icon-box"><i class="ri-phone-line"></i></span>
         </button>
         <button type="button" class="header-tool-btn" title="Chamada de vídeo">
-          <i class="fa-solid fa-video"></i>
+          <span class="tool-icon-box"><i class="ri-video-chat-line"></i></span>
         </button>
 
         <!-- Janelinha de Histórico do Cliente (Ícone de Calendário estilo Image 2) -->
@@ -57,7 +57,7 @@
             aria-label="Histórico de atendimentos deste cliente"
             @click="showClientHistoryModal = !showClientHistoryModal"
           >
-            <i class="fa-regular fa-calendar"></i>
+            <span class="tool-icon-box"><i class="ri-calendar-line"></i></span>
           </button>
           <ModalHistoricoCliente
             :is-open="showClientHistoryModal"
@@ -74,7 +74,7 @@
           aria-label="Pesquisar mensagens nesta conversa"
           @click="toggleMessageSearch"
         >
-          <i class="fa-solid fa-magnifying-glass"></i>
+          <span class="tool-icon-box"><i class="ri-search-line"></i></span>
         </button>
 
         <!-- 3 Pontinhos Dropdown (Menu de Ações) -->
@@ -86,7 +86,7 @@
             title="Mais opções"
             @click.stop="showActionsMenu = !showActionsMenu"
           >
-            <i class="fa-solid fa-ellipsis-vertical"></i>
+            <span class="tool-icon-box"><i class="ri-more-2-line"></i></span>
           </button>
 
           <div v-if="showActionsMenu" class="actions-menu-dropdown">
@@ -97,15 +97,15 @@
               :disabled="isAssuming"
               @click="handleAssume"
             >
-              <i class="fa-solid" :class="isAssuming ? 'fa-spinner fa-spin' : 'fa-hand-pointer'"></i>
+              <span class="menu-icon-box"><i :class="isAssuming ? 'ri-loader-4-line ri-spin' : 'ri-fingerprint-line'"></i></span>
               <span>{{ isAssuming ? 'Assumindo...' : 'Assumir atendimento' }}</span>
             </button>
             <button type="button" class="actions-menu-item" @click="showClientHistoryModal = true; showActionsMenu = false;">
-              <i class="fa-solid fa-clock-rotate-left"></i>
+              <span class="menu-icon-box"><i class="ri-history-line"></i></span>
               <span>Histórico do cliente</span>
             </button>
             <button type="button" class="actions-menu-item" @click="openCollaborators">
-              <i class="fa-solid fa-user-plus"></i>
+              <span class="menu-icon-box"><i class="ri-user-add-line"></i></span>
               <span>Adicionar participante</span>
             </button>
             <button
@@ -113,7 +113,7 @@
               class="actions-menu-item"
               @click="showTransferModal = true; showActionsMenu = false"
             >
-              <i class="fa-solid fa-arrow-right-arrow-left"></i>
+              <span class="menu-icon-box"><i class="ri-arrow-left-right-line"></i></span>
               <span>Transferir atendimento</span>
             </button>
             <button
@@ -122,7 +122,7 @@
               class="actions-menu-item danger"
               @click="openClose"
             >
-              <i class="fa-solid fa-check"></i>
+              <span class="menu-icon-box"><i class="ri-check-line"></i></span>
               <span>Encerrar atendimento</span>
             </button>
           </div>
@@ -132,19 +132,19 @@
 
     <Transition name="incoming-call-slide">
       <div v-if="ticket?.incomingCall" class="incoming-call-banner" :class="{ video: ticket.incomingCall.isVideo, ended: ticket.incomingCall.status !== 'ringing' }" role="status" aria-live="assertive">
-        <span class="incoming-call-pulse"><i :class="ticket.incomingCall.isVideo ? 'fa-solid fa-video' : 'fa-solid fa-phone'"></i></span>
+        <span class="incoming-call-pulse"><span class="pulse-icon-box"><i :class="ticket.incomingCall.isVideo ? 'ri-video-chat-line' : 'ri-phone-line'"></i></span></span>
         <div>
           <strong>{{ ticket.incomingCall.status === 'ringing' ? (ticket.incomingCall.isVideo ? 'Chamada de vídeo do WhatsApp' : 'Ligação do WhatsApp') : 'Chamada finalizada' }}</strong>
           <small>{{ headerPerson.name }} {{ ticket.incomingCall.status === 'ringing' ? (ticket.incomingCall.isVideo ? 'está fazendo uma chamada de vídeo agora' : 'está ligando agora') : 'encerrou a tentativa de chamada' }}</small>
         </div>
         <span class="incoming-call-time">{{ callTime(ticket.incomingCall.timestamp) }}</span>
-        <button type="button" title="Fechar aviso" @click="dismissIncomingCall"><i class="fa-solid fa-xmark"></i></button>
+        <button type="button" title="Fechar aviso" @click="dismissIncomingCall"><span class="btn-icon-box-sm"><i class="ri-close-line"></i></span></button>
       </div>
     </Transition>
 
     <Transition name="chat-search-slide">
       <div v-if="ticket && showMessageSearch" class="chat-message-searchbar">
-        <i class="fa-solid fa-magnifying-glass"></i>
+        <span class="searchbar-icon-box"><i class="ri-search-line"></i></span>
         <input
           ref="messageSearchInputRef"
           v-model="messageSearchQuery"
@@ -157,9 +157,9 @@
         <span class="chat-search-counter">
           {{ messageSearchQuery ? (messageSearchMatches.length ? `${activeSearchIndex + 1} de ${messageSearchMatches.length}` : 'Nenhum resultado') : 'Digite para pesquisar' }}
         </span>
-        <button type="button" :disabled="activeSearchIndex <= 0" title="Resultado anterior" @click="goToPreviousSearchResult"><i class="fa-solid fa-chevron-up"></i></button>
-        <button type="button" :disabled="!messageSearchMatches.length || activeSearchIndex >= messageSearchMatches.length - 1" title="Próximo resultado" @click="goToNextSearchResult"><i class="fa-solid fa-chevron-down"></i></button>
-        <button type="button" title="Fechar pesquisa" @click="closeMessageSearch"><i class="fa-solid fa-xmark"></i></button>
+        <button type="button" :disabled="activeSearchIndex <= 0" title="Resultado anterior" @click="goToPreviousSearchResult"><span class="btn-icon-box-sm"><i class="ri-arrow-up-s-line"></i></span></button>
+        <button type="button" :disabled="!messageSearchMatches.length || activeSearchIndex >= messageSearchMatches.length - 1" title="Próximo resultado" @click="goToNextSearchResult"><span class="btn-icon-box-sm"><i class="ri-arrow-down-s-line"></i></span></button>
+        <button type="button" title="Fechar pesquisa" @click="closeMessageSearch"><span class="btn-icon-box-sm"><i class="ri-close-line"></i></span></button>
       </div>
     </Transition>
 
@@ -170,10 +170,10 @@
 
       <!-- Histórico de Mensagens agrupado por data com Sticky Header do WhatsApp -->
       <div v-else-if="ticketStore.isLoadingMessages(ticket.id) && visibleMessages.length === 0" class="conversation-loading">
-        <span class="conversation-loading-icon"><i class="fa-solid fa-comments"></i></span>
+        <span class="conversation-loading-icon"><i class="ri-chat-3-line"></i></span>
         <strong>Carregando conversa...</strong>
         <span>Buscando o histórico de mensagens com segurança.</span>
-        <i class="fa-solid fa-spinner fa-spin"></i>
+        <i class="ri-loader-4-line ri-spin"></i>
       </div>
       <template v-else>
         <div
@@ -240,7 +240,7 @@
         title="Rolar para as mensagens recentes"
         @click="scrollToBottomSmooth"
       >
-        <i class="fa-solid fa-chevron-down"></i>
+        <span class="scroll-icon-box"><i class="ri-arrow-down-line"></i></span>
       </button>
     </Transition>
 
@@ -278,7 +278,7 @@
       <div v-if="showQuickMessages" class="composer-popover quick-message-popover">
         <div class="composer-popover-header">
           <strong>Mensagens rápidas</strong>
-          <button type="button" class="btn-icon" title="Fechar" @click="showQuickMessages = false"><i class="fa-solid fa-xmark"></i></button>
+          <button type="button" class="btn-icon" title="Fechar" @click="showQuickMessages = false"><span class="btn-icon-box-sm"><i class="ri-close-line"></i></span></button>
         </div>
         <input v-model="quickSearch" class="composer-search" type="text" placeholder="Buscar mensagem..." />
         <div class="quick-message-list">
@@ -303,41 +303,41 @@
           <strong>Imagem pronta para enviar</strong>
           <small>Adicione uma legenda ou pressione Enter para enviar.</small>
         </span>
-        <button type="button" class="btn-icon" title="Remover imagem" @click="clearPastedImage"><i class="fa-solid fa-xmark"></i></button>
+        <button type="button" class="btn-icon" title="Remover imagem" @click="clearPastedImage"><span class="btn-icon-box-sm"><i class="ri-close-line"></i></span></button>
       </div>
 
       <div v-if="replyingMessage || editingMessage" class="composer-message-context">
         <span class="composer-message-context-icon">
-          <i :class="editingMessage ? 'fa-solid fa-pen' : 'fa-solid fa-reply'"></i>
+          <i :class="editingMessage ? 'ri-edit-line' : 'ri-reply-line'"></i>
         </span>
         <span class="composer-message-context-copy">
           <strong>{{ editingMessage ? 'Editando sua mensagem' : `Respondendo a ${messageAuthorLabel(replyingMessage)}` }}</strong>
           <small>{{ messagePlainText(editingMessage || replyingMessage) }}</small>
         </span>
-        <button type="button" class="btn-icon" title="Cancelar" @click="cancelMessageContext"><i class="fa-solid fa-xmark"></i></button>
+        <button type="button" class="btn-icon" title="Cancelar" @click="cancelMessageContext"><span class="btn-icon-box-sm"><i class="ri-close-line"></i></span></button>
       </div>
 
       <!-- Alerta quando WhatsApp está desconectado -->
       <div v-if="ticket?.whatsapp_disconnected" class="whatsapp-disconnected-alert-box">
-        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span class="alert-icon-box"><i class="ri-error-warning-line"></i></span>
         <span>O WhatsApp deste departamento está desconectado. Reconecte o WhatsApp para poder enviar mensagens.</span>
       </div>
 
       <div class="chat-input-row" :class="{ 'is-disconnected': ticket?.whatsapp_disconnected }">
         <div class="chat-input-actions">
           <button type="button" class="btn-icon" title="Anexar arquivo" :disabled="sendingMedia || isRecording || ticket?.whatsapp_disconnected" @click="fileInputRef?.click()">
-            <i class="fa-solid fa-paperclip"></i>
+            <span class="composer-icon-box"><i class="ri-attachment-2"></i></span>
           </button>
           <button type="button" class="btn-icon" :class="{ active: showEmojiPicker }" title="Emojis" @click="toggleEmojiPicker">
-            <i class="fa-regular fa-face-smile"></i>
+            <span class="composer-icon-box"><i class="ri-emotion-happy-line"></i></span>
           </button>
         </div>
 
         <div v-if="isRecording" class="recording-status">
           <span class="recording-dot"></span>
           <strong>Gravando {{ recordingTime }}</strong>
-          <button type="button" class="btn-icon recording-cancel" title="Cancelar gravação" @click="stopRecording(false)"><i class="fa-solid fa-trash"></i></button>
-          <button type="button" class="btn-icon recording-send" title="Parar e enviar" @click="stopRecording(true)"><i class="fa-solid fa-paper-plane"></i></button>
+          <button type="button" class="btn-icon recording-cancel" title="Cancelar gravação" @click="stopRecording(false)"><span class="composer-icon-box"><i class="ri-delete-bin-line"></i></span></button>
+          <button type="button" class="btn-icon recording-send" title="Parar e enviar" @click="stopRecording(true)"><span class="composer-icon-box"><i class="ri-send-plane-2-line"></i></span></button>
         </div>
 
         <textarea
@@ -361,7 +361,7 @@
           :disabled="sendingMedia || ticket?.whatsapp_disconnected"
           @click="startRecording"
         >
-          <i class="fa-solid fa-paper-plane"></i>
+          <span class="composer-icon-box"><i class="ri-mic-line"></i></span>
         </button>
         <button
           v-else-if="!isRecording"
@@ -371,7 +371,7 @@
           :disabled="sendingMedia || (ticket?.whatsapp_disconnected && chatMode !== 'observacao')"
           @click="sendMessage"
         >
-          <i class="fa-solid fa-paper-plane" style="font-size:12px;"></i>
+          <span class="composer-icon-box"><i class="ri-send-plane-2-line"></i></span>
         </button>
       </div>
 
@@ -384,9 +384,9 @@
           title="Alternar indicadores do atendente"
           @click="toggleMetrics"
         >
-          <i class="fa-solid fa-arrow-trend-up"></i>
+          <span class="metrics-icon-box"><i class="ri-line-chart-line"></i></span>
           <span>Indicadores</span>
-          <i class="fa-solid" :class="metricsExpanded ? 'fa-chevron-up' : 'fa-chevron-down'" style="font-size:9.5px;margin-left:3px;"></i>
+          <span class="metrics-chevron-box"><i :class="metricsExpanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'"></i></span>
         </button>
       </div>
     </div>
@@ -395,7 +395,7 @@
     <div v-if="metricsExpanded && !ticket?.is_group" class="chat-kpi-bar">
       <div class="kpi-mini-card" title="Total de chats de clientes recebidos hoje pelo departamento">
         <div class="kpi-mini-icon" style="background:#ecfdf5;color:#10b981;">
-          <i class="fa-regular fa-comment-dots"></i>
+          <i class="ri-chat-3-line"></i>
         </div>
         <div class="kpi-mini-info">
           <span class="kpi-mini-label">Chats do setor hoje</span>
@@ -405,7 +405,7 @@
 
       <div class="kpi-mini-card" title="Atendimentos de clientes concluídos hoje por você">
         <div class="kpi-mini-icon" style="background:#eff6ff;color:#2563eb;">
-          <i class="fa-solid fa-headset"></i>
+          <i class="ri-headphone-line"></i>
         </div>
         <div class="kpi-mini-info">
           <span class="kpi-mini-label">Meus atendimentos hoje</span>
@@ -415,7 +415,7 @@
 
       <div class="kpi-mini-card" title="Tempo Médio de Atendimento no mês">
         <div class="kpi-mini-icon" style="background:#f1f5f9;color:#475569;">
-          <i class="fa-regular fa-clock"></i>
+          <i class="ri-time-line"></i>
         </div>
         <div class="kpi-mini-info">
           <span class="kpi-mini-label">TMA</span>
@@ -424,13 +424,13 @@
       </div>
 
       <div class="kpi-mini-card" title="Tempo médio de espera do analista no mês atual">
-        <div class="kpi-mini-icon" style="background:#eef2ff;color:#4f46e5;"><i class="fa-regular fa-hourglass-half"></i></div>
+        <div class="kpi-mini-icon" style="background:#eef2ff;color:#4f46e5;"><i class="ri-hourglass-line"></i></div>
         <div class="kpi-mini-info"><span class="kpi-mini-label">TME</span><span class="kpi-mini-value">{{ displayTme }}</span></div>
       </div>
 
       <div class="kpi-mini-card" title="Índice de cumprimento de SLA no mês">
         <div class="kpi-mini-icon" style="background:#f3e8ff;color:#7e22ce;">
-          <i class="fa-solid fa-gauge-high"></i>
+          <i class="ri-shield-check-line"></i>
         </div>
         <div class="kpi-mini-info">
           <span class="kpi-mini-label">SLA no mês</span>
@@ -440,7 +440,7 @@
 
       <div class="kpi-mini-card" :title="`Média das ${performance?.metrics?.ratingCount ?? 0} avaliações dos seus atendimentos neste mês`">
         <div class="kpi-mini-icon" style="background:#fffbeb;color:#d97706;">
-          <i class="fa-regular fa-star"></i>
+          <i class="ri-star-line"></i>
         </div>
         <div class="kpi-mini-info">
           <span class="kpi-mini-label">Avaliação no mês</span>
@@ -454,17 +454,17 @@
         title="Ocultar barra de indicadores"
         @click="toggleMetrics"
       >
-        <i class="fa-solid fa-chevron-down"></i>
+        <span class="kpi-close-icon-box"><i class="ri-arrow-down-s-line"></i></span>
       </button>
     </div>
 
     <!-- Barra recolhida caso metricsExpanded esteja desligado -->
     <div v-else-if="!ticket?.is_group" class="chat-kpi-bar-collapsed" @click="toggleMetrics" title="Exibir indicadores de atendimento">
       <div class="chat-kpi-collapsed-content">
-        <i class="fa-solid fa-chart-line"></i>
+        <span class="kpi-collapsed-icon-box"><i class="ri-line-chart-line"></i></span>
         <span>Indicadores do mês • avaliação <strong>{{ ratingLabel }}</strong></span>
       </div>
-      <i class="fa-solid fa-chevron-up"></i>
+      <span class="kpi-collapsed-chevron-box"><i class="ri-arrow-up-s-line"></i></span>
     </div>
 
     <!-- Modal Transferir Atendimento -->
@@ -478,7 +478,7 @@
     <Teleport to="body">
       <div v-if="messageToDelete" class="modal-overlay active message-delete-overlay" @click.self="messageToDelete = null">
         <div class="message-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="deleteMessageTitle">
-          <span class="message-delete-icon"><i class="fa-regular fa-trash-can"></i></span>
+          <span class="message-delete-icon"><span class="message-delete-icon-box"><i class="ri-delete-bin-line"></i></span></span>
           <div>
             <h3 id="deleteMessageTitle">Excluir mensagem para todos?</h3>
             <p>A mensagem será removida deste atendimento e também da conversa no WhatsApp.</p>
@@ -486,7 +486,7 @@
           <div class="message-delete-actions">
             <button type="button" class="btn-secondary" :disabled="deletingMessage" @click="messageToDelete = null">Cancelar</button>
             <button type="button" class="message-delete-confirm" :disabled="deletingMessage" @click="confirmDeleteMessage">
-              <i :class="deletingMessage ? 'fa-solid fa-spinner fa-spin' : 'fa-regular fa-trash-can'"></i>
+              <i :class="deletingMessage ? 'ri-loader-4-line ri-spin' : 'ri-delete-bin-line'"></i>
               {{ deletingMessage ? 'Excluindo...' : 'Excluir para todos' }}
             </button>
           </div>
@@ -664,7 +664,7 @@ const handlingChannel = computed(() => {
     label: 'Grupo do WhatsApp',
     description: 'Conversa permanente compartilhada com os participantes deste grupo.',
     kind: 'device',
-    icon: 'fa-solid fa-users'
+    icon: 'ri-group-line'
   }
   let source = props.ticket?.handled_via || 'pending'
   if (source === 'pending' && String(props.ticket?.agent_name || '').startsWith('WhatsApp (')) source = 'whatsapp_device'
@@ -672,19 +672,19 @@ const handlingChannel = computed(() => {
     label: 'Atendimento por WhatsApp',
     description: 'A conversa foi conduzida diretamente pelo aplicativo WhatsApp conectado.',
     kind: 'device',
-    icon: 'fa-brands fa-whatsapp'
+    icon: 'ri-whatsapp-line'
   }
   if (source === 'mixed') return {
     label: 'Atendimento misto',
     description: 'A conversa teve respostas enviadas tanto pelo Brisoft Desk quanto pelo WhatsApp.',
     kind: 'mixed',
-    icon: 'fa-solid fa-shuffle'
+    icon: 'ri-route-line'
   }
   if (source === 'platform') return {
     label: 'Atendimento pelo site',
     description: 'A conversa foi atendida pela equipe dentro da plataforma Brisoft Desk.',
     kind: 'platform',
-    icon: 'fa-solid fa-headset'
+    icon: 'ri-customer-service-2-line'
   }
   return { label: '', description: '', kind: '', icon: '' }
 })
@@ -1184,11 +1184,11 @@ function pendingUploadStatus(upload) {
 
 function pendingUploadIcon(mediaType) {
   return {
-    audio: 'fa-solid fa-microphone',
-    image: 'fa-regular fa-image',
-    video: 'fa-solid fa-video',
-    document: 'fa-regular fa-file-lines'
-  }[mediaType] || 'fa-solid fa-paperclip'
+    audio: 'ri-mic-line',
+    image: 'ri-image-line',
+    video: 'ri-video-line',
+    document: 'ri-file-text-line'
+  }[mediaType] || 'ri-attachment-2'
 }
 
 async function handleFileSelection(event) {
@@ -1334,6 +1334,128 @@ watch(inputMsg, (newVal) => {
 </script>
 
 <style scoped>
+.chat-contact-title {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.chat-contact-chevron {
+  font-size: 14px;
+  color: #94a3b8;
+  transition: transform 0.2s ease;
+}
+
+.chat-contact-chevron.rotate-180 {
+  transform: rotate(180deg);
+}
+
+.header-icon-box,
+.tool-icon-box,
+.scroll-icon-box,
+.composer-icon-box {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.header-icon-box i,
+.tool-icon-box i,
+.scroll-icon-box i,
+.composer-icon-box i {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.badge-icon-box,
+.subtitle-icon-box,
+.metrics-chevron-box {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.badge-icon-box i,
+.subtitle-icon-box i,
+.metrics-chevron-box i {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.menu-icon-box,
+.searchbar-icon-box,
+.alert-icon-box,
+.metrics-icon-box,
+.kpi-close-icon-box,
+.kpi-collapsed-icon-box,
+.kpi-collapsed-chevron-box {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.menu-icon-box i,
+.searchbar-icon-box i,
+.alert-icon-box i,
+.metrics-icon-box i,
+.kpi-close-icon-box i,
+.kpi-collapsed-icon-box i,
+.kpi-collapsed-chevron-box i {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.btn-icon-box-sm {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.btn-icon-box-sm i {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.pulse-icon-box {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pulse-icon-box i {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.message-delete-icon-box {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.message-delete-icon-box i {
+  font-size: 20px;
+  line-height: 1;
+}
+
 .chat-header-avatar {
   display: grid;
   place-items: center;
@@ -1757,6 +1879,7 @@ watch(inputMsg, (newVal) => {
 }
 
 .chat-kpi-bar .kpi-mini-value {
+  font-family: var(--font-heading);
   font-size: 12px;
   font-weight: 700;
   color: #1e293b;

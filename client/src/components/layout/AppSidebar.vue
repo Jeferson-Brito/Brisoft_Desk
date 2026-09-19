@@ -18,13 +18,13 @@
     <nav class="sidebar-nav">
       <!-- Dashboard (Relógio/Pie) -->
       <RouterLink class="nav-item" to="/dashboard" active-class="active" title="Dashboard">
-        <i class="fa-regular fa-clock"></i>
+        <span class="nav-icon-box"><i class="ri-pie-chart-2-line"></i></span>
         <span class="nav-label">Dashboard</span>
       </RouterLink>
 
       <!-- Atendimentos (Inbox/Caixa) -->
       <RouterLink class="nav-item nav-item-atendimentos" to="/atendimentos" active-class="active" title="Atendimentos">
-        <i class="fa-solid fa-inbox"></i>
+        <span class="nav-icon-box"><i class="ri-inbox-archive-line"></i></span>
         <span class="nav-label">Atendimentos</span>
         <span v-if="waitingCount > 0" class="nav-badge" :title="`${waitingCount} aguardando`">
           {{ waitingCount > 99 ? '99+' : waitingCount }}
@@ -33,25 +33,25 @@
 
       <!-- Conversas -->
       <RouterLink class="nav-item" to="/historico" active-class="active" title="Conversas e Histórico">
-        <i class="fa-regular fa-comment"></i>
+        <span class="nav-icon-box"><i class="ri-chat-3-line"></i></span>
         <span class="nav-label">Conversas</span>
       </RouterLink>
 
       <!-- Contatos -->
       <RouterLink class="nav-item" to="/clientes" active-class="active" title="Contatos e Clientes">
-        <i class="fa-regular fa-address-card"></i>
+        <span class="nav-icon-box"><i class="ri-contacts-book-line"></i></span>
         <span class="nav-label">Contatos</span>
       </RouterLink>
 
       <!-- Mensagens Rápidas -->
       <RouterLink class="nav-item" to="/mensagens-rapidas" active-class="active" title="Respostas Prontas">
-        <i class="fa-solid fa-bolt"></i>
+        <span class="nav-icon-box"><i class="ri-flashlight-line"></i></span>
         <span class="nav-label">Mensagens Rápidas</span>
       </RouterLink>
 
       <!-- Desempenho -->
       <RouterLink class="nav-item" to="/desempenho" active-class="active" title="Desempenho e Indicadores">
-        <i class="fa-solid fa-chart-line"></i>
+        <span class="nav-icon-box"><i class="ri-line-chart-line"></i></span>
         <span class="nav-label">Desempenho</span>
       </RouterLink>
     </nav>
@@ -60,13 +60,13 @@
     <div class="sidebar-nav-footer">
       <!-- Painel TV -->
       <RouterLink class="nav-item" to="/painel-tv" active-class="active" title="Painel TV">
-        <i class="fa-solid fa-desktop"></i>
+        <span class="nav-icon-box"><i class="ri-tv-line"></i></span>
         <span class="nav-label">Painel TV</span>
       </RouterLink>
 
       <!-- Configurações -->
       <RouterLink v-if="auth.canManageTeam" class="nav-item" to="/configuracoes" active-class="active" id="settingsNavUsuarios" :title="auth.isAdmin ? 'Configurações' : 'Equipe'">
-        <i class="fa-solid fa-gear"></i>
+        <span class="nav-icon-box"><i class="ri-settings-3-line"></i></span>
         <span class="nav-label">Configurações</span>
       </RouterLink>
     </div>
@@ -90,7 +90,9 @@
             <span class="user-name-expanded">{{ displayUserName }}</span>
             <span class="user-role-expanded">{{ roleLabel }}</span>
           </div>
-          <i v-if="isExpanded" class="fa-solid fa-ellipsis-vertical user-more-icon"></i>
+          <span v-if="isExpanded" class="nav-icon-box" style="margin-left: auto;">
+            <i class="ri-more-2-line user-more-icon"></i>
+          </span>
         </button>
 
         <!-- Dropdown Popup -->
@@ -98,16 +100,16 @@
           <button type="button" class="user-popup-profile" @click="goTo('/perfil')">
             <span class="popup-avatar"><img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="" /><b v-else>{{ userInitials }}</b></span>
             <span class="user-popup-header"><strong>{{ displayUserName }}</strong><small>{{ roleLabel }}</small><span>{{ departmentLabel }}</span></span>
-            <i class="fa-solid fa-chevron-right"></i>
+            <i class="ri-arrow-right-s-line"></i>
           </button>
           <div v-if="auth.isAdmin" class="admin-shortcuts">
-            <button type="button" @click="goTo('/usuarios')"><i class="fa-solid fa-user-group"></i><span>Usuários</span></button>
-            <button type="button" @click="goTo('/configuracao-ia')"><i class="fa-solid fa-robot"></i><span>Config. IA</span></button>
+            <button type="button" @click="goTo('/usuarios')"><i class="ri-group-line"></i><span>Usuários</span></button>
+            <button type="button" @click="goTo('/configuracao-ia')"><i class="ri-robot-line"></i><span>Config. IA</span></button>
           </div>
-          <div class="appearance-row"><i class="fa-regular fa-moon"></i><span>Aparência: <strong>Claro</strong></span><i class="fa-solid fa-display"></i></div>
+          <div class="appearance-row"><i class="ri-moon-line"></i><span>Aparência: <strong>Claro</strong></span><i class="ri-computer-line"></i></div>
           <div class="user-popup-divider"></div>
           <button type="button" class="user-popup-item" @click="handleLogout">
-            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            <i class="ri-logout-box-r-line"></i>
             <span>Sair do sistema</span>
           </button>
         </div>
@@ -120,7 +122,7 @@
         :title="isExpanded ? 'Recolher menu' : 'Expandir menu'"
         @click="toggleExpanded"
       >
-        <i class="fa-solid" :class="isExpanded ? 'fa-chevron-left' : 'fa-chevron-right'"></i>
+        <span class="nav-icon-box"><i :class="isExpanded ? 'ri-arrow-left-s-line' : 'ri-arrow-right-s-line'"></i></span>
         <span v-if="isExpanded">Recolher menu</span>
       </button>
     </div>

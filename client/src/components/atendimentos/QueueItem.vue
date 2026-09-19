@@ -33,14 +33,14 @@
         <div class="queue-name-box">
           <strong class="queue-contact-name" :title="displayName">{{ displayName }}</strong>
           <span v-if="ticket.is_group" class="queue-group-icon" title="Grupo WhatsApp">
-            <i class="fa-solid fa-users"></i>
+            <span class="queue-icon-box-sm"><i class="ri-group-line"></i></span>
           </span>
           <span
             v-if="isIncomingCall"
             class="queue-call-icon"
             :title="ticket.incomingCall?.isVideo ? 'Chamada de vídeo' : 'Chamada de voz'"
           >
-            <i :class="ticket.incomingCall?.isVideo ? 'fa-solid fa-video' : 'fa-solid fa-phone'"></i>
+            <span class="queue-icon-box-sm"><i :class="ticket.incomingCall?.isVideo ? 'ri-video-chat-line' : 'ri-phone-line'"></i></span>
           </span>
         </div>
         <span class="queue-item-time">{{ relativeTime }}</span>
@@ -58,7 +58,7 @@
         <div class="queue-tags-left">
           <!-- Tag Departamento -->
           <span class="tag-department-chip" :title="deptName || 'Monitorando 24h'">
-            <i class="fa-regular fa-folder"></i>
+            <span class="dept-icon-box"><i class="ri-folder-line"></i></span>
             <span>{{ deptName || 'Monitorando 24h' }}</span>
           </span>
 
@@ -282,6 +282,7 @@ const statusDotClass = computed(() => {
 }
 
 .queue-contact-name {
+  font-family: var(--font-heading);
   font-size: 13px;
   font-weight: 600;
   color: #0f172a;
@@ -291,13 +292,26 @@ const statusDotClass = computed(() => {
 }
 
 .queue-group-icon {
-  font-size: 10.5px;
   color: #2563eb;
+  display: inline-flex;
 }
 
 .queue-call-icon {
-  font-size: 10.5px;
   color: #ef4444;
+  display: inline-flex;
+}
+
+.queue-icon-box-sm {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.queue-icon-box-sm i {
+  font-size: 12px;
+  line-height: 1;
 }
 
 .queue-item-time {
@@ -358,9 +372,18 @@ const statusDotClass = computed(() => {
   white-space: nowrap;
 }
 
-.tag-department-chip i {
-  font-size: 10.5px;
+.dept-icon-box {
+  width: 13px;
+  height: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dept-icon-box i {
+  font-size: 11px;
   color: #64748b;
+  line-height: 1;
 }
 
 .tag-role-pill {

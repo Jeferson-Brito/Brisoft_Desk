@@ -3,7 +3,7 @@
     <!-- Cabeçalho sutil do Sidebar de Ferramentas -->
     <div class="tools-header" title="Barra de Ferramentas Rápidas">
       <div class="tools-header-badge">
-        <i class="fa-solid fa-toolbox"></i>
+        <span class="tools-icon-box"><i class="ri-tools-line"></i></span>
       </div>
     </div>
 
@@ -19,7 +19,7 @@
           aria-label="Notas Rápidas"
           @click="toggleNotepad"
         >
-          <i class="fa-regular fa-note-sticky"></i>
+          <span class="tools-icon-box"><i class="ri-sticky-note-line"></i></span>
           <span v-if="hasDirtyTab" class="bubble-dot-badge" title="Anotações não salvas"></span>
         </button>
         <div class="tool-bubble-tooltip">
@@ -39,7 +39,7 @@
           aria-label="Validador CPF/CNPJ"
           @click="togglePopover('doc')"
         >
-          <i class="fa-solid fa-id-card"></i>
+          <span class="tools-icon-box"><i class="ri-id-card-line"></i></span>
         </button>
         <div class="tool-bubble-tooltip">
           <span>Validador CPF/CNPJ</span>
@@ -54,11 +54,11 @@
           >
             <div class="popover-header">
               <div class="popover-header-title">
-                <i class="fa-solid fa-id-card doc-icon-header"></i>
+                <span class="tools-icon-box-sm"><i class="ri-id-card-line doc-icon-header"></i></span>
                 <span>Validador CPF / CNPJ</span>
               </div>
               <button type="button" class="popover-close-btn" @click="closePopovers" title="Fechar (Esc)">
-                <i class="fa-solid fa-xmark"></i>
+                <span class="tools-icon-box-sm"><i class="ri-close-line"></i></span>
               </button>
             </div>
 
@@ -77,15 +77,15 @@
               <!-- Status Badge de Validação -->
               <div class="doc-status-container">
                 <div v-if="docStatus === 'valid'" class="doc-badge doc-badge-valid">
-                  <i class="fa-solid fa-circle-check"></i>
+                  <span class="tools-icon-box-sm"><i class="ri-checkbox-circle-line"></i></span>
                   <span>{{ docType }} Válido</span>
                 </div>
                 <div v-else-if="docStatus === 'invalid'" class="doc-badge doc-badge-invalid">
-                  <i class="fa-solid fa-circle-xmark"></i>
+                  <span class="tools-icon-box-sm"><i class="ri-close-circle-line"></i></span>
                   <span>{{ docType }} Inválido (Dígito incorreto)</span>
                 </div>
                 <div v-else class="doc-badge doc-badge-neutral">
-                  <i class="fa-solid fa-circle-info"></i>
+                  <span class="tools-icon-box-sm"><i class="ri-information-line"></i></span>
                   <span>Digite 11 (CPF) ou 14 (CNPJ) dígitos</span>
                 </div>
               </div>
@@ -101,7 +101,7 @@
                     @click="copyDocFormatted"
                     :title="docCopiedFmt ? 'Copiado!' : 'Copiar formatado'"
                   >
-                    <i class="fa-solid" :class="docCopiedFmt ? 'fa-check' : 'fa-copy'"></i>
+                    <span class="tools-icon-box-sm"><i :class="docCopiedFmt ? 'ri-check-line' : 'ri-file-copy-line'"></i></span>
                   </button>
                 </div>
                 <div class="doc-row">
@@ -113,7 +113,7 @@
                     @click="copyDocClean"
                     :title="docCopiedCln ? 'Copiado!' : 'Copiar apenas números'"
                   >
-                    <i class="fa-solid" :class="docCopiedCln ? 'fa-check' : 'fa-copy'"></i>
+                    <span class="tools-icon-box-sm"><i :class="docCopiedCln ? 'ri-check-line' : 'ri-file-copy-line'"></i></span>
                   </button>
                 </div>
               </div>
@@ -125,7 +125,7 @@
                   @click="docInput = ''"
                   title="Limpar campo"
                 >
-                  <i class="fa-solid fa-trash-can"></i> Limpar
+                  <span class="tools-icon-box-sm"><i class="ri-delete-bin-line"></i></span> Limpar
                 </button>
               </div>
             </div>
@@ -145,7 +145,7 @@
           aria-label="Calculadora Rápida"
           @click="togglePopover('calc')"
         >
-          <i class="fa-solid fa-calculator"></i>
+          <span class="tools-icon-box"><i class="ri-calculator-line"></i></span>
         </button>
         <div class="tool-bubble-tooltip">
           <span>Calculadora</span>
@@ -160,11 +160,11 @@
           >
             <div class="popover-header">
               <div class="popover-header-title">
-                <i class="fa-solid fa-calculator calc-icon-header"></i>
+                <span class="tools-icon-box-sm"><i class="ri-calculator-line calc-icon-header"></i></span>
                 <span>Calculadora</span>
               </div>
               <button type="button" class="popover-close-btn" @click="closePopovers" title="Fechar (Esc)">
-                <i class="fa-solid fa-xmark"></i>
+                <span class="tools-icon-box-sm"><i class="ri-close-line"></i></span>
               </button>
             </div>
             <div class="calc-display-area">
@@ -173,7 +173,7 @@
             </div>
             <div class="calc-buttons-grid">
               <button type="button" class="calc-btn calc-op-clear" @click="calcClear">C</button>
-              <button type="button" class="calc-btn calc-op" @click="calcBackspace"><i class="fa-solid fa-delete-left"></i></button>
+              <button type="button" class="calc-btn calc-op" @click="calcBackspace"><span class="tools-icon-box-sm"><i class="ri-delete-back-2-line"></i></span></button>
               <button type="button" class="calc-btn calc-op" @click="calcOp('%')">%</button>
               <button type="button" class="calc-btn calc-op" @click="calcOp('/')">÷</button>
 
@@ -500,8 +500,37 @@ onUnmounted(() => {
 }
 
 .tool-bubble-btn i {
-  font-size: 14.5px;
+  font-size: 15px;
+  line-height: 1;
   transition: all 0.18s ease;
+}
+
+.tools-icon-box {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tools-icon-box i {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.tools-icon-box-sm {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tools-icon-box-sm i {
+  font-size: 13px;
+  line-height: 1;
 }
 
 /* Cores específicas de hover por ferramenta */

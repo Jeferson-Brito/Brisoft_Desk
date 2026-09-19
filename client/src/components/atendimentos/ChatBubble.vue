@@ -19,7 +19,7 @@
     </div>
     <div class="message-bubble-shell incoming-shell">
       <button v-if="msg.id" ref="actionsTriggerRef" type="button" class="message-actions-trigger" aria-label="Opções da mensagem" @click.stop="toggleActions">
-        <i class="fa-solid fa-chevron-down"></i>
+        <i class="ri-arrow-down-s-line"></i>
       </button>
     <div class="chat-bubble incoming">
       <div v-if="isGroup && msg.sender_name" class="group-message-sender">{{ msg.sender_name }}</div>
@@ -36,12 +36,12 @@
       </div>
 
       <div v-if="hasMedia && mediaLoading" class="media-status-card">
-        <i class="fa-solid fa-spinner fa-spin"></i>
+        <i class="ri-loader-4-line ri-spin"></i>
         <span>Carregando mídia...</span>
       </div>
 
       <div v-else-if="hasMedia && mediaUnavailable" class="media-status-card media-status-error">
-        <i class="fa-solid fa-triangle-exclamation"></i>
+        <i class="ri-error-warning-line"></i>
         <span>Não foi possível carregar esta mídia.</span>
         <button type="button" class="media-retry-button" @click="retryMedia">Tentar novamente</button>
       </div>
@@ -50,12 +50,12 @@
       <div v-if="isLargeMediaItem && !showLargeInline" class="large-media-box" :class="{ outgoing: msg.sender === 'agent' }">
         <div class="large-media-header">
           <div class="large-media-icon">
-            <i :class="isVideo ? 'fa-solid fa-film' : 'fa-solid fa-image'"></i>
+            <i :class="isVideo ? 'ri-film-line' : 'ri-image-line'"></i>
           </div>
           <div class="large-media-meta">
             <span class="large-media-title">{{ isVideo ? 'Vídeo' : 'Imagem' }}</span>
             <span class="large-media-size">{{ formattedMediaSize }}</span>
-            <span class="large-media-badge"><i class="fa-solid fa-triangle-exclamation"></i> Acima de 5 MB</span>
+            <span class="large-media-badge"><i class="ri-error-warning-line"></i> Acima de 5 MB</span>
           </div>
         </div>
         <div class="large-media-actions">
@@ -65,8 +65,8 @@
             :disabled="downloadingToPc"
             @click.stop="downloadToPc"
           >
-            <i v-if="downloadingToPc" class="fa-solid fa-spinner fa-spin"></i>
-            <i v-else class="fa-solid fa-download"></i>
+            <i v-if="downloadingToPc" class="ri-loader-4-line ri-spin"></i>
+            <i v-else class="ri-download-2-line"></i>
             <span>{{ downloadingToPc ? 'Baixando...' : (downloadedBlobUrl ? 'Baixar novamente' : 'Baixar mídia') }}</span>
           </button>
           <button
@@ -75,7 +75,7 @@
             class="btn-view-inline"
             @click.stop="showLargeInline = true"
           >
-            <i class="fa-solid fa-eye"></i>
+            <i class="ri-eye-line"></i>
             <span>Visualizar no chat</span>
           </button>
         </div>
@@ -92,7 +92,7 @@
         />
         <div v-if="isLargeMediaItem && showLargeInline" style="margin-top:4px;">
           <button type="button" class="btn-view-inline" style="width:auto;padding:4px 8px;font-size:11px;" @click.stop="downloadToPc">
-            <i class="fa-solid fa-download"></i> Baixar no PC
+            <i class="ri-download-2-line"></i> Baixar no PC
           </button>
         </div>
       </div>
@@ -100,7 +100,7 @@
       <!-- Áudio / Mensagem de Voz -->
       <div v-else-if="isAudio" class="custom-audio-player incoming" style="margin-bottom:6px;">
         <button type="button" class="audio-play-btn" :class="{ playing: isPlayingAudio }" title="Tocar áudio" @click.stop="toggleAudioPlayback">
-          <i :class="isPlayingAudio ? 'fa-solid fa-pause' : 'fa-solid fa-play'"></i>
+          <i :class="isPlayingAudio ? 'ri-pause-line' : 'ri-play-line'"></i>
         </button>
         <div class="audio-waveform-container" @click.stop="seekAudio">
           <div class="audio-waveform-bars">
@@ -131,7 +131,7 @@
         <video controls preload="metadata" :src="resolvedMediaSrc" style="max-width:280px;max-height:260px;border-radius:8px;display:block;" @error="mediaLoadError = true"></video>
         <div v-if="isLargeMediaItem && showLargeInline" style="margin-top:4px;">
           <button type="button" class="btn-view-inline" style="width:auto;padding:4px 8px;font-size:11px;" @click.stop="downloadToPc">
-            <i class="fa-solid fa-download"></i> Baixar no PC
+            <i class="ri-download-2-line"></i> Baixar no PC
           </button>
         </div>
       </div>
@@ -144,7 +144,7 @@
           download
           style="display:inline-flex;align-items:center;gap:8px;padding:8px 12px;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;color:#2563eb;text-decoration:none;font-weight:600;font-size:12px;"
         >
-          <i class="fa-solid fa-file-arrow-down" style="font-size:16px;"></i>
+          <i class="ri-file-download-line" style="font-size:16px;"></i>
           <span>{{ documentName }}</span>
         </a>
       </div>
@@ -160,7 +160,7 @@
   <div v-else class="chat-bubble-row outgoing">
     <div class="message-bubble-shell outgoing-shell">
       <button v-if="!isDeleted" ref="actionsTriggerRef" type="button" class="message-actions-trigger" aria-label="Opções da mensagem" @click.stop="toggleActions">
-        <i class="fa-solid fa-chevron-down"></i>
+        <i class="ri-arrow-down-s-line"></i>
       </button>
     <div class="chat-bubble outgoing">
       <div v-if="isGroup && agentName && !isAudio && !isDirectWhatsapp" style="font-weight:700;font-size:11px;color:rgba(255,255,255,0.95);margin-bottom:3px;">
@@ -173,7 +173,7 @@
       </div>
 
       <div v-if="isDeleted" class="deleted-message">
-        <i class="fa-solid fa-ban"></i> Esta mensagem foi excluída
+        <i class="ri-forbid-2-line"></i> Esta mensagem foi excluída
       </div>
 
       <div v-else-if="isReaction" class="reaction-card">
@@ -185,12 +185,12 @@
       </div>
 
       <div v-if="hasMedia && mediaLoading" class="media-status-card">
-        <i class="fa-solid fa-spinner fa-spin"></i>
+        <i class="ri-loader-4-line ri-spin"></i>
         <span>Carregando mídia...</span>
       </div>
 
       <div v-else-if="hasMedia && mediaUnavailable" class="media-status-card media-status-error">
-        <i class="fa-solid fa-triangle-exclamation"></i>
+        <i class="ri-error-warning-line"></i>
         <span>Não foi possível carregar esta mídia.</span>
         <button type="button" class="media-retry-button" @click="retryMedia">Tentar novamente</button>
       </div>
@@ -199,12 +199,12 @@
       <div v-if="isLargeMediaItem && !showLargeInline" class="large-media-box" :class="{ outgoing: msg.sender === 'agent' }">
         <div class="large-media-header">
           <div class="large-media-icon">
-            <i :class="isVideo ? 'fa-solid fa-film' : 'fa-solid fa-image'"></i>
+            <i :class="isVideo ? 'ri-film-line' : 'ri-image-line'"></i>
           </div>
           <div class="large-media-meta">
             <span class="large-media-title">{{ isVideo ? 'Vídeo' : 'Imagem' }}</span>
             <span class="large-media-size">{{ formattedMediaSize }}</span>
-            <span class="large-media-badge"><i class="fa-solid fa-triangle-exclamation"></i> Acima de 5 MB</span>
+            <span class="large-media-badge"><i class="ri-error-warning-line"></i> Acima de 5 MB</span>
           </div>
         </div>
         <div class="large-media-actions">
@@ -214,8 +214,8 @@
             :disabled="downloadingToPc"
             @click.stop="downloadToPc"
           >
-            <i v-if="downloadingToPc" class="fa-solid fa-spinner fa-spin"></i>
-            <i v-else class="fa-solid fa-download"></i>
+            <i v-if="downloadingToPc" class="ri-loader-4-line ri-spin"></i>
+            <i v-else class="ri-download-2-line"></i>
             <span>{{ downloadingToPc ? 'Baixando...' : (downloadedBlobUrl ? 'Baixar novamente' : 'Baixar mídia') }}</span>
           </button>
           <button
@@ -224,7 +224,7 @@
             class="btn-view-inline"
             @click.stop="showLargeInline = true"
           >
-            <i class="fa-solid fa-eye"></i>
+            <i class="ri-eye-line"></i>
             <span>Visualizar no chat</span>
           </button>
         </div>
@@ -241,7 +241,7 @@
         />
         <div v-if="isLargeMediaItem && showLargeInline" style="margin-top:4px;">
           <button type="button" class="btn-view-inline" style="width:auto;padding:4px 8px;font-size:11px;" @click.stop="downloadToPc">
-            <i class="fa-solid fa-download"></i> Baixar no PC
+            <i class="ri-download-2-line"></i> Baixar no PC
           </button>
         </div>
       </div>
@@ -249,7 +249,7 @@
       <!-- Áudio enviado -->
       <div v-else-if="isAudio" class="custom-audio-player outgoing" style="margin-bottom:6px;">
         <button type="button" class="audio-play-btn" :class="{ playing: isPlayingAudio }" title="Tocar áudio" @click.stop="toggleAudioPlayback">
-          <i :class="isPlayingAudio ? 'fa-solid fa-pause' : 'fa-solid fa-play'"></i>
+          <i :class="isPlayingAudio ? 'ri-pause-line' : 'ri-play-line'"></i>
         </button>
         <div class="audio-waveform-container" @click.stop="seekAudio">
           <div class="audio-waveform-bars">
@@ -280,7 +280,7 @@
         <video controls preload="metadata" :src="resolvedMediaSrc" style="max-width:280px;max-height:260px;border-radius:8px;display:block;" @error="mediaLoadError = true"></video>
         <div v-if="isLargeMediaItem && showLargeInline" style="margin-top:4px;">
           <button type="button" class="btn-view-inline" style="width:auto;padding:4px 8px;font-size:11px;" @click.stop="downloadToPc">
-            <i class="fa-solid fa-download"></i> Baixar no PC
+            <i class="ri-download-2-line"></i> Baixar no PC
           </button>
         </div>
       </div>
@@ -293,7 +293,7 @@
           download
           style="display:inline-flex;align-items:center;gap:8px;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1d4ed8;text-decoration:none;font-weight:600;font-size:12px;"
         >
-          <i class="fa-solid fa-file-arrow-down" style="font-size:16px;"></i>
+          <i class="ri-file-download-line" style="font-size:16px;"></i>
           <span>{{ documentName }}</span>
         </a>
       </div>
@@ -303,7 +303,7 @@
       <div class="chat-bubble-time">
         {{ displayTime }}
         <span v-if="msg.edited_at && !isDeleted" class="edited-label">editada</span>
-        <i class="fa-solid fa-check-double" style="margin-left:3px;"></i>
+        <i class="ri-check-double-line" style="margin-left:3px;"></i>
       </div>
     </div>
     </div>
@@ -311,10 +311,10 @@
 
   <Teleport to="body">
     <div v-if="showActions" class="message-actions-menu" :style="actionsMenuStyle" @click.stop>
-      <button type="button" @click="chooseReply"><i class="fa-solid fa-reply"></i> Responder</button>
-      <button v-if="canCopyMessage" type="button" @click="copyMessage"><i class="fa-regular fa-copy"></i> Copiar</button>
-      <button v-if="canEditMessage" type="button" @click="chooseEdit"><i class="fa-solid fa-pen"></i> Editar</button>
-      <button v-if="canDeleteMessage" type="button" class="danger" @click="chooseDelete"><i class="fa-regular fa-trash-can"></i> Excluir para todos</button>
+      <button type="button" @click="chooseReply"><i class="ri-reply-line"></i> Responder</button>
+      <button v-if="canCopyMessage" type="button" @click="copyMessage"><i class="ri-file-copy-line"></i> Copiar</button>
+      <button v-if="canEditMessage" type="button" @click="chooseEdit"><i class="ri-edit-line"></i> Editar</button>
+      <button v-if="canDeleteMessage" type="button" class="danger" @click="chooseDelete"><i class="ri-delete-bin-line"></i> Excluir para todos</button>
     </div>
   </Teleport>
 
@@ -338,7 +338,7 @@
           style="position:absolute;top:-12px;right:-12px;background:#ffffff;border-radius:50%;width:32px;height:32px;box-shadow:0 4px 6px rgba(0,0,0,0.3);"
           @click.stop="showImageZoom = false"
         >
-          <i class="fa-solid fa-xmark"></i>
+          <i class="ri-close-line"></i>
         </button>
       </div>
     </div>

@@ -13,7 +13,7 @@
           title="Filtros e ordenação"
           @click="refreshQueue"
         >
-          <i class="fa-solid fa-sliders" :class="{ 'fa-spin': isRefreshing }"></i>
+          <span class="queue-icon-box"><i class="ri-equalizer-line" :class="{ 'ri-spin': isRefreshing }"></i></span>
         </button>
       </div>
     </div>
@@ -54,7 +54,7 @@
     <!-- 3. Campo de Busca (Buscar atendimento...) -->
     <div class="queue-search-row">
       <div class="queue-search-box">
-        <i class="fa-solid fa-magnifying-glass search-mag-icon"></i>
+        <span class="search-icon-box"><i class="ri-search-line"></i></span>
         <input
           v-model="searchTerm"
           type="text"
@@ -66,7 +66,7 @@
           class="clear-input-btn"
           @click="searchTerm = ''"
         >
-          <i class="fa-solid fa-xmark"></i>
+          <span class="clear-icon-box"><i class="ri-close-line"></i></span>
         </button>
       </div>
     </div>
@@ -74,7 +74,7 @@
     <!-- 4. Lista de Atendimentos (Scrollable) -->
     <div class="queue-list-container">
       <div v-if="filteredTickets.length === 0" class="queue-empty-message">
-        <i class="fa-regular fa-folder-open"></i>
+        <span class="empty-icon-box"><i class="ri-folder-open-line"></i></span>
         <span>Nenhum atendimento nesta fila</span>
       </div>
 
@@ -396,6 +396,61 @@ const filteredTickets = computed(() => {
   min-height: 0;
 }
 
+.queue-icon-box {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.queue-icon-box i {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.search-icon-box {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.search-icon-box i {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.clear-icon-box {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clear-icon-box i {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.empty-icon-box {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-icon-box i {
+  font-size: 28px;
+  color: #cbd5e1;
+  line-height: 1;
+}
+
 .queue-empty-message {
   display: flex;
   flex-direction: column;
@@ -406,10 +461,5 @@ const filteredTickets = computed(() => {
   color: #94a3b8;
   font-size: 12px;
   text-align: center;
-}
-
-.queue-empty-message i {
-  font-size: 26px;
-  color: #cbd5e1;
 }
 </style>
