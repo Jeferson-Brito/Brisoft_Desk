@@ -4,36 +4,25 @@
     id="mainSidebar"
     :class="{ 'mobile-open': mobileOpen, 'is-expanded': isExpanded }"
   >
-    <!-- Botão Balão de Expandir / Recolher na borda do menu -->
-    <button
-      type="button"
-      class="sidebar-toggle-bubble"
-      :title="isExpanded ? 'Recolher menu (<)' : 'Expandir menu (>)'"
-      :aria-label="isExpanded ? 'Recolher menu' : 'Expandir menu'"
-      @click="toggleExpanded"
-    >
-      <i class="fa-solid" :class="isExpanded ? 'fa-chevron-left' : 'fa-chevron-right'"></i>
-    </button>
-
-    <!-- Brand Logo Header -->
+    <!-- Brand Logo Header (Centralizado) -->
     <div class="sidebar-header">
       <RouterLink to="/atendimentos" class="brand-logo-container" title="Brisoft Desk">
-        <!-- Quando expandido: exibe logo horizontal completa com nome Brisoft Desk -->
+        <!-- Quando expandido: exibe logo horizontal completa com nome Brisoft Desk centralizada -->
         <img v-if="isExpanded" :src="logoUrl" alt="Brisoft Desk" class="brand-logo-full" />
-        <!-- Quando recolhido: exibe ícone/logo atual -->
+        <!-- Quando recolhido: exibe ícone/símbolo centralizado -->
         <img v-else :src="iconUrl" alt="Brisoft Desk" class="brand-logo-symbol" />
       </RouterLink>
     </div>
 
-    <!-- Navigation Links (Column 1 Icons / Labels) -->
+    <!-- Navigation Links -->
     <nav class="sidebar-nav">
-      <!-- Dashboard / Histórico (Relógio) -->
+      <!-- Dashboard (Relógio/Pie) -->
       <RouterLink class="nav-item" to="/dashboard" active-class="active" title="Dashboard">
         <i class="fa-regular fa-clock"></i>
         <span class="nav-label">Dashboard</span>
       </RouterLink>
 
-      <!-- Atendimentos / Inbox (Principal) -->
+      <!-- Atendimentos (Inbox/Caixa) -->
       <RouterLink class="nav-item nav-item-atendimentos" to="/atendimentos" active-class="active" title="Atendimentos">
         <i class="fa-solid fa-inbox"></i>
         <span class="nav-label">Atendimentos</span>
@@ -42,15 +31,15 @@
         </span>
       </RouterLink>
 
-      <!-- Conversas / Histórico -->
+      <!-- Conversas -->
       <RouterLink class="nav-item" to="/historico" active-class="active" title="Conversas e Histórico">
-        <i class="fa-regular fa-comment-dots"></i>
+        <i class="fa-regular fa-comment"></i>
         <span class="nav-label">Conversas</span>
       </RouterLink>
 
-      <!-- Contatos / Clientes -->
+      <!-- Contatos -->
       <RouterLink class="nav-item" to="/clientes" active-class="active" title="Contatos e Clientes">
-        <i class="fa-regular fa-address-book"></i>
+        <i class="fa-regular fa-address-card"></i>
         <span class="nav-label">Contatos</span>
       </RouterLink>
 
@@ -60,18 +49,18 @@
         <span class="nav-label">Mensagens Rápidas</span>
       </RouterLink>
 
-      <!-- Desempenho / SLA -->
+      <!-- Desempenho -->
       <RouterLink class="nav-item" to="/desempenho" active-class="active" title="Desempenho e Indicadores">
         <i class="fa-solid fa-chart-line"></i>
         <span class="nav-label">Desempenho</span>
       </RouterLink>
     </nav>
 
-    <!-- Seção Inferior: Painel TV e Configurações (estilo Image 2) -->
+    <!-- Seção Inferior: Painel TV e Configurações -->
     <div class="sidebar-nav-footer">
       <!-- Painel TV -->
       <RouterLink class="nav-item" to="/painel-tv" active-class="active" title="Painel TV">
-        <i class="fa-solid fa-tv"></i>
+        <i class="fa-solid fa-desktop"></i>
         <span class="nav-label">Painel TV</span>
       </RouterLink>
 
@@ -206,53 +195,42 @@ async function handleLogout() {
 
 <style scoped>
 .sidebar {
-  width: 58px;
-  min-width: 58px;
-  max-width: 58px;
+  width: 64px;
+  min-width: 64px;
+  max-width: 64px;
   background-color: #ffffff;
-  border-right: 1px solid #edf2f7;
+  border-right: 1px solid #f1f5f9;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
   height: 100vh;
-  padding: 12px 0 14px;
   box-sizing: border-box;
   flex-shrink: 0;
   z-index: 60;
   user-select: none;
   position: relative;
-  transition: width 0.2s ease, min-width 0.2s ease, max-width 0.2s ease;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              min-width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              max-width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar.is-expanded {
   width: 220px !important;
   min-width: 220px !important;
   max-width: 220px !important;
-  padding: 12px 14px 14px;
-  align-items: stretch;
 }
 
-/* Oculta botão balão */
-.sidebar-toggle-bubble {
-  display: none !important;
-}
-
+/* ─── 1. Header com Logo 100% Centralizada ──────────────────────────────── */
 .sidebar-header {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  padding-bottom: 10px;
+  height: 62px;
+  min-height: 62px;
+  max-height: 62px;
+  padding: 10px 14px;
   border-bottom: 1px solid #f1f5f9;
-  height: 48px;
   box-sizing: border-box;
-}
-
-.sidebar.is-expanded .sidebar-header {
-  justify-content: flex-start;
-  padding: 0 12px 10px;
-  height: 52px;
 }
 
 .brand-logo-container {
@@ -260,87 +238,77 @@ async function handleLogout() {
   align-items: center;
   justify-content: center;
   text-decoration: none;
-  height: 100%;
   width: 100%;
-}
-
-.sidebar.is-expanded .brand-logo-container {
-  justify-content: flex-start;
-}
-
-.brand-logo-symbol {
-  width: 30px;
-  height: 30px;
-  object-fit: contain;
+  height: 100%;
 }
 
 .brand-logo-full {
-  height: 36px;
-  max-width: 175px;
+  height: 38px;
+  max-width: 155px;
   object-fit: contain;
-  margin: 0;
+  margin: 0 auto;
+  display: block;
 }
 
-.sidebar-nav-footer {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  width: 100%;
-  padding-top: 8px;
-  margin-top: auto;
-  border-top: 1px solid #f1f5f9;
+.brand-logo-symbol {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  margin: 0 auto;
+  display: block;
 }
 
-.sidebar.is-expanded .sidebar-nav-footer {
-  align-items: stretch;
-}
-
+/* ─── 2. Navegação Principal ─────────────────────────────────────────────── */
 .sidebar-nav {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
-  padding-top: 10px;
+  gap: 8px;
+  padding: 12px 10px;
   width: 100%;
+  box-sizing: border-box;
   overflow-y: auto;
   overflow-x: hidden;
 }
 
 .sidebar.is-expanded .sidebar-nav {
   align-items: stretch;
+  padding: 12px 14px;
+  gap: 6px;
 }
 
 .nav-item {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  color: #64748b;
+  border-radius: 12px;
+  color: #475569;
   text-decoration: none;
   position: relative;
   transition: all 0.15s ease;
   cursor: pointer;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .sidebar.is-expanded .nav-item {
   width: 100%;
-  padding: 0 12px;
+  height: 42px;
+  padding: 0 14px;
   justify-content: flex-start;
   gap: 12px;
-  box-sizing: border-box;
 }
 
 .nav-item i {
-  font-size: 16px;
+  font-size: 17px;
   transition: color 0.15s ease;
-  width: 18px;
+  width: 20px;
   text-align: center;
   flex-shrink: 0;
+  color: inherit;
 }
 
 .nav-label {
@@ -349,7 +317,7 @@ async function handleLogout() {
 
 .sidebar.is-expanded .nav-label {
   display: inline-block;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 500;
   color: inherit;
   white-space: nowrap;
@@ -362,22 +330,47 @@ async function handleLogout() {
   color: #0f172a;
 }
 
+/* Item Ativo (Cápsula Verde Suave + Indicador Vertical na Margem Esquerda) */
 .nav-item.active {
-  background-color: #e6f7f2 !important;
+  background-color: #dcfce7 !important;
   color: #059669 !important;
-  box-shadow: none;
 }
 
 .nav-item.active i {
   color: #059669 !important;
 }
 
+.sidebar.is-expanded .nav-item.active .nav-label {
+  color: #059669 !important;
+  font-weight: 600;
+}
+
+/* Indicador verde vertical na borda esquerda da tela */
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 24px;
+  background-color: #059669;
+  border-radius: 0 4px 4px 0;
+  pointer-events: none;
+}
+
+.sidebar.is-expanded .nav-item.active::before {
+  left: -14px;
+  height: 26px;
+}
+
+/* Badge Numérico Laranja */
 .nav-badge {
   position: absolute;
-  top: 1px;
-  right: 1px;
-  min-width: 17px;
-  height: 17px;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
   padding: 0 4px;
   border-radius: 999px;
   background-color: #ea580c;
@@ -389,37 +382,59 @@ async function handleLogout() {
   justify-content: center;
   line-height: 1;
   border: 2px solid #ffffff;
-  box-shadow: 0 1px 3px rgba(234, 88, 12, 0.3);
 }
 
 .sidebar.is-expanded .nav-badge {
   position: static;
   margin-left: auto;
-  box-shadow: none;
+  border: none;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  min-width: 20px;
+  height: 18px;
 }
 
+/* ─── 3. Rodapé de Navegação (Painel TV & Configurações) ─────────────────── */
+.sidebar-nav-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 10px 0;
+  margin-top: auto;
+  border-top: 1px solid #f1f5f9;
+  box-sizing: border-box;
+}
+
+.sidebar.is-expanded .sidebar-nav-footer {
+  align-items: stretch;
+  padding: 10px 14px 0;
+  gap: 6px;
+}
+
+/* ─── 4. Card do Usuário & Recolher Menu ─────────────────────────────────── */
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   width: 100%;
-  padding-top: 10px;
-  border-top: 1px solid #e5e7eb;
+  padding: 10px 10px 12px;
+  border-top: 1px solid #f1f5f9;
+  box-sizing: border-box;
 }
 
 .sidebar.is-expanded .sidebar-bottom {
   align-items: stretch;
+  padding: 10px 14px 12px;
 }
 
 .user-avatar-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: #1f62d0;
-  color: #ffffff;
-  font-weight: 700;
-  font-size: 11.5px;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -427,19 +442,27 @@ async function handleLogout() {
   position: relative;
   border: none;
   outline: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   padding: 0;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
+}
+
+.user-avatar-btn:hover {
+  background: #f8fafc;
 }
 
 .user-avatar-circle {
-  width: 100%;
-  height: 100%;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
+  overflow: hidden;
+  background: #1f62d0;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 12px;
 }
 
 .user-avatar-circle img {
@@ -449,31 +472,28 @@ async function handleLogout() {
   object-fit: cover;
 }
 
+.user-status-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 2px solid #ffffff;
+}
+
 /* Quando expandido */
 .user-avatar-btn.expanded-user-btn {
   width: 100%;
-  height: 42px;
+  height: 44px;
   border-radius: 8px;
   background: transparent;
-  border: none;
-  padding: 4px 6px;
+  padding: 2px 4px;
   display: flex;
   align-items: center;
   gap: 10px;
   justify-content: flex-start;
-  box-shadow: none;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.user-avatar-btn.expanded-user-btn:hover {
-  background: #f8fafc;
-}
-
-.user-avatar-btn.expanded-user-btn .user-avatar-circle {
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
 }
 
 .user-info-expanded {
@@ -486,7 +506,7 @@ async function handleLogout() {
 }
 
 .user-name-expanded {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: #0f172a;
   white-space: nowrap;
@@ -495,36 +515,31 @@ async function handleLogout() {
 }
 
 .user-role-expanded {
-  font-size: 10.5px;
+  font-size: 11px;
+  font-weight: 400;
   color: #64748b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-top: 1px;
 }
 
 .user-more-icon {
-  font-size: 11px;
+  font-size: 12px;
   color: #94a3b8;
   margin-left: auto;
+  padding-right: 2px;
 }
 
-.user-status-dot {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #16a34a;
-  box-shadow: 0 0 0 2px #ffffff;
-}
-
+/* Botão Recolher Menu / Expandir */
 .sidebar-collapse-btn {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   width: 100%;
-  padding: 6px 8px;
+  height: 32px;
+  padding: 0 4px;
   background: transparent;
   border: none;
   border-radius: 6px;
@@ -533,17 +548,26 @@ async function handleLogout() {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
-  margin-top: 4px;
 }
 
 .sidebar-collapse-btn:hover {
-  background: #f8fafc;
   color: #0f172a;
 }
 
 .sidebar:not(.is-expanded) .sidebar-collapse-btn {
   justify-content: center;
-  padding: 6px 0;
+  padding: 0;
+}
+
+.sidebar-collapse-btn i {
+  font-size: 11px;
+  color: inherit;
+}
+
+.sidebar-collapse-btn span {
+  font-size: 12px;
+  color: inherit;
+  font-weight: 500;
 }
 
 .user-popup-menu {
