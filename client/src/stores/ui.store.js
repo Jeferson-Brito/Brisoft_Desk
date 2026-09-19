@@ -34,6 +34,10 @@ export const useUiStore = defineStore('ui', () => {
     }, duration)
   }
 
+  function openModal(name) { openModals.value.add(name) }
+  function closeModal(name) { openModals.value.delete(name) }
+  function isModalOpen(name) { return openModals.value.has(name) }
+
   // Estado do Chat Mobile (para ocultar navegação inferior tipo WhatsApp)
   const isMobileChatOpen = ref(false)
 
