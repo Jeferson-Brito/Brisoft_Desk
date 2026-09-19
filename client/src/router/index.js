@@ -27,11 +27,17 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       {
-        path: '',
-        alias: ['dashboard', '/dashboard'],
+        path: 'dashboard',
         name: 'dashboard',
         component: DashboardView,
         meta: { requiresAdmin: true }
+      },
+      {
+        path: '',
+        redirect: () => {
+          const auth = useAuthStore()
+          return auth.isAdmin ? '/dashboard' : '/atendimentos'
+        }
       },
       { path: 'atendimentos',      name: 'atendimentos',      component: AtendimentosView      },
       { path: 'historico',         name: 'historico',         component: HistoricoView         },

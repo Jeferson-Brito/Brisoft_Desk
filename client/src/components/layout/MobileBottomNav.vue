@@ -36,7 +36,7 @@ const waitingCount = computed(() => tickets.waitingTickets?.length || 0)
 
 function isTabActive(tab) {
   if (tab.id === 'dashboard') {
-    return route.name === 'dashboard' || route.path === '/' || route.path === '/dashboard'
+    return route.name === 'dashboard' || route.path === '/dashboard'
   }
   return route.path.startsWith(tab.path)
 }
