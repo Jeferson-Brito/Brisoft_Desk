@@ -438,7 +438,7 @@ onUnmounted(() => {
   padding: 12px 0 16px;
   box-sizing: border-box;
   flex-shrink: 0;
-  z-index: 60;
+  z-index: 3005; /* Acima do backdrop para manter os botões interativos */
   user-select: none;
   position: relative;
 }
@@ -683,7 +683,7 @@ onUnmounted(() => {
   border-radius: 14px;
   box-shadow: 0 16px 36px -6px rgba(15, 23, 42, 0.22), 0 4px 14px -2px rgba(15, 23, 42, 0.08);
   border: 1px solid #e2e8f0;
-  z-index: 1500;
+  z-index: 3000; /* Acima da topbar para garantir visibilidade plena */
   overflow: hidden;
   animation: popover-drop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;

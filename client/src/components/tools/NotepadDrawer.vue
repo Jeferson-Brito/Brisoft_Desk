@@ -371,12 +371,12 @@ function formatDate(isoStr) {
 .notepad-drawer-container {
   position: fixed;
   top: 0;
-  right: 44px; /* Encostado exatamente no Sidebar de Ferramentas (44px) */
+  right: 46px; /* Encostado exatamente no Sidebar de Ferramentas (46px) */
   bottom: 0;
   width: 520px;
   max-width: calc(100vw - 60px);
   height: 100vh;
-  z-index: 1500;
+  z-index: 3000; /* Fica acima da topbar (2500) para exibir o cabeçalho completo sem cortar */
   display: flex;
   flex-direction: column;
   box-shadow: -6px 0 28px rgba(0, 0, 0, 0.16);
@@ -397,10 +397,13 @@ function formatDate(isoStr) {
 /* Backdrop transparente para fechar ao clicar fora sem borrar nem escurecer a tela */
 .notepad-backdrop {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 46px; /* Não cobre o sidebar de ferramentas para manter os botões interativos */
+  bottom: 0;
   background: transparent;
   backdrop-filter: none;
-  z-index: 1490;
+  z-index: 2990;
   cursor: default;
 }
 
