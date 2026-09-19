@@ -127,13 +127,87 @@
         <span class="btn-icon-box"><i class="ri-add-line"></i></span>
         <span class="btn-cta-text">Novo atendimento</span>
       </button>
+
+      <!-- Perfil do Usuário (Avatar com Popover de Perfil, Senha e Logout) -->
+      <div class="user-menu-wrapper" ref="userMenuDropdownRef">
+        <button
+          type="button"
+          class="topbar-user-avatar-btn"
+          :class="{ active: showUserMenu }"
+          @click="toggleUserMenu"
+          title="Minha Conta"
+          aria-label="Menu da conta"
+        >
+          <div
+            class="topbar-user-avatar"
+            :style="!auth.user?.avatar_url || avatarLoadFailed[auth.user?.id || 'me'] ? getAvatarStyle(auth.user || { name: auth.userName }) : {}"
+          >
+            <img
+              v-if="auth.user?.avatar_url && !avatarLoadFailed[auth.user?.id || 'me']"
+              :src="auth.user.avatar_url"
+              :alt="auth.userName"
+              referrerpolicy="no-referrer"
+              @error="avatarLoadFailed[auth.user?.id || 'me'] = true"
+            />
+            <span v-else>{{ userInitials }}</span>
+            <span class="avatar-online-badge"></span>
+          </div>
+        </button>
+
+        <!-- Popover do Menu do Usuário -->
+        <Transition name="dropdown-pop">
+          <div v-if="showUserMenu" class="user-profile-popover">
+            <!-- Informações do Usuário -->
+            <div class="user-popover-header">
+              <div
+                class="user-popover-avatar"
+                :style="!auth.user?.avatar_url || avatarLoadFailed[auth.user?.id || 'me'] ? getAvatarStyle(auth.user || { name: auth.userName }) : {}"
+              >
+                <img
+                  v-if="auth.user?.avatar_url && !avatarLoadFailed[auth.user?.id || 'me']"
+                  :src="auth.user.avatar_url"
+                  :alt="auth.userName"
+                />
+                <span v-else>{{ userInitials }}</span>
+              </div>
+              <div class="user-popover-info">
+                <span class="user-popover-name">{{ auth.userName || 'Usuário' }}</span>
+                <span class="user-popover-role">{{ formatRole(auth.user?.role) }}</span>
+                <span v-if="auth.user?.email" class="user-popover-email">{{ auth.user.email }}</span>
+              </div>
+            </div>
+
+            <div class="user-popover-divider"></div>
+
+            <!-- Opções do Menu -->
+            <div class="user-popover-menu">
+              <button type="button" class="user-popover-item" @click="goTo('/perfil')">
+                <i class="ri-user-settings-line"></i>
+                <span>Meu Perfil & Senha</span>
+              </button>
+
+              <button v-if="auth.isAdmin" type="button" class="user-popover-item" @click="goTo('/configuracoes')">
+                <i class="ri-settings-3-line"></i>
+                <span>Configurações</span>
+              </button>
+
+              <div class="user-popover-divider"></div>
+
+              <button type="button" class="user-popover-item logout-item" @click="handleLogout">
+                <i class="ri-logout-box-r-line"></i>
+                <span>Sair do Sistema</span>
+              </button>
+            </div>
+          </div>
+        </Transition>
+      </div>
     </div>
   </header>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useSidebarStore } from '@/stores/sidebar.store'
@@ -141,6 +215,7 @@ import { useTicketStore } from '@/stores/tickets.store'
 import logoUrl from '@/assets/img/logo_tema_claro.png'
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const ui = useUiStore()
 const sidebar = useSidebarStore()
@@ -148,7 +223,9 @@ const ticketStore = useTicketStore()
 
 const topbarRef = ref(null)
 const onlineUsersDropdownRef = ref(null)
+const userMenuDropdownRef = ref(null)
 const showOnlineUsersList = ref(false)
+const showUserMenu = ref(false)
 
 // ─── Identificação do Módulo Ativo ──────────────────────────────────────────
 const currentModule = computed(() => {
@@ -252,16 +329,42 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
+const userInitials = computed(() => {
+  return getInitials(auth.userName || auth.user?.name || 'U')
+})
+
+function toggleUserMenu() {
+  showUserMenu.value = !showUserMenu.value
+  if (showUserMenu.value) {
+    showOnlineUsersList.value = false
+  }
+}
+
+function goTo(path) {
+  showUserMenu.value = false
+  router.push(path)
+}
+
+async function handleLogout() {
+  showUserMenu.value = false
+  await auth.logout()
+  router.push('/login')
+}
+
 // Fechar popover ao clicar fora ou pressionar Escape
 function handleDocumentClick(e) {
   if (onlineUsersDropdownRef.value && !onlineUsersDropdownRef.value.contains(e.target)) {
     showOnlineUsersList.value = false
+  }
+  if (userMenuDropdownRef.value && !userMenuDropdownRef.value.contains(e.target)) {
+    showUserMenu.value = false
   }
 }
 
 function handleEscKey(e) {
   if (e.key === 'Escape') {
     showOnlineUsersList.value = false
+    showUserMenu.value = false
   }
 }
 
@@ -732,5 +835,200 @@ onUnmounted(() => {
   .online-label-text {
     font-size: 11px;
   }
+  .topbar-right {
+    gap: 8px;
+    margin-left: 8px;
+  }
+  .topbar-user-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 11px;
+  }
+  .user-profile-popover {
+    width: 240px;
+    right: 0;
+  }
+}
+
+/* ─── Perfil do Usuário na Topbar ─── */
+.user-menu-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.topbar-user-avatar-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  outline: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.topbar-user-avatar-btn:hover,
+.topbar-user-avatar-btn.active {
+  box-shadow: 0 0 0 2px #059669;
+}
+
+.topbar-user-avatar {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  background: #1f62d0;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.topbar-user-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Popover do Perfil */
+.user-profile-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 260px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18), 0 3px 10px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e2e8f0;
+  z-index: 2650;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 12px;
+}
+
+.user-popover-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+}
+
+.user-popover-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #1f62d0;
+  color: #ffffff;
+  overflow: hidden;
+}
+
+.user-popover-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-popover-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.user-popover-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-popover-role {
+  font-size: 11px;
+  font-weight: 600;
+  color: #059669;
+}
+
+.user-popover-email {
+  font-size: 10.5px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-popover-divider {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 6px 0;
+}
+
+.user-popover-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-popover-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.user-popover-item i {
+  font-size: 16px;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.user-popover-item:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.user-popover-item:hover i {
+  color: #059669;
+}
+
+.user-popover-item.logout-item {
+  color: #ef4444;
+}
+
+.user-popover-item.logout-item i {
+  color: #ef4444;
+}
+
+.user-popover-item.logout-item:hover {
+  background: #fef2f2;
+  color: #dc2626;
 }
 </style>

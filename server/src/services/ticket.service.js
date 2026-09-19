@@ -3414,11 +3414,11 @@ ${rendered}`,
       }
       const savedMessage = assertSupabase(messageResult, 'Falha ao salvar mídia enviada');
       if (savedMessage) {
-        savedMessage.media_size = buffer?.length || null;
-        savedMessage.file_size = buffer?.length || null;
+        savedMessage.media_size = outgoingBuffer?.length || fileBuffer?.length || null;
+        savedMessage.file_size = outgoingBuffer?.length || fileBuffer?.length || null;
       }
       rememberMediaTicket(mediaUrl, ticket.id);
-      if (buffer?.length) rememberMediaSize(mediaUrl, buffer.length);
+      if (outgoingBuffer?.length) rememberMediaSize(mediaUrl, outgoingBuffer.length);
       const preview = caption || ({ audio: '🎙️ Áudio', image: '📷 Imagem', video: '🎥 Vídeo', document: `📄 ${displayName}` }[mediaType]);
       const updatePayload = {
         preview,
