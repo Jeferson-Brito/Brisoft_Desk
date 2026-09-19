@@ -240,10 +240,11 @@ class AuthController {
       refreshed.department_color = refreshed.departments?.color || null;
       const publicUser = await enrichUserAccess(refreshed);
       const token = jwt.sign(
-        { id: publicUser.id, email: publicUser.email, name: publicUser.name, role: publicUser.role, is_temporary: false, department_id: publicUser.department_id, department_name: publicUser.department_name },
+        { id: publicUser.id, email: publicUser.email, name: publicUser.name, role: publicUser.role, avatar_url: publicUser.avatar_url || null, is_temporary: false, department_id: publicUser.department_id, department_name: publicUser.department_name },
         JWT_SECRET,
         { expiresIn: JWT_EXPIRES }
       );
+      global.broadcastOnlineUsers?.();
       return res.json({ success: true, user: publicUser, token });
     } catch (err) {
       console.error('Erro ao atualizar perfil:', err.message);

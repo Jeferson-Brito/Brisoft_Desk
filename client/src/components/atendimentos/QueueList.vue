@@ -1,15 +1,16 @@
 <template>
   <div class="queue-column">
-    <!-- Header da Fila -->
+    <!-- 1. Header da Fila (Estilo Imagem 1 com botão + mantido) -->
     <div class="queue-header-row">
       <div class="queue-header-left">
-        <span class="queue-title-bold">Fila de Atendimento</span>
+        <h2 class="queue-title-bold">Fila de Atendimento</h2>
+        <span class="queue-badge-new">{{ newTicketsCount }} novos</span>
       </div>
       <div class="queue-header-right">
         <!-- Botão Filtros -->
         <button
           type="button"
-          class="queue-filter-btn"
+          class="queue-action-btn"
           :class="{ active: showFilterPopover || hasActiveFilters }"
           title="Filtros e ordenação"
           @click="showFilterPopover = !showFilterPopover"
@@ -18,11 +19,11 @@
           <span v-if="hasActiveFilters" class="filter-dot"></span>
         </button>
 
-        <!-- Botão Nova Conversa -->
+        <!-- Botão Novo Atendimento (+) -->
         <button
           type="button"
-          class="queue-new-btn"
-          title="Nova Conversa"
+          class="queue-action-btn queue-plus-btn"
+          title="Iniciar novo atendimento"
           @click="showNewConversation = true"
         >
           <i class="fa-solid fa-plus"></i>
@@ -30,10 +31,9 @@
       </div>
     </div>
 
-    <!-- Painel de Filtros Popover -->
+    <!-- Painel Suspenso de Filtros Avançados -->
     <Transition name="filter-slide">
       <div v-if="showFilterPopover" class="queue-filter-panel">
-        <!-- Ordenação -->
         <div class="filter-group">
           <label class="filter-label">Ordenar por</label>
           <select v-model="sortBy" class="filter-select">
@@ -42,7 +42,6 @@
           </select>
         </div>
 
-        <!-- Filtro de Departamento (Apenas Admin ou Supervisor) -->
         <div v-if="canFilterDepartment" class="filter-group">
           <label class="filter-label">Departamento</label>
           <select v-model="selectedDepartment" class="filter-select">
@@ -53,7 +52,6 @@
           </select>
         </div>
 
-        <!-- Checkboxes de Filtro -->
         <div class="filter-checkboxes-wrap">
           <label class="filter-checkbox-label">
             <input v-model="onlyUnread" type="checkbox" />
@@ -82,79 +80,19 @@
       </div>
     </Transition>
 
-    <!-- Abas da Fila: Aguardando vs Em atendimento -->
-    <div class="queue-tabs-row">
-      <button
-        type="button"
-        class="queue-tab-btn"
-        :class="{ active: currentTab === 'aguardando' }"
-        @click="currentTab = 'aguardando'"
-      >
-        <span>Aguardando</span>
-        <span
-          class="queue-tab-count"
-          :class="{ 'badge-alert': waitingCount > 0 }"
-        >
-          {{ waitingCount }}
-        </span>
-      </button>
-
-      <button
-        type="button"
-        class="queue-tab-btn"
-        :class="{ active: currentTab === 'grupos' }"
-        @click="currentTab = 'grupos'"
-      >
-        <span>Grupos</span>
-        <span class="queue-tab-count">{{ groupCount }}</span>
-      </button>
-
-      <button
-        type="button"
-        class="queue-tab-btn"
-        :class="{ active: currentTab === 'em_atendimento' }"
-        @click="currentTab = 'em_atendimento'"
-      >
-        <span>Em atendimento</span>
-        <span class="queue-tab-count">
-          {{ inProgressCount }}
-        </span>
-      </button>
-    </div>
-
-    <!-- Chips de Filtros Ativos -->
-    <div v-if="hasActiveFilters" class="queue-active-chip-bar">
-      <span v-if="selectedDepartment" class="active-filter-chip">
-        Setor: <strong>{{ selectedDepartment }}</strong>
-        <i class="fa-solid fa-xmark" @click="selectedDepartment = ''"></i>
-      </span>
-      <span v-if="onlyUnread" class="active-filter-chip">
-        Não lidos
-        <i class="fa-solid fa-xmark" @click="onlyUnread = false"></i>
-      </span>
-      <span v-if="onlyMine" class="active-filter-chip">
-        Apenas Meus
-        <i class="fa-solid fa-xmark" @click="onlyMine = false"></i>
-      </span>
-      <span v-if="sortBy === 'oldest'" class="active-filter-chip">
-        Mais antigos
-        <i class="fa-solid fa-xmark" @click="sortBy = 'recent'"></i>
-      </span>
-    </div>
-
-    <!-- Barra de Busca compacta -->
-    <div class="queue-search-container">
+    <!-- 2. Barra de Busca Arredondada (Buscar cliente, CPF ou protocolo...) -->
+    <div class="queue-search-wrap">
       <div class="search-input-box">
-        <i class="fa-solid fa-magnifying-glass"></i>
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
         <input
           v-model="searchTerm"
           type="text"
-          placeholder="Buscar atendimento..."
+          placeholder="Buscar cliente, CPF ou protocolo..."
         />
         <button
           v-if="searchTerm"
           type="button"
-          class="clear-btn"
+          class="clear-search-btn"
           @click="searchTerm = ''"
         >
           <i class="fa-solid fa-xmark"></i>
@@ -162,48 +100,85 @@
       </div>
     </div>
 
-    <!-- Lista de Tickets -->
-    <div class="queue-cards-stream" id="queueListContainer">
-      <div v-if="ticketStore.loading && filteredTickets.length === 0" class="queue-skeleton-list">
-        <div v-for="n in 6" :key="n" class="queue-skeleton-card">
-          <div class="skel-avatar"></div>
-          <div class="skel-body">
-            <!-- linha 1: nome + hora -->
-            <div class="skel-row">
-              <div class="skel-line skel-name"></div>
-              <div class="skel-line skel-time"></div>
-            </div>
-            <!-- linha 2: contexto (cargo + departamento) -->
-            <div class="skel-context">
-              <div class="skel-line skel-dept"></div>
-            </div>
-            <!-- linha 3: preview da mensagem -->
-            <div class="skel-row">
-              <div class="skel-line skel-preview"></div>
-            </div>
-          </div>
-        </div>
+    <!-- 3. Pílulas de Filtro Horizontais (Estilo Imagem 1) -->
+    <div class="queue-pills-track">
+      <!-- Pílula Todos -->
+      <button
+        type="button"
+        class="queue-pill"
+        :class="{ active: currentCategory === 'todos' }"
+        @click="selectCategory('todos')"
+      >
+        Todos ({{ totalVisibleCount }})
+      </button>
+
+      <!-- Pílulas dos Departamentos -->
+      <button
+        v-for="dept in allowedDepartments"
+        :key="dept.id"
+        type="button"
+        class="queue-pill"
+        :class="{ active: currentCategory === dept.name }"
+        @click="selectCategory(dept.name)"
+      >
+        {{ dept.name }}
+      </button>
+
+      <!-- Pílula Aguardando -->
+      <button
+        type="button"
+        class="queue-pill"
+        :class="{ active: currentCategory === 'aguardando' }"
+        @click="selectCategory('aguardando')"
+      >
+        Aguardando ({{ waitingCount }})
+      </button>
+
+      <!-- Pílula Em Atendimento -->
+      <button
+        type="button"
+        class="queue-pill"
+        :class="{ active: currentCategory === 'em_atendimento' }"
+        @click="selectCategory('em_atendimento')"
+      >
+        Em atendimento ({{ inProgressCount }})
+      </button>
+
+      <!-- Pílula Grupos -->
+      <button
+        v-if="groupCount > 0"
+        type="button"
+        class="queue-pill"
+        :class="{ active: currentCategory === 'grupos' }"
+        @click="selectCategory('grupos')"
+      >
+        Grupos ({{ groupCount }})
+      </button>
+    </div>
+
+    <!-- Divisória suave -->
+    <div class="queue-header-divider"></div>
+
+    <!-- 4. Lista de Atendimentos (Scrollable Cards) -->
+    <div class="queue-list-items">
+      <div v-if="filteredTickets.length === 0" class="queue-empty-state">
+        <i class="fa-solid fa-inbox"></i>
+        <span>Nenhum atendimento nesta fila</span>
       </div>
 
-      <div v-else-if="filteredTickets.length === 0" class="queue-empty-msg">
-        <i class="fa-regular fa-comments"></i>
-        <span>{{ currentTab === 'grupos' ? 'Nenhum grupo disponível' : `Nenhum atendimento em ${currentTab === 'aguardando' ? 'espera' : 'atendimento'}` }}</span>
-      </div>
-
-      <div v-else class="queue-cards-wrapper">
-        <QueueItem
-          v-for="t in filteredTickets"
-          :key="t.id"
-          :ticket="t"
-          @select="onTicketClick(t.id)"
-        />
-      </div>
+      <QueueItem
+        v-for="ticket in filteredTickets"
+        :key="ticket.id"
+        :ticket="ticket"
+        @select="onTicketClick"
+      />
     </div>
 
     <!-- Modal Nova Conversa -->
     <NewConversationModal
       v-if="showNewConversation"
       @close="showNewConversation = false"
+      @started="onTicketClick"
     />
   </div>
 </template>
@@ -222,7 +197,8 @@ const ticketStore = useTicketStore()
 const settingsStore = useSettingsStore()
 const authStore = useAuthStore()
 
-const currentTab = ref('aguardando')
+// Categoria selecionada nas pílulas: 'todos' | 'aguardando' | 'em_atendimento' | 'grupos' | nome_do_departamento
+const currentCategory = ref('todos')
 const searchTerm = ref('')
 const sortBy = ref('recent')
 const selectedDepartment = ref('')
@@ -248,12 +224,11 @@ const allowedDepartments = computed(() => {
     const supervisorDepts = (authStore.departmentIds || []).map(String)
     return settingsStore.departments.filter(d => supervisorDepts.includes(String(d.id)))
   }
-  return []
+  return settingsStore.departments
 })
 
 const hasActiveFilters = computed(() => {
   return Boolean(
-    selectedDepartment.value ||
     onlyUnread.value ||
     unreadFirst.value ||
     onlyMine.value ||
@@ -261,37 +236,37 @@ const hasActiveFilters = computed(() => {
   )
 })
 
+const totalVisibleCount = computed(() => {
+  return (ticketStore.visibleTickets || []).filter(t => t.status !== 'finalizado').length
+})
+
 const waitingCount = computed(() => {
-  return (ticketStore.waitingTickets || []).filter(t => {
-    if (selectedDepartment.value && (t.department || t.deptInitial) !== selectedDepartment.value) return false
-    if (onlyUnread.value && (t.unreadCount || 0) === 0) return false
-    if (onlyMine.value) {
-      const myId = authStore.user?.id
-      if (t.agent_id !== myId && t.user_id !== myId) return false
-    }
-    return true
-  }).length
+  return (ticketStore.waitingTickets || []).length
 })
 
 const inProgressCount = computed(() => {
-  return (ticketStore.inProgressTickets || []).filter(t => {
-    if (selectedDepartment.value && (t.department || t.deptInitial) !== selectedDepartment.value) return false
-    if (onlyUnread.value && (t.unreadCount || 0) === 0) return false
-    if (onlyMine.value) {
-      const myId = authStore.user?.id
-      if (t.agent_id !== myId && t.user_id !== myId) return false
-    }
-    return true
-  }).length
+  return (ticketStore.inProgressTickets || []).length
 })
 
 const groupCount = computed(() => {
-  return (ticketStore.groupTickets || []).filter(t => {
-    if (selectedDepartment.value && (t.department || t.deptInitial) !== selectedDepartment.value) return false
-    if (onlyUnread.value && (t.unreadCount || t.unread_count || 0) === 0) return false
-    return true
-  }).length
+  return (ticketStore.groupTickets || []).length
 })
+
+const newTicketsCount = computed(() => {
+  return waitingCount.value || totalVisibleCount.value || 0
+})
+
+function selectCategory(cat) {
+  currentCategory.value = cat
+  if (cat === 'todos') {
+    selectedDepartment.value = ''
+  } else if (cat === 'aguardando' || cat === 'em_atendimento' || cat === 'grupos') {
+    selectedDepartment.value = ''
+  } else {
+    // É um departamento específico
+    selectedDepartment.value = cat
+  }
+}
 
 function onTicketClick(ticketId) {
   emit('ticket-selected', ticketId)
@@ -303,6 +278,7 @@ function resetFilters() {
   unreadFirst.value = false
   onlyMine.value = false
   sortBy.value = 'recent'
+  currentCategory.value = 'todos'
 }
 
 function parseTicketTime(ticket) {
@@ -315,15 +291,20 @@ function parseTicketTime(ticket) {
 const filteredTickets = computed(() => {
   let list = (ticketStore.visibleTickets || []).filter(t => t.status !== 'finalizado')
 
-  if (currentTab.value === 'aguardando') {
+  // Filtro pela categoria da pílula
+  if (currentCategory.value === 'aguardando') {
     list = list.filter(t => !t.is_group && (t.status === 'aguardando' || !t.assumed))
-  } else if (currentTab.value === 'em_atendimento') {
+  } else if (currentCategory.value === 'em_atendimento') {
     list = list.filter(t => !t.is_group && (t.assumed || t.status === 'em_atendimento' || t.status === 'chatbot'))
-  } else if (currentTab.value === 'grupos') {
-    list = list.filter(t => t.status === 'grupo')
+  } else if (currentCategory.value === 'grupos') {
+    list = list.filter(t => t.status === 'grupo' || t.is_group)
+  } else if (currentCategory.value !== 'todos') {
+    // Departamento específico selecionado pela pílula
+    list = list.filter(t => (t.department || t.deptInitial) === currentCategory.value)
   }
 
-  if (selectedDepartment.value) {
+  // Filtro por departamento do popover (caso aplicado)
+  if (selectedDepartment.value && currentCategory.value === 'todos') {
     list = list.filter(t => (t.department || t.deptInitial) === selectedDepartment.value)
   }
 
@@ -331,7 +312,7 @@ const filteredTickets = computed(() => {
     list = list.filter(t => (t.unreadCount || t.unread_count || 0) > 0)
   }
 
-  if (onlyMine.value && currentTab.value !== 'grupos') {
+  if (onlyMine.value && currentCategory.value !== 'grupos') {
     const myId = authStore.user?.id
     list = list.filter(t => t.agent_id === myId || t.user_id === myId)
   }
@@ -368,10 +349,11 @@ const filteredTickets = computed(() => {
 </script>
 
 <style scoped>
+/* ─── Coluna da Fila (Estilo Imagem 1) ────────────────────────────────────── */
 .queue-column {
-  width: 320px;
-  min-width: 320px;
-  max-width: 320px;
+  width: 340px;
+  min-width: 340px;
+  max-width: 340px;
   flex-shrink: 0;
   background-color: #ffffff;
   border-right: 1px solid #e5e7eb;
@@ -383,27 +365,40 @@ const filteredTickets = computed(() => {
   position: relative;
 }
 
+/* 1. Header */
 .queue-header-row {
-  height: 48px;
-  min-height: 48px;
-  padding: 0 14px;
+  height: 52px;
+  min-height: 52px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e5e7eb;
+  box-sizing: border-box;
 }
 
 .queue-header-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .queue-title-bold {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
   color: #0f172a;
+  margin: 0;
+}
+
+/* Badge X novos */
+.queue-badge-new {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #dc2626;
+  background: #fee2e2;
+  padding: 2.5px 9px;
+  border-radius: 9999px;
+  line-height: 1.3;
 }
 
 .queue-header-right {
@@ -412,35 +407,43 @@ const filteredTickets = computed(() => {
   gap: 6px;
 }
 
-.queue-filter-btn,
-.queue-new-btn {
-  width: 30px;
-  height: 30px;
+.queue-action-btn {
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
+  border: 1px solid transparent;
+  background: transparent;
   color: #64748b;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   position: relative;
-  transition: transform 0.16s ease, color 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+  transition: all 0.15s ease;
 }
 
-.queue-filter-btn:hover,
-.queue-new-btn:hover {
-  color: #1f62d0;
-  border-color: #bfdbfe;
-  background: #eff6ff;
-  transform: translateY(-1px);
+.queue-action-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
 }
 
-.queue-filter-btn.active {
-  color: #1f62d0;
-  border-color: #1f62d0;
-  background: #eff6ff;
+.queue-action-btn.active {
+  color: #0d9488;
+  background: #f0fdfa;
+}
+
+.queue-plus-btn {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.queue-plus-btn:hover {
+  background: #0d9488;
+  border-color: #0d9488;
+  color: #ffffff;
 }
 
 .filter-dot {
@@ -450,63 +453,197 @@ const filteredTickets = computed(() => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #1f62d0;
+  background: #0d9488;
 }
 
-/* Painel de Filtros */
-.queue-filter-panel {
-  padding: 12px;
+/* 2. Barra de Busca */
+.queue-search-wrap {
+  padding: 0 16px 10px;
+}
+
+.search-input-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
   background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0 12px;
+  transition: all 0.15s ease;
+}
+
+.search-input-box:focus-within {
+  background: #ffffff;
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+}
+
+.search-icon {
+  font-size: 13px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.search-input-box input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-size: 12.5px;
+  color: #0f172a;
+  outline: none;
+}
+
+.search-input-box input::placeholder {
+  color: #94a3b8;
+}
+
+.clear-search-btn {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  font-size: 12px;
+}
+
+.clear-search-btn:hover {
+  color: #475569;
+}
+
+/* 3. Pílulas de Filtro Horizontais (Estilo Imagem 1) */
+.queue-pills-track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.queue-pills-track::-webkit-scrollbar {
+  display: none;
+}
+
+.queue-pill {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.queue-pill:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+/* Pílula Ativa (Verde Azulado / Teal Imagem 1) */
+.queue-pill.active {
+  background: #0d9488 !important;
+  color: #ffffff !important;
+  border-color: #0d9488 !important;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.2);
+}
+
+.queue-header-divider {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 0 16px 6px;
+}
+
+/* 4. Lista de Itens */
+.queue-list-items {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 4px 0 16px;
+}
+
+.queue-empty-state {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  animation: slideDown 0.15s ease;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 20px;
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: center;
 }
 
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
+.queue-empty-state i {
+  font-size: 32px;
+  color: #cbd5e1;
+}
+
+/* Painel Popover de Filtros */
+.queue-filter-panel {
+  position: absolute;
+  top: 50px;
+  left: 14px;
+  right: 14px;
+  z-index: 100;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .filter-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .filter-label {
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 11.5px;
+  font-weight: 600;
   color: #475569;
 }
 
 .filter-select {
-  width: 100%;
-  padding: 5px 8px;
-  border-radius: 5px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  font-size: 12px;
+  height: 34px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 12.5px;
   color: #0f172a;
+  background: #f8fafc;
   outline: none;
-}
-
-.filter-select:focus {
-  border-color: #1f62d0;
 }
 
 .filter-checkboxes-wrap {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  padding-top: 4px;
 }
 
 .filter-checkbox-label {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
+  gap: 8px;
+  font-size: 12px;
   color: #334155;
   cursor: pointer;
 }
@@ -515,279 +652,43 @@ const filteredTickets = computed(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
 }
 
 .filter-reset-btn {
-  background: none;
   border: none;
-  color: #ef4444;
+  background: none;
+  color: #dc2626;
   font-size: 11.5px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .filter-close-btn {
-  background: #1f62d0;
-  color: #ffffff;
   border: none;
-  border-radius: 4px;
-  padding: 4px 10px;
+  background: #0d9488;
+  color: #ffffff;
   font-size: 11.5px;
   font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px;
   cursor: pointer;
   margin-left: auto;
 }
 
-/* Abas Aguardando vs Em atendimento */
-.queue-tabs-row {
-  display: flex;
-  padding: 8px 10px 4px;
-  gap: 6px;
-  border-bottom: 1px solid #f1f5f9;
+/* Transições do filtro */
+.filter-slide-enter-active,
+.filter-slide-leave-active {
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.queue-tab-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 7px 5px;
-  border-radius: 6px;
-  border: none;
-  background: #f8fafc;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.queue-tab-btn:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.queue-tab-btn.active {
-  background: #eff6ff;
-  color: #1f62d0;
-  font-weight: 600;
-}
-
-.queue-tab-count {
-  font-size: 10.5px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: #e2e8f0;
-  color: #475569;
-  font-weight: 600;
-}
-
-.queue-tab-btn.active .queue-tab-count {
-  background: #dbeafe;
-  color: #1f62d0;
-}
-
-.badge-alert {
-  background: #fee2e2 !important;
-  color: #ef4444 !important;
-}
-
-/* Chip Bar */
-.queue-active-chip-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px 10px 0;
-}
-
-.active-filter-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 4px;
-  font-size: 11px;
-  color: #1f62d0;
-}
-
-.active-filter-chip i {
-  cursor: pointer;
-  font-size: 10px;
-}
-
-.queue-search-container {
-  padding: 8px 10px;
-}
-
-.search-input-box {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.search-input-box i {
-  position: absolute;
-  left: 9px;
-  color: #94a3b8;
-  font-size: 11px;
-}
-
-.search-input-box input {
-  width: 100%;
-  height: 30px;
-  padding: 0 26px 0 28px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #0f172a;
-  outline: none;
-  transition: all 0.15s ease;
-}
-
-.search-input-box input:focus {
-  background: #ffffff;
-  border-color: #1f62d0;
-}
-
-.clear-btn {
-  position: absolute;
-  right: 6px;
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  cursor: pointer;
-}
-
-.queue-cards-stream {
-  flex: 1;
-  overflow-y: auto;
-  padding: 2px 0 12px;
-}
-
-.queue-cards-wrapper {
-  display: flex;
-  flex-direction: column;
-}
-
-.queue-empty-msg {
-  padding: 36px 16px;
-  text-align: center;
-  color: #94a3b8;
-  font-size: 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.queue-empty-msg i {
-  font-size: 24px;
-}
-
-/* ── Skeleton loading ─────────────────────────────────────────────────────── */
-/*
-  Dimensões espelhadas diretamente do QueueItem:
-    card:    min-height 72px | padding 11px 6px | margin 0 12px | gap 11px
-    avatar:  38 × 38 px | border-radius 50%
-    body:    gap 4px entre linhas
-    ctx:     height 16px  (queue-item-context)
-*/
-@keyframes skel-shimmer {
-  0%   { background-position: -600px 0; }
-  100% { background-position:  600px 0; }
-}
-
-.queue-skeleton-list {
-  display: flex;
-  flex-direction: column;
-  padding: 2px 0;
-}
-
-.queue-skeleton-card {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  min-height: 72px;
-  padding: 11px 6px;
-  margin: 0 12px;
-  border-bottom: 1px solid #e8edf3;
-  box-sizing: border-box;
-}
-
-.skel-avatar {
-  flex-shrink: 0;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
-  background-size: 600px 100%;
-  animation: skel-shimmer 1.4s ease-in-out infinite;
-}
-
-.skel-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.skel-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-/* Replica a altura fixa da linha de contexto do QueueItem */
-.skel-context {
-  height: 16px;
-  display: flex;
-  align-items: center;
-}
-
-.skel-line {
-  border-radius: 4px;
-  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
-  background-size: 600px 100%;
-  animation: skel-shimmer 1.4s ease-in-out infinite;
-}
-
-/* Tamanhos que espelham as dimensões de fonte do item real */
-.skel-name    { height: 13px; width: 54%; }     /* font-size: 13px */
-.skel-time    { height: 11px; width: 13%; flex-shrink: 0; }  /* font-size: 11px */
-.skel-dept    { height: 10px; width: 42%; }     /* chip de departamento */
-.skel-preview { height: 11px; width: 76%; }     /* font-size: 11.5px */
-
-/* Cascata: cada card começa o shimmer com 80 ms de atraso */
-.queue-skeleton-card:nth-child(1) .skel-line,
-.queue-skeleton-card:nth-child(1) .skel-avatar { animation-delay: 0s; }
-.queue-skeleton-card:nth-child(2) .skel-line,
-.queue-skeleton-card:nth-child(2) .skel-avatar { animation-delay: 0.08s; }
-.queue-skeleton-card:nth-child(3) .skel-line,
-.queue-skeleton-card:nth-child(3) .skel-avatar { animation-delay: 0.16s; }
-.queue-skeleton-card:nth-child(4) .skel-line,
-.queue-skeleton-card:nth-child(4) .skel-avatar { animation-delay: 0.24s; }
-.queue-skeleton-card:nth-child(5) .skel-line,
-.queue-skeleton-card:nth-child(5) .skel-avatar { animation-delay: 0.32s; }
-.queue-skeleton-card:nth-child(6) .skel-line,
-.queue-skeleton-card:nth-child(6) .skel-avatar { animation-delay: 0.40s; }
-
-/* Dark mode (prefers-color-scheme) */
-@media (prefers-color-scheme: dark) {
-  .queue-skeleton-card {
-    border-bottom-color: #1e293b;
-  }
-  .skel-avatar,
-  .skel-line {
-    background: linear-gradient(90deg, #1e293b 25%, #273549 50%, #1e293b 75%);
-    background-size: 600px 100%;
-  }
+.filter-slide-enter-from,
+.filter-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 </style>

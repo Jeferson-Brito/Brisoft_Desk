@@ -249,8 +249,17 @@
                 :key="user.id || user.name"
                 class="online-user-item"
               >
-                <div class="online-user-avatar">
-                  <img v-if="user.avatar_url" :src="user.avatar_url" :alt="user.name" />
+                <div
+                  class="online-user-avatar"
+                  :style="!user.avatar_url || avatarLoadFailed[user.id || user.name] ? getAvatarStyle(user) : {}"
+                >
+                  <img
+                    v-if="user.avatar_url && !avatarLoadFailed[user.id || user.name]"
+                    :src="user.avatar_url"
+                    :alt="user.name"
+                    referrerpolicy="no-referrer"
+                    @error="avatarLoadFailed[user.id || user.name] = true"
+                  />
                   <span v-else class="avatar-initials">{{ getInitials(user.name) }}</span>
                   <span class="avatar-online-badge"></span>
                 </div>
@@ -316,20 +325,28 @@ const inProgressCount = computed(() => ticketStore.inProgressTickets?.length || 
 const groupCount = computed(() => ticketStore.groupTickets?.length || 0)
 
 // ─── Usuários Online ────────────────────────────────────────────────────────
+const avatarLoadFailed = ref({})
+
 const activeUsersList = computed(() => {
+  let list = []
   if (Array.isArray(ui.onlineUsersList) && ui.onlineUsersList.length > 0) {
-    return ui.onlineUsersList
+    list = ui.onlineUsersList
+  } else if (auth.user) {
+    list = [auth.user]
   }
-  // Se ainda não recebeu a lista via socket, usa o usuário autenticado atual como base
-  if (auth.user) {
-    return [{
-      id: auth.user.id,
-      name: auth.user.name || 'Usuário Atual',
-      role: auth.user.role || 'agent',
-      avatar_url: auth.user.avatar_url || null
-    }]
-  }
-  return []
+
+  // Mapeia e garante dados atualizados do usuário autenticado e perfis reais
+  return list.map(u => {
+    const isMe = auth.user && (String(u.id) === String(auth.user.id) || u.name === auth.user.name)
+    const role = (isMe && auth.user?.role) ? auth.user.role : (u.role || 'Analista')
+    const avatar = (isMe && auth.user?.avatar_url) ? auth.user.avatar_url : (u.avatar_url || null)
+    return {
+      id: u.id || (isMe ? auth.user?.id : 'u_' + Math.random()),
+      name: u.name || (isMe ? auth.user?.name : 'Usuário'),
+      role,
+      avatar_url: avatar
+    }
+  })
 })
 
 const onlineCount = computed(() => {
@@ -343,9 +360,32 @@ function toggleOnlineUsersList() {
 }
 
 function formatRole(role) {
-  if (role === 'admin') return 'Administrador'
-  if (role === 'supervisor') return 'Supervisor'
-  return 'Atendente'
+  if (!role) return 'Atendente'
+  const str = String(role).trim()
+  const lower = str.toLowerCase()
+  if (lower === 'admin' || lower === 'administrador') return 'Administrador'
+  if (lower === 'supervisor') return 'Supervisor'
+  if (lower === 'analista') return 'Analista'
+  return str
+}
+
+function getAvatarStyle(user) {
+  const palettes = [
+    { bg: '#eff6ff', color: '#2563eb' },
+    { bg: '#fef3c7', color: '#d97706' },
+    { bg: '#ccfbf1', color: '#0d9488' },
+    { bg: '#ffe4e6', color: '#e11d48' },
+    { bg: '#f3e8ff', color: '#7c3aed' },
+    { bg: '#e0f2fe', color: '#0284c7' }
+  ]
+  const str = user.name || 'U'
+  let hash = 0
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash)
+  const idx = Math.abs(hash) % palettes.length
+  return {
+    backgroundColor: palettes[idx].bg,
+    color: palettes[idx].color
+  }
 }
 
 function getInitials(name) {
@@ -393,7 +433,7 @@ onUnmounted(() => {
   padding: 0 16px;
   box-sizing: border-box;
   position: relative;
-  z-index: 50;
+  z-index: 2500;
   user-select: none;
 }
 
@@ -586,12 +626,12 @@ onUnmounted(() => {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  width: 260px;
+  width: 275px;
   background: #ffffff;
   border-radius: 12px;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18), 0 3px 10px rgba(15, 23, 42, 0.08);
   border: 1px solid #e2e8f0;
-  z-index: 1000;
+  z-index: 2600;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -634,7 +674,7 @@ onUnmounted(() => {
 }
 
 .online-users-list-scroll {
-  max-height: 240px;
+  max-height: 250px;
   overflow-y: auto;
   padding: 6px;
 }
@@ -654,17 +694,16 @@ onUnmounted(() => {
 
 .online-user-avatar {
   position: relative;
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: #eff6ff;
-  color: #2563eb;
   font-weight: 700;
-  font-size: 11px;
+  font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   overflow: visible;
 }
 
@@ -673,17 +712,19 @@ onUnmounted(() => {
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
+  display: block;
 }
 
 .avatar-online-badge {
   position: absolute;
   bottom: -1px;
   right: -1px;
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: #22c55e;
-  border: 1.5px solid #ffffff;
+  border: 2px solid #ffffff;
+  z-index: 2;
 }
 
 .online-user-details {

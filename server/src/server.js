@@ -147,6 +147,8 @@ async function broadcastOnlineUsers() {
   try {
     const sockets = await io.fetchSockets();
     const userMap = new Map();
+    const realUserIds = [];
+
     for (const s of sockets) {
       if (s.user?.id) {
         userMap.set(s.user.id, {
@@ -155,8 +157,32 @@ async function broadcastOnlineUsers() {
           role: s.user.role,
           avatar_url: s.user.avatar_url || null
         });
+        if (s.user.id !== '__temp_admin__') {
+          realUserIds.push(s.user.id);
+        }
       }
     }
+
+    if (realUserIds.length > 0 && isSupabaseConfigured()) {
+      try {
+        const { data: dbUsers, error } = await supabase
+          .from('users')
+          .select('id, name, role, avatar_url')
+          .in('id', realUserIds);
+
+        if (!error && Array.isArray(dbUsers)) {
+          for (const u of dbUsers) {
+            const entry = userMap.get(u.id);
+            if (entry) {
+              if (u.name) entry.name = u.name;
+              if (u.role) entry.role = u.role;
+              if (u.avatar_url) entry.avatar_url = u.avatar_url;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
     const users = Array.from(userMap.values());
     io.emit('online_users', {
       count: users.length,
@@ -164,6 +190,8 @@ async function broadcastOnlineUsers() {
     });
   } catch (_) {}
 }
+
+global.broadcastOnlineUsers = broadcastOnlineUsers;
 
 io.on('connection', (socket) => {
   console.log(`🔌 Cliente conectado via WebSocket: ${socket.id}`);

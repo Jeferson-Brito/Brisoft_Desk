@@ -5,69 +5,84 @@
       active: ticket.id === ticketStore.activeTicketId,
       unread: ticket.unreadCount > 0,
       'incoming-call': isIncomingCall,
-      'incoming-video-call': isIncomingCall && ticket.incomingCall.isVideo
+      'incoming-video-call': isIncomingCall && ticket.incomingCall?.isVideo
     }"
     @click="handleClick"
   >
-    <!-- Avatar com Indicador Online -->
-    <div class="avatar-wrap">
+    <!-- Avatar com Indicador / Checkmark -->
+    <div class="queue-avatar-wrap">
       <div
-        class="user-avatar"
-        :style="{ backgroundColor: ticket.avatarColor || '#1f62d0' }"
+        class="queue-avatar-circle"
+        :style="avatarColorStyle"
       >
-        <img v-if="ticket.avatar_url && !avatarFailed" :src="ticket.avatar_url" :alt="displayName" referrerpolicy="no-referrer" @error="avatarFailed = true" />
+        <img
+          v-if="ticket.avatar_url && !avatarFailed"
+          :src="ticket.avatar_url"
+          :alt="displayName"
+          referrerpolicy="no-referrer"
+          @error="avatarFailed = true"
+        />
         <span v-else>{{ fallbackInitials }}</span>
       </div>
-      <span class="online-indicator" :class="{ 'is-whatsapp': isWhatsapp }"></span>
+      <span class="queue-avatar-badge" title="Online no WhatsApp">
+        <i class="fa-solid fa-check"></i>
+      </span>
     </div>
 
-    <!-- Info central -->
-    <div class="queue-item-body">
+    <!-- Corpo do Card -->
+    <div class="queue-item-content">
       <!-- Linha 1: Nome + Hora -->
-      <div class="queue-item-header">
-        <div class="queue-item-name-wrap">
-          <strong class="queue-item-name" :title="displayName">
+      <div class="queue-item-row-top">
+        <div class="queue-name-wrapper">
+          <strong class="queue-client-name" :title="displayName">
             {{ displayName }}
           </strong>
-          <span v-if="ticket.is_employee" class="employee-tag" title="Funcionário">
+          <span v-if="ticket.is_employee" class="badge-icon-tag" title="Funcionário">
             <i class="fa-solid fa-id-badge"></i>
           </span>
-          <span v-if="ticket.is_group" class="group-tag" title="Grupo do WhatsApp"><i class="fa-solid fa-users"></i></span>
+          <span v-if="ticket.is_group" class="badge-icon-tag group" title="Grupo WhatsApp">
+            <i class="fa-solid fa-users"></i>
+          </span>
           <span
             v-if="isIncomingCall"
-            class="incoming-call-queue-badge"
-            :class="{ video: ticket.incomingCall.isVideo }"
-            :title="ticket.incomingCall.isVideo ? 'Cliente está fazendo uma chamada de vídeo' : 'Cliente está ligando agora'"
+            class="badge-icon-call"
+            :class="{ video: ticket.incomingCall?.isVideo }"
+            :title="ticket.incomingCall?.isVideo ? 'Chamada de vídeo' : 'Chamada de voz'"
           >
-            <i :class="ticket.incomingCall.isVideo ? 'fa-solid fa-video' : 'fa-solid fa-phone'"></i>
+            <i :class="ticket.incomingCall?.isVideo ? 'fa-solid fa-video' : 'fa-solid fa-phone'"></i>
           </span>
         </div>
-        <span class="queue-item-time">{{ relativeTime }}</span>
+        <span class="queue-time-label">{{ relativeTime }}</span>
       </div>
 
-      <div class="queue-item-context">
-        <span v-if="ticket.is_group" class="contact-role">{{ groupParticipantLabel }}</span>
-        <span v-else-if="person.role" class="contact-role" :title="person.role">{{ person.role }}</span>
-        <span v-else-if="ticket.is_employee" class="contact-role">Funcionário da empresa</span>
-        <span v-if="deptName" class="department-chip" :title="deptName">
-          <span :style="{ backgroundColor: deptColor }"></span>{{ deptName }}
-        </span>
-      </div>
+      <!-- Linha 2: Departamento + Tempo de Espera ou Badge Não Lidos -->
+      <div class="queue-item-row-mid">
+        <div class="queue-dept-wrap" :title="deptName || 'Atendimento Geral'">
+          <span class="dept-dot-bullet" :style="{ backgroundColor: deptColor }"></span>
+          <span class="dept-name-text">{{ deptName || 'Atendimento Geral' }}</span>
+        </div>
 
-      <!-- Última mensagem + Tag de Espera / SLA -->
-      <div class="queue-item-footer">
-        <span class="queue-item-snippet" :class="{ 'unread-text': ticket.unreadCount > 0 }">
-          <span class="preview-text">{{ cleanPreview(ticket.preview) }}</span>
-        </span>
-
-        <div class="queue-item-badges">
-          <span v-if="waitTimeBadge" class="sla-timer-badge" title="Tempo deste atendimento na fila aguardando um atendente">
+        <div class="queue-right-badges">
+          <span v-if="waitTimeBadge" class="queue-wait-pill" title="Tempo de espera na fila">
             <i class="fa-regular fa-clock"></i> {{ waitTimeBadge }}
           </span>
-          <span v-if="ticket.unreadCount > 0" class="unread-count-pill">
+          <span v-else-if="ticket.unreadCount > 0" class="queue-unread-pill">
             {{ ticket.unreadCount }}
           </span>
         </div>
+      </div>
+
+      <!-- Linha 3: Snippet da Mensagem entre aspas ou reação -->
+      <div class="queue-item-row-bottom">
+        <p class="queue-snippet-text" :class="{ 'is-unread': ticket.unreadCount > 0 }">
+          <template v-if="isReaction">
+            <i class="fa-solid fa-check-double reaction-double-check"></i>
+            <span class="reaction-label">Reagiu a uma mensagem</span>
+          </template>
+          <template v-else>
+            "{{ cleanPreview(ticket.preview) }}"
+          </template>
+        </p>
       </div>
     </div>
   </div>
@@ -105,18 +120,53 @@ function handleClick() {
 
 const person = computed(() => splitPersonLabel(props.ticket.clientName || props.ticket.client_name || 'Cliente'))
 const displayName = computed(() => person.value.name || 'Cliente')
+
 const fallbackInitials = computed(() => {
-  const parts = displayName.value.trim().split(/\s+/).filter(Boolean)
-  if (!parts.length) return props.ticket.is_group ? 'GR' : 'CL'
-  return `${parts[0][0] || ''}${parts.length > 1 ? parts[parts.length - 1][0] : (parts[0][1] || '')}`.toUpperCase()
+  const clean = displayName.value.trim()
+  if (!clean) return props.ticket.is_group ? 'GR' : 'CL'
+  // Se for código numérico como 502 ou C08
+  if (/^[A-Za-z]?\d+/.test(clean)) {
+    return clean.slice(0, 3).toUpperCase()
+  }
+  const parts = clean.split(/\s+/).filter(Boolean)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0] || ''}${parts[parts.length - 1][0] || ''}`.toUpperCase()
 })
+
+const avatarColorStyle = computed(() => {
+  const name = displayName.value.trim()
+  // Paletas elegantes e suaves
+  if (/^C\d+/i.test(name)) {
+    return { backgroundColor: '#fef3c7', color: '#d97706' }
+  }
+  if (/^\d+/.test(name)) {
+    return { backgroundColor: '#eff6ff', color: '#2563eb' }
+  }
+  if (/tático|agente|viatura/i.test(name)) {
+    return { backgroundColor: '#ccfbf1', color: '#0d9488' }
+  }
+  // Cores variadas pelo hash do nome
+  const palettes = [
+    { bg: '#fef3c7', color: '#d97706' },
+    { bg: '#eff6ff', color: '#2563eb' },
+    { bg: '#ccfbf1', color: '#0d9488' },
+    { bg: '#ffe4e6', color: '#e11d48' },
+    { bg: '#f3e8ff', color: '#7c3aed' },
+    { bg: '#e0f2fe', color: '#0284c7' }
+  ]
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  const idx = Math.abs(hash) % palettes.length
+  return { backgroundColor: palettes[idx].bg, color: palettes[idx].color }
+})
+
 const deptName = computed(() => props.ticket.department || props.ticket.departments?.name || props.ticket.deptInitial || '')
-const deptColor = computed(() => props.ticket.departmentColor || '#1f62d0')
-const isWhatsapp = computed(() => true)
+const deptColor = computed(() => props.ticket.departmentColor || '#0d9488')
 const isIncomingCall = computed(() => props.ticket.incomingCall?.status === 'ringing')
-const groupParticipantLabel = computed(() => {
-  const count = Number(props.ticket.group_participant_count || 0)
-  return count ? `${count} ${count === 1 ? 'participante' : 'participantes'}` : 'Participantes indisponíveis'
+
+const isReaction = computed(() => {
+  const p = (props.ticket.preview || '').toLowerCase()
+  return p.includes('reagiu') || p.includes('reaction')
 })
 
 const relativeTime = computed(() => {
@@ -160,226 +210,251 @@ function cleanPreview(preview) {
 </script>
 
 <style scoped>
+/* ─── Card Principal da Fila ─────────────────────────────────────────────── */
 .queue-item-card {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 11px;
-  min-height: 72px;
-  padding: 11px 6px;
-  margin: 0 12px;
-  border-radius: 0;
-  border: 0;
-  border-bottom: 1px solid #e8edf3;
+  gap: 13px;
+  padding: 12px 14px;
+  margin: 4px 10px;
+  border-radius: 16px;
+  border: 1.5px solid transparent;
+  border-bottom: 1px solid #f1f5f9;
   cursor: pointer;
-  background: #ffffff;
-  transition: background-color 0.16s ease, padding 0.16s ease, transform 0.16s ease;
+  background: transparent;
+  transition: all 0.16s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
   box-sizing: border-box;
 }
 
 .queue-item-card:hover {
-  background-color: #f8fbff;
-  padding-left: 9px;
+  background: #f8fafc;
+  border-color: #e2e8f0;
 }
 
+/* Card Selecionado (Estilo Imagem 1) */
 .queue-item-card.active {
-  background-color: #eff6ff !important;
-  margin: 5px 8px;
-  padding: 11px 10px;
-  border-bottom-color: transparent;
-  border-radius: 10px;
-  box-shadow: inset 4px 0 0 #2563eb, 0 4px 14px rgba(37, 99, 235, 0.08);
+  background: #ffffff !important;
+  border: 1.5px solid #2dd4bf !important;
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(45, 212, 191, 0.09);
 }
 
-.avatar-wrap {
+/* Chamada em curso */
+.queue-item-card.incoming-call {
+  background: #fef2f2 !important;
+  border-color: #f87171 !important;
+  animation: pulseCall 1.2s infinite ease-in-out;
+}
+
+@keyframes pulseCall {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.2); }
+  50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15); }
+}
+
+/* ─── Avatar ─────────────────────────────────────────────────────────────── */
+.queue-avatar-wrap {
   position: relative;
   flex-shrink: 0;
 }
 
-.user-avatar {
-  width: 38px;
-  height: 38px;
+.queue-avatar-circle {
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  color: #ffffff;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 13.5px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 0 3px #f1f5f9;
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  flex-shrink: 0;
 }
 
-.user-avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
-.group-tag { color: #2563eb; font-size: 10.5px; }
-
-.queue-item-card:hover .user-avatar,
-.queue-item-card.active .user-avatar {
-  transform: scale(1.04);
-  box-shadow: 0 0 0 3px #dbeafe;
-}
-
-.online-indicator {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 9px;
-  height: 9px;
+.queue-avatar-circle img {
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
-  background: #16a34a;
-  box-shadow: 0 0 0 2px #ffffff;
+  object-fit: cover;
+  display: block;
 }
 
-.queue-item-body {
+/* Checkmark verde no rodapé do avatar */
+.queue-avatar-badge {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 2px solid #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 7.5px;
+}
+
+/* ─── Conteúdo do Card ───────────────────────────────────────────────────── */
+.queue-item-content {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
-.queue-item-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.queue-item-name-wrap {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-}
-
-.queue-item-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.employee-tag {
-  color: #047857;
-  font-size: 11px;
-}
-
-.incoming-call-queue-badge {
-  width: 20px;
-  height: 20px;
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  border-radius: 50%;
-  background: #16a34a;
-  color: #ffffff;
-  font-size: 9px;
-  box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.36);
-  animation: queue-call-ring 1.15s ease-in-out infinite;
-}
-
-.incoming-call-queue-badge.video {
-  background: #2563eb;
-  box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.34);
-}
-
-.queue-item-card.incoming-call {
-  background: #f0fdf4;
-  box-shadow: inset 3px 0 0 #16a34a;
-}
-
-.queue-item-card.incoming-video-call {
-  background: #eff6ff;
-  box-shadow: inset 3px 0 0 #2563eb;
-}
-
-@keyframes queue-call-ring {
-  0%, 100% { transform: rotate(0deg) scale(1); }
-  15% { transform: rotate(-13deg) scale(1.08); }
-  30% { transform: rotate(13deg) scale(1.08); }
-  45% { transform: rotate(-8deg) scale(1.05); }
-  60% { transform: rotate(8deg) scale(1.05); }
-  75% { transform: rotate(0deg) scale(1); box-shadow: 0 0 0 7px transparent; }
-}
-
-.queue-item-time {
-  font-size: 11px;
-  color: #94a3b8;
-  white-space: nowrap;
-  margin-left: 6px;
-}
-
-.queue-item-card.active .queue-item-time {
-  color: #1f62d0;
-  font-weight: 600;
-}
-
-.queue-item-footer {
+/* Linha 1: Nome + Hora */
+.queue-item-row-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
 }
 
-.queue-item-context{display:flex;align-items:center;gap:6px;min-width:0;height:16px}.contact-role{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#64748b;font-size:10.5px;font-weight:400}.department-chip{max-width:48%;display:inline-flex;align-items:center;gap:4px;padding:1px 6px;border:1px solid #e2e8f0;border-radius:999px;color:#64748b;background:#fff;font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.department-chip>span{width:5px;height:5px;border-radius:50%;flex:none}
-
-.queue-item-snippet {
-  font-size: 11.5px;
-  color: #64748b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
+.queue-name-wrapper {
   display: flex;
   align-items: center;
-  gap: 4px;
-}
-
-.unread-text {
-  color: #334155;
-  font-weight: 500;
-}
-
-.preview-text {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.preview-text {
+  gap: 6px;
   min-width: 0;
-  color: #94a3b8;
 }
 
-.queue-item-badges {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.queue-client-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge-icon-tag {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.badge-icon-tag.group {
+  color: #2563eb;
+}
+
+.badge-icon-call {
+  color: #ef4444;
+  font-size: 10px;
+  animation: pulseCallIcon 1s infinite alternate;
+}
+
+.queue-time-label {
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-weight: 500;
   flex-shrink: 0;
 }
 
-.sla-timer-badge {
-  font-size: 10.5px;
-  color: #64748b;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.unread-count-pill {
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: #ef4444;
-  color: #ffffff;
-  font-size: 9.5px;
-  font-weight: 700;
+/* Linha 2: Setor / Contexto + Tempo de Espera */
+.queue-item-row-mid {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 6px;
 }
 
+.queue-dept-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dept-dot-bullet {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dept-name-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-right-badges {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+/* Pill de Espera (Estilo Imagem 1) */
+.queue-wait-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ea580c;
+  background: #fff7ed;
+  border-radius: 6px;
+  padding: 1.5px 6px;
+  line-height: 1.3;
+}
+
+.queue-wait-pill i {
+  font-size: 10px;
+}
+
+.queue-unread-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #ffffff;
+  background: #2563eb;
+  line-height: 1;
+}
+
+/* Linha 3: Snippet da Mensagem */
+.queue-item-row-bottom {
+  display: flex;
+  align-items: center;
+  margin-top: 1px;
+}
+
+.queue-snippet-text {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.35;
+  width: 100%;
+}
+
+.queue-snippet-text.is-unread {
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.reaction-double-check {
+  color: #0d9488;
+  font-size: 11px;
+  margin-right: 4px;
+}
+
+.reaction-label {
+  color: #0d9488;
+  font-weight: 500;
+}
 </style>

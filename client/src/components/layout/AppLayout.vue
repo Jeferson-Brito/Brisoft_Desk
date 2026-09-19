@@ -42,5 +42,7 @@ import ToolsSidebar from '@/components/layout/ToolsSidebar.vue'
   min-height: 0;
   overflow: hidden;
   display: flex;
+  position: relative;
+  z-index: 1;
 }
 </style>
