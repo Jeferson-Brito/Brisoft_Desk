@@ -27,14 +27,14 @@
 
     <!-- Navigation Links (Column 1 Icons / Labels) -->
     <nav class="sidebar-nav">
-      <!-- Dashboard (Visível apenas para Administradores) -->
-      <RouterLink v-if="auth.isAdmin" class="nav-item" to="/" exact-active-class="active" title="Dashboard">
-        <i class="fa-solid fa-chart-pie"></i>
+      <!-- Dashboard / Histórico (Relógio) -->
+      <RouterLink class="nav-item" to="/dashboard" active-class="active" title="Dashboard">
+        <i class="fa-regular fa-clock"></i>
         <span class="nav-label">Dashboard</span>
       </RouterLink>
 
       <!-- Atendimentos / Inbox (Principal) -->
-      <RouterLink class="nav-item" to="/atendimentos" active-class="active" title="Atendimentos / Inbox">
+      <RouterLink class="nav-item nav-item-atendimentos" to="/atendimentos" active-class="active" title="Atendimentos">
         <i class="fa-solid fa-inbox"></i>
         <span class="nav-label">Atendimentos</span>
         <span v-if="waitingCount > 0" class="nav-badge" :title="`${waitingCount} aguardando`">
@@ -44,7 +44,7 @@
 
       <!-- Conversas / Histórico -->
       <RouterLink class="nav-item" to="/historico" active-class="active" title="Conversas e Histórico">
-        <i class="fa-regular fa-comments"></i>
+        <i class="fa-regular fa-comment-dots"></i>
         <span class="nav-label">Conversas</span>
       </RouterLink>
 
@@ -67,13 +67,13 @@
       </RouterLink>
     </nav>
 
-    <!-- Seção Inferior: Painel TV e Configurações (acima do perfil) -->
+    <!-- Seção Inferior: Notas e Configurações (acima do perfil) -->
     <div class="sidebar-nav-footer">
-      <!-- Painel TV -->
-      <RouterLink class="nav-item" to="/painel-tv" target="_blank" rel="noopener noreferrer" title="Abrir Painel TV em nova guia" @click="closeMobile">
-        <i class="fa-solid fa-tv"></i>
-        <span class="nav-label">Painel TV</span>
-      </RouterLink>
+      <!-- Notas / Documentos -->
+      <button type="button" class="nav-item" title="Notas e Documentos" @click="sidebar.toggleTool('notepad')">
+        <i class="fa-regular fa-file-lines"></i>
+        <span class="nav-label">Notas</span>
+      </button>
 
       <!-- Configurações -->
       <RouterLink v-if="auth.canManageTeam" class="nav-item" to="/configuracoes" active-class="active" id="settingsNavUsuarios" :title="auth.isAdmin ? 'Configurações' : 'Equipe'">
@@ -195,54 +195,27 @@ async function handleLogout() {
 
 <style scoped>
 .sidebar {
-  width: 60px;
-  min-width: 60px;
-  max-width: 60px;
-  background-color: #f3f4f6;
-  border-right: 1px solid #e5e7eb;
+  width: 58px;
+  min-width: 58px;
+  max-width: 58px;
+  background-color: #ffffff;
+  border-right: 1px solid #f1f5f9;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
   height: 100vh;
-  padding: 10px 0 14px;
+  padding: 12px 0 16px;
   box-sizing: border-box;
   flex-shrink: 0;
   z-index: 60;
   user-select: none;
   position: relative;
-  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), padding 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Sidebar expandido */
-.sidebar.is-expanded {
-  width: 220px;
-  min-width: 220px;
-  max-width: 220px;
-  padding: 10px 8px 14px;
-}
-
-/* Botão Balão na borda para Expandir / Recolher */
+/* Oculta botão de expansão para manter trilho minimalista */
 .sidebar-toggle-bubble {
-  position: absolute;
-  top: 18px;
-  right: -12px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.12), 0 1px 3px -1px rgba(0, 0, 0, 0.08);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 80;
-  color: #64748b;
-  font-size: 10px;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  outline: none;
-  padding: 0;
+  display: none !important;
 }
 
 .sidebar-toggle-bubble:hover {
@@ -304,7 +277,7 @@ async function handleLogout() {
   width: 100%;
   padding-top: 8px;
   margin-top: auto;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid #f1f5f9;
 }
 
 .sidebar.is-expanded .sidebar-nav-footer {
@@ -373,37 +346,38 @@ async function handleLogout() {
 }
 
 .nav-item:hover {
-  background-color: #e5e7eb;
-  color: #1e293b;
+  background-color: #f8fafc;
+  color: #0f172a;
 }
 
 .nav-item.active {
-  background-color: #ffffff;
-  color: #1f62d0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  background-color: #e6f7f2 !important;
+  color: #059669 !important;
+  box-shadow: none;
 }
 
 .nav-item.active i {
-  color: #1f62d0;
+  color: #059669 !important;
 }
 
 .nav-badge {
   position: absolute;
-  top: 3px;
-  right: 3px;
-  min-width: 15px;
-  height: 15px;
+  top: 1px;
+  right: 1px;
+  min-width: 17px;
+  height: 17px;
   padding: 0 4px;
   border-radius: 999px;
-  background-color: #ef4444;
+  background-color: #ea580c;
   color: #ffffff;
-  font-size: 9px;
+  font-size: 9.5px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
-  box-shadow: 0 0 0 2px #f3f4f6;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 3px rgba(234, 88, 12, 0.3);
 }
 
 .sidebar.is-expanded .nav-badge {

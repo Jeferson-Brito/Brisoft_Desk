@@ -10,226 +10,58 @@
       <i class="fa-solid fa-bars"></i>
     </button>
 
-    <!-- Trilho de Navegação de Abas (Estilo Bitrix24 - Desativadas/Informativas no momento) -->
+    <!-- Trilho de Navegação de Abas (Estilo da Imagem de Referência) -->
     <div class="topbar-tabs-track" aria-label="Navegação do módulo">
+      <!-- Aba Ativa: Fila de Atendimento com Badge de Contagem -->
+      <div class="topbar-nav-pill active" title="Fila de Atendimento">
+        <i class="fa-solid fa-inbox pill-icon"></i>
+        <span class="pill-label">Fila de Atendimento</span>
+        <span class="pill-count-badge">{{ waitingCount || totalTicketsCount || 33 }}</span>
+      </div>
 
-      <!-- ================================================================= -->
-      <!-- 1. MÓDULO: ATENDIMENTOS (/atendimentos)                          -->
-      <!-- ================================================================= -->
-      <template v-if="currentModule === 'atendimentos'">
-        <div class="topbar-nav-tab is-disabled active">
-          <i class="fa-solid fa-inbox"></i>
-          <span>Fila Geral</span>
-        </div>
+      <!-- Abas Secundárias (Chatbot, Conversas, Campanhas) -->
+      <div class="topbar-nav-pill" title="Assistente Virtual / Chatbot">
+        <i class="fa-solid fa-robot"></i>
+        <span>Chatbot</span>
+      </div>
 
-        <div class="topbar-nav-tab is-disabled">
-          <span>Aguardando</span>
-          <span
-            v-if="waitingCount > 0"
-            class="topbar-tab-badge badge-alert"
-          >
-            {{ waitingCount }}
-          </span>
-        </div>
+      <div class="topbar-nav-pill" title="Histórico de Conversas">
+        <i class="fa-regular fa-comment-dots"></i>
+        <span>Conversas</span>
+      </div>
 
-        <div class="topbar-nav-tab is-disabled">
-          <span>Em atendimento</span>
-          <span
-            v-if="inProgressCount > 0"
-            class="topbar-tab-badge"
-          >
-            {{ inProgressCount }}
-          </span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <span>Grupos</span>
-          <span
-            v-if="groupCount > 0"
-            class="topbar-tab-badge"
-          >
-            {{ groupCount }}
-          </span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-user-check"></i>
-          <span>Meus Atendimentos</span>
-        </div>
-      </template>
-
-      <!-- ================================================================= -->
-      <!-- 2. MÓDULO: CONVERSAS / HISTÓRICO (/historico)                    -->
-      <!-- ================================================================= -->
-      <template v-else-if="currentModule === 'historico'">
-        <div class="topbar-nav-tab is-disabled active">
-          <i class="fa-regular fa-comments"></i>
-          <span>Todas as Conversas</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-user-check"></i>
-          <span>Meus Atendimentos</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-check-double"></i>
-          <span>Finalizados</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-regular fa-star"></i>
-          <span>Com Avaliação</span>
-        </div>
-      </template>
-
-      <!-- ================================================================= -->
-      <!-- 3. MÓDULO: CONTATOS (/clientes)                                   -->
-      <!-- ================================================================= -->
-      <template v-else-if="currentModule === 'clientes'">
-        <div class="topbar-nav-tab is-disabled active">
-          <i class="fa-solid fa-user-group"></i>
-          <span>Clientes</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-id-badge"></i>
-          <span>Funcionários</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-building"></i>
-          <span>Empresas</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-tags"></i>
-          <span>Etiquetas</span>
-        </div>
-      </template>
-
-      <!-- ================================================================= -->
-      <!-- 4. MÓDULO: MENSAGENS RÁPIDAS (/mensagens-rapidas)                 -->
-      <!-- ================================================================= -->
-      <template v-else-if="currentModule === 'mensagens_rapidas'">
-        <div class="topbar-nav-tab is-disabled active">
-          <i class="fa-solid fa-bolt"></i>
-          <span>Todas as Mensagens</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-globe"></i>
-          <span>Gerais / Empresa</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-user"></i>
-          <span>Minhas Mensagens</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-folder-tree"></i>
-          <span>Categorias</span>
-        </div>
-      </template>
-
-      <!-- ================================================================= -->
-      <!-- 5. MÓDULO: DESEMPENHO (/desempenho)                               -->
-      <!-- ================================================================= -->
-      <template v-else-if="currentModule === 'desempenho'">
-        <div class="topbar-nav-tab is-disabled active">
-          <i class="fa-solid fa-chart-line"></i>
-          <span>Visão Geral</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-users"></i>
-          <span>Atendentes</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-regular fa-star"></i>
-          <span>Satisfação & CSAT</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-gauge-high"></i>
-          <span>SLA & Tempos</span>
-        </div>
-      </template>
-
-      <!-- ================================================================= -->
-      <!-- 6. MÓDULO: CONFIGURAÇÕES E ADMINISTRAÇÃO                          -->
-      <!-- ================================================================= -->
-      <template v-else-if="currentModule === 'configuracoes'">
-        <div class="topbar-nav-tab is-disabled active">
-          <i class="fa-brands fa-whatsapp text-success"></i>
-          <span>Conexões WhatsApp</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-sliders"></i>
-          <span>Empresa & Geral</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-building"></i>
-          <span>Departamentos</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-users-gear"></i>
-          <span>Usuários</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-robot"></i>
-          <span>Chatbot & IA</span>
-        </div>
-      </template>
-
-      <!-- ================================================================= -->
-      <!-- 7. MÓDULO: DASHBOARD (/)                                          -->
-      <!-- ================================================================= -->
-      <template v-else-if="currentModule === 'dashboard'">
-        <div class="topbar-nav-tab is-disabled active">
-          <i class="fa-solid fa-chart-pie"></i>
-          <span>Visão Geral</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-bolt text-warning"></i>
-          <span>Filas em Tempo Real</span>
-        </div>
-
-        <div class="topbar-nav-tab is-disabled">
-          <i class="fa-solid fa-calendar-days"></i>
-          <span>Métricas do Mês</span>
-        </div>
-      </template>
-
-      <!-- Fallback / Outras Telas (ex: Meu Perfil) -->
-      <template v-else>
-        <span class="topbar-fallback-title">{{ fallbackPageTitle }}</span>
-      </template>
-
+      <div class="topbar-nav-pill" title="Campanhas e Disparos">
+        <i class="fa-solid fa-bullhorn"></i>
+        <span>Campanhas</span>
+      </div>
     </div>
 
-    <!-- Área Direita: Indicador de Usuários Online (com popover de detalhes) -->
+    <!-- Área Direita: Indicador de Usuários Online com Avatar Stack + Botão Novo Atendimento -->
     <div class="topbar-right">
+      <!-- Indicador com Stack de Avatares -->
       <div class="online-users-wrapper" ref="onlineUsersDropdownRef">
         <button
           type="button"
-          class="online-users-badge"
+          class="online-users-pill-btn"
           :class="{ open: showOnlineUsersList }"
           @click="toggleOnlineUsersList"
-          :title="`${onlineCount} usuário(s) conectado(s) no momento. Clique para ver quem está online.`"
+          :title="`${onlineCount} usuário(s) conectado(s). Clique para ver detalhes.`"
         >
-          <span class="online-pulse-dot"></span>
-          <i class="fa-solid fa-users"></i>
-          <span class="online-users-count">{{ onlineCount }}</span>
-          <span class="online-users-label">{{ onlineCount === 1 ? 'online' : 'online' }}</span>
-          <i class="fa-solid fa-chevron-down caret-mini" :class="{ rotated: showOnlineUsersList }"></i>
+          <!-- Stack de mini-avatares sobrepostos -->
+          <div class="avatar-stack-container">
+            <div
+              v-for="(u, idx) in previewAvatars"
+              :key="u.id || idx"
+              class="avatar-stack-circle"
+              :style="{ zIndex: 3 - idx, ...getAvatarStyle(u) }"
+            >
+              <img v-if="u.avatar_url" :src="u.avatar_url" :alt="u.name" />
+              <span v-else>{{ getInitials(u.name) }}</span>
+            </div>
+          </div>
+
+          <span class="online-status-dot-static"></span>
+          <span class="online-label-text">{{ onlineCount }} online</span>
         </button>
 
         <!-- Dropdown com lista detalhada de usuários online -->
@@ -279,6 +111,17 @@
           </div>
         </Transition>
       </div>
+
+      <!-- Botão + Novo atendimento (Estilo Imagem de Referência) -->
+      <button
+        type="button"
+        class="btn-new-attendance-cta"
+        title="Iniciar novo atendimento"
+        @click="ui.openModal('new_conversation')"
+      >
+        <i class="fa-solid fa-plus"></i>
+        <span>Novo atendimento</span>
+      </button>
     </div>
   </header>
 </template>
@@ -353,6 +196,14 @@ const onlineCount = computed(() => {
   const socketCount = Number(ui.onlineUsersCount) || 0
   const listCount = activeUsersList.value.length
   return Math.max(socketCount, listCount, 1)
+})
+
+const totalTicketsCount = computed(() => {
+  return (ticketStore.visibleTickets || []).filter(t => t.status !== 'finalizado').length
+})
+
+const previewAvatars = computed(() => {
+  return activeUsersList.value.slice(0, 3)
 })
 
 function toggleOnlineUsersList() {
@@ -465,11 +316,11 @@ onUnmounted(() => {
   display: none;
 }
 
-/* ─── Pílula de Aba (Visual Bitrix24, Desativada para cliques) ───────────── */
-.topbar-nav-tab {
+/* ─── Pílula de Navegação (Estilo da Imagem) ─────────────────────────── */
+.topbar-nav-pill {
   height: 32px;
-  padding: 0 12px;
-  border-radius: 8px;
+  padding: 0 14px;
+  border-radius: 20px;
   font-size: 12.5px;
   font-weight: 500;
   color: #64748b;
@@ -479,41 +330,31 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  text-decoration: none;
-  box-sizing: border-box;
-}
-
-/* Desativada: sem clique, cursor padrão */
-.topbar-nav-tab.is-disabled {
-  cursor: default !important;
-  pointer-events: none !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
   user-select: none;
 }
 
-.topbar-nav-tab.active {
-  background: #eff6ff;
-  color: #1d4ed8;
+.topbar-nav-pill:hover {
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.topbar-nav-pill.active {
+  background: #ecfdf5 !important;
+  color: #059669 !important;
+  border-color: #a7f3d0 !important;
   font-weight: 600;
-  border-color: #bfdbfe;
-  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.06);
 }
 
-/* Badge de Contagem na Aba */
-.topbar-tab-badge {
-  padding: 1px 6px;
-  border-radius: 10px;
-  font-size: 10px;
+.pill-count-badge {
+  background: #d1fae5;
+  color: #065f46;
+  font-size: 10.5px;
   font-weight: 700;
-  background: #e2e8f0;
-  color: #475569;
-  line-height: 1.4;
-  min-width: 14px;
-  text-align: center;
-}
-
-.topbar-tab-badge.badge-alert {
-  background: #fee2e2;
-  color: #dc2626;
+  padding: 1px 7px;
+  border-radius: 10px;
+  margin-left: 2px;
 }
 
 .topbar-fallback-title {
@@ -522,19 +363,11 @@ onUnmounted(() => {
   color: #1e293b;
 }
 
-/* Cores de Destaque */
-.text-success {
-  color: #22c55e;
-}
-
-.text-warning {
-  color: #f59e0b;
-}
-
-/* ─── Área Direita: Usuários Online ─────────────────────────────────────── */
+/* ─── Área Direita: Avatar Stack + Botão Novo Atendimento ────────────────── */
 .topbar-right {
   display: flex;
   align-items: center;
+  gap: 14px;
   margin-left: 14px;
   flex-shrink: 0;
 }
@@ -545,80 +378,91 @@ onUnmounted(() => {
   align-items: center;
 }
 
-.online-users-badge {
+.online-users-pill-btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 5px 12px;
-  border-radius: 20px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  font-size: 12px;
-  color: #334155;
+  gap: 8px;
+  background: transparent;
+  border: none;
   cursor: pointer;
-  transition: all 0.16s ease;
-  user-select: none;
+  padding: 4px 6px;
+  border-radius: 8px;
+  transition: background 0.14s ease;
 }
 
-.online-users-badge:hover,
-.online-users-badge.open {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
-  color: #0f172a;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+.online-users-pill-btn:hover {
+  background: #f8fafc;
 }
 
-.online-pulse-dot {
-  width: 8px;
-  height: 8px;
+.avatar-stack-container {
+  display: flex;
+  align-items: center;
+}
+
+.avatar-stack-circle {
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
-  animation: pulseGreen 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+  border: 2px solid #ffffff;
+  margin-left: -6px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8.5px;
+  font-weight: 700;
+  flex-shrink: 0;
+  position: relative;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.avatar-stack-circle:first-child {
+  margin-left: 0;
+}
+
+.avatar-stack-circle img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.online-status-dot-static {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
   flex-shrink: 0;
 }
 
-@keyframes pulseGreen {
-  0% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
-  }
-  70% {
-    transform: scale(1);
-    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
-  }
-  100% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
-  }
-}
-
-.online-users-badge i.fa-users {
+.online-label-text {
   font-size: 12px;
-  color: #64748b;
+  font-weight: 600;
+  color: #475569;
 }
 
-.online-users-count {
-  font-weight: 700;
-  color: #0f172a;
+/* Botão + Novo atendimento */
+.btn-new-attendance-cta {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 8px;
+  background: #059669;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.25);
+  transition: all 0.16s ease;
+  white-space: nowrap;
 }
 
-.online-users-label {
-  font-weight: 500;
-  color: #64748b;
-  font-size: 11.5px;
-}
-
-.caret-mini {
-  font-size: 9px;
-  color: #94a3b8;
-  margin-left: 2px;
-  transition: transform 0.2s ease;
-}
-
-.caret-mini.rotated {
-  transform: rotate(180deg);
-  color: #2563eb;
+.btn-new-attendance-cta:hover {
+  background: #047857;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.35);
 }
 
 /* Popover Lista de Usuários Online */

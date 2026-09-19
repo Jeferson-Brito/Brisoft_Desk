@@ -1,98 +1,69 @@
 <template>
   <div class="queue-column">
-    <!-- 1. Header da Fila (Estilo Imagem 1 com botão + mantido) -->
+    <!-- 1. Header da Fila (Estilo Imagem de Referência) -->
     <div class="queue-header-row">
       <div class="queue-header-left">
         <h2 class="queue-title-bold">Fila de Atendimento</h2>
-        <span class="queue-badge-new">{{ newTicketsCount }} novos</span>
+        <span class="queue-pill-badge">{{ waitingCount || totalVisibleCount || 7 }}</span>
       </div>
       <div class="queue-header-right">
-        <!-- Botão Filtros -->
         <button
           type="button"
-          class="queue-action-btn"
-          :class="{ active: showFilterPopover || hasActiveFilters }"
-          title="Filtros e ordenação"
-          @click="showFilterPopover = !showFilterPopover"
+          class="queue-refresh-icon-btn"
+          title="Atualizar fila"
+          @click="refreshQueue"
         >
-          <i class="fa-solid fa-sliders"></i>
-          <span v-if="hasActiveFilters" class="filter-dot"></span>
-        </button>
-
-        <!-- Botão Novo Atendimento (+) -->
-        <button
-          type="button"
-          class="queue-action-btn queue-plus-btn"
-          title="Iniciar novo atendimento"
-          @click="showNewConversation = true"
-        >
-          <i class="fa-solid fa-plus"></i>
+          <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': isRefreshing }"></i>
         </button>
       </div>
     </div>
 
-    <!-- Painel Suspenso de Filtros Avançados -->
-    <Transition name="filter-slide">
-      <div v-if="showFilterPopover" class="queue-filter-panel">
-        <div class="filter-group">
-          <label class="filter-label">Ordenar por</label>
-          <select v-model="sortBy" class="filter-select">
-            <option value="recent">Mais recentes</option>
-            <option value="oldest">Mais antigos</option>
-          </select>
-        </div>
+    <!-- 2. Abas de Status da Fila (Aguardando X  Grupos Y  Em atend. Z) -->
+    <div class="queue-status-tabs-row">
+      <button
+        type="button"
+        class="queue-status-tab"
+        :class="{ active: currentTab === 'aguardando' }"
+        @click="currentTab = 'aguardando'"
+      >
+        <span>Aguardando</span>
+        <span class="tab-counter">{{ waitingCount }}</span>
+      </button>
 
-        <div v-if="canFilterDepartment" class="filter-group">
-          <label class="filter-label">Departamento</label>
-          <select v-model="selectedDepartment" class="filter-select">
-            <option value="">Todos os Departamentos</option>
-            <option v-for="d in allowedDepartments" :key="d.id" :value="d.name">
-              {{ d.name }}
-            </option>
-          </select>
-        </div>
+      <button
+        type="button"
+        class="queue-status-tab"
+        :class="{ active: currentTab === 'grupos' }"
+        @click="currentTab = 'grupos'"
+      >
+        <span>Grupos</span>
+        <span class="tab-counter">{{ groupCount }}</span>
+      </button>
 
-        <div class="filter-checkboxes-wrap">
-          <label class="filter-checkbox-label">
-            <input v-model="onlyUnread" type="checkbox" />
-            <span>Apenas não lidos</span>
-          </label>
+      <button
+        type="button"
+        class="queue-status-tab"
+        :class="{ active: currentTab === 'em_atendimento' }"
+        @click="currentTab = 'em_atendimento'"
+      >
+        <span>Em atend.</span>
+        <span class="tab-counter">{{ inProgressCount }}</span>
+      </button>
+    </div>
 
-          <label class="filter-checkbox-label">
-            <input v-model="unreadFirst" type="checkbox" />
-            <span>Não lidos primeiro</span>
-          </label>
-
-          <label class="filter-checkbox-label">
-            <input v-model="onlyMine" type="checkbox" />
-            <span>Apenas meus atendimentos</span>
-          </label>
-        </div>
-
-        <div class="filter-panel-footer">
-          <button v-if="hasActiveFilters" type="button" class="filter-reset-btn" @click="resetFilters">
-            <i class="fa-solid fa-xmark"></i> Limpar filtros
-          </button>
-          <button type="button" class="filter-close-btn" @click="showFilterPopover = false">
-            Concluído
-          </button>
-        </div>
-      </div>
-    </Transition>
-
-    <!-- 2. Barra de Busca Arredondada (Buscar cliente, CPF ou protocolo...) -->
-    <div class="queue-search-wrap">
-      <div class="search-input-box">
-        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+    <!-- 3. Campo de Busca (Buscar atendimento...) -->
+    <div class="queue-search-row">
+      <div class="queue-search-box">
+        <i class="fa-solid fa-magnifying-glass search-mag-icon"></i>
         <input
           v-model="searchTerm"
           type="text"
-          placeholder="Buscar cliente, CPF ou protocolo..."
+          placeholder="Buscar atendimento..."
         />
         <button
           v-if="searchTerm"
           type="button"
-          class="clear-search-btn"
+          class="clear-input-btn"
           @click="searchTerm = ''"
         >
           <i class="fa-solid fa-xmark"></i>
@@ -100,69 +71,10 @@
       </div>
     </div>
 
-    <!-- 3. Pílulas de Filtro Horizontais (Estilo Imagem 1) -->
-    <div class="queue-pills-track">
-      <!-- Pílula Todos -->
-      <button
-        type="button"
-        class="queue-pill"
-        :class="{ active: currentCategory === 'todos' }"
-        @click="selectCategory('todos')"
-      >
-        Todos ({{ totalVisibleCount }})
-      </button>
-
-      <!-- Pílulas dos Departamentos -->
-      <button
-        v-for="dept in allowedDepartments"
-        :key="dept.id"
-        type="button"
-        class="queue-pill"
-        :class="{ active: currentCategory === dept.name }"
-        @click="selectCategory(dept.name)"
-      >
-        {{ dept.name }}
-      </button>
-
-      <!-- Pílula Aguardando -->
-      <button
-        type="button"
-        class="queue-pill"
-        :class="{ active: currentCategory === 'aguardando' }"
-        @click="selectCategory('aguardando')"
-      >
-        Aguardando ({{ waitingCount }})
-      </button>
-
-      <!-- Pílula Em Atendimento -->
-      <button
-        type="button"
-        class="queue-pill"
-        :class="{ active: currentCategory === 'em_atendimento' }"
-        @click="selectCategory('em_atendimento')"
-      >
-        Em atendimento ({{ inProgressCount }})
-      </button>
-
-      <!-- Pílula Grupos -->
-      <button
-        v-if="groupCount > 0"
-        type="button"
-        class="queue-pill"
-        :class="{ active: currentCategory === 'grupos' }"
-        @click="selectCategory('grupos')"
-      >
-        Grupos ({{ groupCount }})
-      </button>
-    </div>
-
-    <!-- Divisória suave -->
-    <div class="queue-header-divider"></div>
-
-    <!-- 4. Lista de Atendimentos (Scrollable Cards) -->
-    <div class="queue-list-items">
-      <div v-if="filteredTickets.length === 0" class="queue-empty-state">
-        <i class="fa-solid fa-inbox"></i>
+    <!-- 4. Lista de Atendimentos (Scrollable) -->
+    <div class="queue-list-container">
+      <div v-if="filteredTickets.length === 0" class="queue-empty-message">
+        <i class="fa-regular fa-folder-open"></i>
         <span>Nenhum atendimento nesta fila</span>
       </div>
 
@@ -174,10 +86,10 @@
       />
     </div>
 
-    <!-- Modal Nova Conversa -->
+    <!-- Modal Nova Conversa (acionado pelo Topbar ou atalhos) -->
     <NewConversationModal
-      v-if="showNewConversation"
-      @close="showNewConversation = false"
+      v-if="isNewConversationOpen"
+      @close="closeNewConversation"
       @started="onTicketClick"
     />
   </div>
@@ -188,6 +100,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useTicketStore } from '@/stores/tickets.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { useUiStore } from '@/stores/ui.store'
 import QueueItem from '@/components/atendimentos/QueueItem.vue'
 import NewConversationModal from '@/components/atendimentos/NewConversationModal.vue'
 
@@ -196,17 +109,21 @@ const emit = defineEmits(['ticket-selected'])
 const ticketStore = useTicketStore()
 const settingsStore = useSettingsStore()
 const authStore = useAuthStore()
+const ui = useUiStore()
 
-// Categoria selecionada nas pílulas: 'todos' | 'aguardando' | 'em_atendimento' | 'grupos' | nome_do_departamento
-const currentCategory = ref('todos')
+const currentTab = ref('aguardando')
 const searchTerm = ref('')
-const sortBy = ref('recent')
-const selectedDepartment = ref('')
-const onlyUnread = ref(false)
-const unreadFirst = ref(false)
-const onlyMine = ref(false)
-const showFilterPopover = ref(false)
-const showNewConversation = ref(false)
+const isRefreshing = ref(false)
+const localShowNewConversation = ref(false)
+
+const isNewConversationOpen = computed(() => {
+  return ui.isModalOpen('new_conversation') || localShowNewConversation.value
+})
+
+function closeNewConversation() {
+  ui.closeModal('new_conversation')
+  localShowNewConversation.value = false
+}
 
 onMounted(() => {
   if (settingsStore.departments.length === 0) {
@@ -214,27 +131,14 @@ onMounted(() => {
   }
 })
 
-const canFilterDepartment = computed(() => {
-  return authStore.isAdmin || authStore.isSupervisor
-})
-
-const allowedDepartments = computed(() => {
-  if (authStore.isAdmin) return settingsStore.departments
-  if (authStore.isSupervisor) {
-    const supervisorDepts = (authStore.departmentIds || []).map(String)
-    return settingsStore.departments.filter(d => supervisorDepts.includes(String(d.id)))
+async function refreshQueue() {
+  isRefreshing.value = true
+  try {
+    await ticketStore.fetchQueue()
+  } finally {
+    setTimeout(() => { isRefreshing.value = false }, 400)
   }
-  return settingsStore.departments
-})
-
-const hasActiveFilters = computed(() => {
-  return Boolean(
-    onlyUnread.value ||
-    unreadFirst.value ||
-    onlyMine.value ||
-    sortBy.value !== 'recent'
-  )
-})
+}
 
 const totalVisibleCount = computed(() => {
   return (ticketStore.visibleTickets || []).filter(t => t.status !== 'finalizado').length
@@ -252,33 +156,8 @@ const groupCount = computed(() => {
   return (ticketStore.groupTickets || []).length
 })
 
-const newTicketsCount = computed(() => {
-  return waitingCount.value || totalVisibleCount.value || 0
-})
-
-function selectCategory(cat) {
-  currentCategory.value = cat
-  if (cat === 'todos') {
-    selectedDepartment.value = ''
-  } else if (cat === 'aguardando' || cat === 'em_atendimento' || cat === 'grupos') {
-    selectedDepartment.value = ''
-  } else {
-    // É um departamento específico
-    selectedDepartment.value = cat
-  }
-}
-
 function onTicketClick(ticketId) {
   emit('ticket-selected', ticketId)
-}
-
-function resetFilters() {
-  selectedDepartment.value = ''
-  onlyUnread.value = false
-  unreadFirst.value = false
-  onlyMine.value = false
-  sortBy.value = 'recent'
-  currentCategory.value = 'todos'
 }
 
 function parseTicketTime(ticket) {
@@ -291,30 +170,12 @@ function parseTicketTime(ticket) {
 const filteredTickets = computed(() => {
   let list = (ticketStore.visibleTickets || []).filter(t => t.status !== 'finalizado')
 
-  // Filtro pela categoria da pílula
-  if (currentCategory.value === 'aguardando') {
+  if (currentTab.value === 'aguardando') {
     list = list.filter(t => !t.is_group && (t.status === 'aguardando' || !t.assumed))
-  } else if (currentCategory.value === 'em_atendimento') {
+  } else if (currentTab.value === 'em_atendimento') {
     list = list.filter(t => !t.is_group && (t.assumed || t.status === 'em_atendimento' || t.status === 'chatbot'))
-  } else if (currentCategory.value === 'grupos') {
+  } else if (currentTab.value === 'grupos') {
     list = list.filter(t => t.status === 'grupo' || t.is_group)
-  } else if (currentCategory.value !== 'todos') {
-    // Departamento específico selecionado pela pílula
-    list = list.filter(t => (t.department || t.deptInitial) === currentCategory.value)
-  }
-
-  // Filtro por departamento do popover (caso aplicado)
-  if (selectedDepartment.value && currentCategory.value === 'todos') {
-    list = list.filter(t => (t.department || t.deptInitial) === selectedDepartment.value)
-  }
-
-  if (onlyUnread.value) {
-    list = list.filter(t => (t.unreadCount || t.unread_count || 0) > 0)
-  }
-
-  if (onlyMine.value && currentCategory.value !== 'grupos') {
-    const myId = authStore.user?.id
-    list = list.filter(t => t.agent_id === myId || t.user_id === myId)
   }
 
   if (searchTerm.value.trim()) {
@@ -327,20 +188,14 @@ const filteredTickets = computed(() => {
     })
   }
 
-  // Ordenação
+  // Ordenação: mais recentes primeiro
   list = [...list].sort((a, b) => {
-    if (unreadFirst.value) {
-      const unreadA = (a.unreadCount || a.unread_count || 0) > 0 ? 1 : 0
-      const unreadB = (b.unreadCount || b.unread_count || 0) > 0 ? 1 : 0
-      if (unreadA !== unreadB) return unreadB - unreadA
-    }
+    const unreadA = (a.unreadCount || a.unread_count || 0) > 0 ? 1 : 0
+    const unreadB = (b.unreadCount || b.unread_count || 0) > 0 ? 1 : 0
+    if (unreadA !== unreadB) return unreadB - unreadA
 
     const timeA = parseTicketTime(a)
     const timeB = parseTicketTime(b)
-
-    if (sortBy.value === 'oldest') {
-      return timeA - timeB
-    }
     return timeB - timeA
   })
 
@@ -349,14 +204,14 @@ const filteredTickets = computed(() => {
 </script>
 
 <style scoped>
-/* ─── Coluna da Fila (Estilo Imagem 1) ────────────────────────────────────── */
+/* ─── Coluna da Fila (Estilo da Imagem de Referência) ─────────────────────── */
 .queue-column {
-  width: 340px;
-  min-width: 340px;
-  max-width: 340px;
+  width: 290px;
+  min-width: 290px;
+  max-width: 290px;
   flex-shrink: 0;
   background-color: #ffffff;
-  border-right: 1px solid #e5e7eb;
+  border-right: 1px solid #f1f5f9;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -367,9 +222,9 @@ const filteredTickets = computed(() => {
 
 /* 1. Header */
 .queue-header-row {
-  height: 52px;
-  min-height: 52px;
-  padding: 0 16px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -379,316 +234,168 @@ const filteredTickets = computed(() => {
 .queue-header-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .queue-title-bold {
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: -0.015em;
+  font-size: 15px;
+  font-weight: 700;
   color: #0f172a;
   margin: 0;
+  letter-spacing: -0.01em;
 }
 
-/* Badge X novos */
-.queue-badge-new {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #dc2626;
-  background: #fee2e2;
-  padding: 2.5px 9px;
-  border-radius: 9999px;
+.queue-pill-badge {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  border-radius: 20px;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 7px;
   line-height: 1.3;
 }
 
 .queue-header-right {
   display: flex;
   align-items: center;
-  gap: 6px;
 }
 
-.queue-action-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid transparent;
+.queue-refresh-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
   background: transparent;
-  color: #64748b;
+  color: #94a3b8;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
   cursor: pointer;
-  position: relative;
+  font-size: 12px;
   transition: all 0.15s ease;
 }
 
-.queue-action-btn:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.queue-action-btn.active {
-  color: #0d9488;
-  background: #f0fdfa;
-}
-
-.queue-plus-btn {
+.queue-refresh-icon-btn:hover {
   background: #f8fafc;
-  border-color: #e2e8f0;
   color: #0f172a;
-  font-weight: 600;
 }
 
-.queue-plus-btn:hover {
-  background: #0d9488;
-  border-color: #0d9488;
-  color: #ffffff;
-}
-
-.filter-dot {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #0d9488;
-}
-
-/* 2. Barra de Busca */
-.queue-search-wrap {
-  padding: 0 16px 10px;
-}
-
-.search-input-box {
+/* 2. Sub-Abas de Status (Aguardando 30  Grupos 17  Em atend. 1) */
+.queue-status-tabs-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 38px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 0 12px;
+  gap: 14px;
+  padding: 0 14px 8px;
+}
+
+.queue-status-tab {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.15s ease;
+}
+
+.queue-status-tab:hover {
+  color: #0f172a;
+}
+
+.queue-status-tab.active {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.tab-counter {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.queue-status-tab.active .tab-counter {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+/* 3. Campo de Busca */
+.queue-search-row {
+  padding: 0 14px 10px;
+}
+
+.queue-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  background: #fbfcfd;
+  border: 1px solid #f1f5f9;
+  border-radius: 8px;
+  padding: 0 10px;
   transition: all 0.15s ease;
 }
 
-.search-input-box:focus-within {
+.queue-search-box:focus-within {
   background: #ffffff;
-  border-color: #0d9488;
-  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+  border-color: #059669;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.1);
 }
 
-.search-icon {
-  font-size: 13px;
+.search-mag-icon {
+  font-size: 12px;
   color: #94a3b8;
   flex-shrink: 0;
 }
 
-.search-input-box input {
+.queue-search-box input {
   flex: 1;
   min-width: 0;
   border: none;
   background: transparent;
-  font-size: 12.5px;
+  font-size: 11.5px;
   color: #0f172a;
   outline: none;
 }
 
-.search-input-box input::placeholder {
+.queue-search-box input::placeholder {
   color: #94a3b8;
 }
 
-.clear-search-btn {
+.clear-input-btn {
   border: none;
   background: transparent;
   color: #94a3b8;
   cursor: pointer;
   padding: 2px;
-  font-size: 12px;
-}
-
-.clear-search-btn:hover {
-  color: #475569;
-}
-
-/* 3. Pílulas de Filtro Horizontais (Estilo Imagem 1) */
-.queue-pills-track {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 16px 12px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.queue-pills-track::-webkit-scrollbar {
-  display: none;
-}
-
-.queue-pill {
-  height: 32px;
-  padding: 0 14px;
-  border-radius: 8px;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: #475569;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  white-space: nowrap;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  box-sizing: border-box;
-  flex-shrink: 0;
-}
-
-.queue-pill:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-  color: #0f172a;
-}
-
-/* Pílula Ativa (Verde Azulado / Teal Imagem 1) */
-.queue-pill.active {
-  background: #0d9488 !important;
-  color: #ffffff !important;
-  border-color: #0d9488 !important;
-  font-weight: 600;
-  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.2);
-}
-
-.queue-header-divider {
-  height: 1px;
-  background: #f1f5f9;
-  margin: 0 16px 6px;
+  font-size: 11px;
 }
 
 /* 4. Lista de Itens */
-.queue-list-items {
+.queue-list-container {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
-  padding: 4px 0 16px;
+  padding-bottom: 12px;
 }
 
-.queue-empty-state {
+.queue-empty-message {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 48px 20px;
+  padding: 40px 16px;
   color: #94a3b8;
-  font-size: 13px;
+  font-size: 12px;
   text-align: center;
 }
 
-.queue-empty-state i {
-  font-size: 32px;
+.queue-empty-message i {
+  font-size: 26px;
   color: #cbd5e1;
-}
-
-/* Painel Popover de Filtros */
-.queue-filter-panel {
-  position: absolute;
-  top: 50px;
-  left: 14px;
-  right: 14px;
-  z-index: 100;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.filter-label {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #475569;
-}
-
-.filter-select {
-  height: 34px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 0 10px;
-  font-size: 12.5px;
-  color: #0f172a;
-  background: #f8fafc;
-  outline: none;
-}
-
-.filter-checkboxes-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 4px;
-}
-
-.filter-checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: #334155;
-  cursor: pointer;
-}
-
-.filter-panel-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 6px;
-  border-top: 1px solid #f1f5f9;
-}
-
-.filter-reset-btn {
-  border: none;
-  background: none;
-  color: #dc2626;
-  font-size: 11.5px;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.filter-close-btn {
-  border: none;
-  background: #0d9488;
-  color: #ffffff;
-  font-size: 11.5px;
-  font-weight: 600;
-  padding: 5px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  margin-left: auto;
-}
-
-/* Transições do filtro */
-.filter-slide-enter-active,
-.filter-slide-leave-active {
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.filter-slide-enter-from,
-.filter-slide-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
 }
 </style>

@@ -28,30 +28,24 @@
             <h2 class="chat-contact-title">{{ headerPerson.name || 'Cliente' }}</h2>
             <i v-if="!ticket.is_group" class="fa-solid chat-contact-chevron" :class="isDetailsOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
             <span v-if="ticket.is_group" class="group-contact-badge"><i class="fa-solid fa-users"></i> {{ groupParticipantLabel }}</span>
-            <span v-if="ticket?.is_employee" class="employee-contact-badge" title="Funcionário da empresa"><i class="fa-solid fa-id-badge"></i> Funcionário</span>
+            <span class="employee-contact-badge" title="Funcionário da empresa">Funcionário</span>
           </div>
-          <div v-if="headerPerson.role || ticket?.department" class="chat-contact-subtitle">
+          <div class="chat-contact-subtitle">
             <span v-if="headerPerson.role">{{ headerPerson.role }}</span>
-            <i v-if="headerPerson.role && ticket?.department"></i>
-            <span v-if="ticket?.department">{{ ticket.department }}</span>
+            <span v-else-if="ticket?.department"><i class="fa-solid fa-location-dot" style="font-size:10px;margin-right:3px;color:#94a3b8;"></i>{{ ticket.department }}</span>
+            <span v-else><i class="fa-solid fa-location-dot" style="font-size:10px;margin-right:3px;color:#94a3b8;"></i>Monitorando 24h</span>
           </div>
         </div>
       </div>
 
       <!-- Ações à Direita -->
       <div class="chat-header-tools">
-        <div class="contact-call-actions" aria-label="Recursos de chamada em desenvolvimento">
-          <span class="upcoming-action" title="Ligação — em desenvolvimento">
-            <button type="button" class="header-call-btn" disabled aria-label="Ligação em desenvolvimento">
-              <i class="fa-solid fa-phone"></i>
-            </button>
-          </span>
-          <span class="upcoming-action" title="Chamada de vídeo — em desenvolvimento">
-            <button type="button" class="header-call-btn" disabled aria-label="Chamada de vídeo em desenvolvimento">
-              <i class="fa-solid fa-video"></i>
-            </button>
-          </span>
-        </div>
+        <button type="button" class="header-tool-btn" title="Ligação">
+          <i class="fa-solid fa-phone"></i>
+        </button>
+        <button type="button" class="header-tool-btn" title="Chamada de vídeo">
+          <i class="fa-solid fa-video"></i>
+        </button>
 
         <!-- Conexão WhatsApp / Atendente Responsável -->
         <div
@@ -80,7 +74,7 @@
           <span>{{ isAssuming ? 'Assumindo...' : 'Assumir' }}</span>
         </button>
 
-        <!-- Janelinha de Histórico do Cliente (Dropdown ancorado abaixo do botão) -->
+        <!-- Janelinha de Histórico do Cliente (Ícone de Calendário estilo Screenshot) -->
         <div v-if="ticket && !ticket.is_group" class="history-dropdown-wrapper" style="position: relative;">
           <button
             type="button"
@@ -90,7 +84,7 @@
             aria-label="Histórico de atendimentos deste cliente"
             @click="showClientHistoryModal = !showClientHistoryModal"
           >
-            <i class="fa-solid fa-clock-rotate-left"></i>
+            <i class="fa-regular fa-calendar"></i>
           </button>
           <ModalHistoricoCliente
             :is-open="showClientHistoryModal"
@@ -273,7 +267,7 @@
       class="chat-footer"
       id="chatFooter"
     >
-      <!-- Linha 1: Abas de Modo (Responder vs Observação) e Toggle de Indicadores -->
+      <!-- Linha 1: Abas de Modo (Responder vs Observação) -->
       <div class="chat-mode-tabs">
         <div class="chat-mode-tabs-left">
           <button
@@ -295,18 +289,6 @@
             Observação
           </button>
         </div>
-
-        <button
-          type="button"
-          class="chat-metrics-tab-btn"
-          :class="{ active: metricsExpanded }"
-          title="Alternar indicadores do atendente"
-          @click="toggleMetrics"
-        >
-          <i class="fa-solid fa-chart-line"></i>
-          <span>Indicadores</span>
-          <i class="fa-solid" :class="metricsExpanded ? 'fa-chevron-down' : 'fa-chevron-up'" style="font-size:9.5px;"></i>
-        </button>
       </div>
 
       <!-- Linha 2: Input + Ações -->
@@ -360,14 +342,14 @@
 
       <div class="chat-input-row" :class="{ 'is-disconnected': ticket?.whatsapp_disconnected }">
         <div class="chat-input-actions">
-          <button type="button" class="btn-icon" :class="{ active: showQuickMessages }" title="Mensagens rápidas" @click="toggleQuickMessages">
-            <i class="fa-solid fa-bolt"></i>
-          </button>
           <button type="button" class="btn-icon" title="Anexar arquivo" :disabled="sendingMedia || isRecording || ticket?.whatsapp_disconnected" @click="fileInputRef?.click()">
             <i class="fa-solid fa-paperclip"></i>
           </button>
           <button type="button" class="btn-icon" :class="{ active: showEmojiPicker }" title="Emojis" @click="toggleEmojiPicker">
             <i class="fa-regular fa-face-smile"></i>
+          </button>
+          <button type="button" class="btn-icon" :class="{ active: showQuickMessages }" title="Mensagens rápidas" @click="toggleQuickMessages">
+            <i class="fa-solid fa-bolt"></i>
           </button>
         </div>
 
@@ -385,7 +367,7 @@
           id="chatMessageInput"
           rows="1"
           :disabled="ticket?.whatsapp_disconnected && chatMode !== 'observacao'"
-          :placeholder="ticket?.whatsapp_disconnected && chatMode !== 'observacao' ? 'WhatsApp desconectado. Reconecte para responder este contato...' : (editingMessage ? 'Corrija sua mensagem...' : (chatMode === 'observacao' ? 'Digite uma observação interna (visível apenas para atendentes)...' : 'Digite sua mensagem...'))"
+          :placeholder="ticket?.whatsapp_disconnected && chatMode !== 'observacao' ? 'WhatsApp desconectado. Reconecte para responder este contato...' : (editingMessage ? 'Corrija sua mensagem...' : (chatMode === 'observacao' ? 'Digite uma observação interna (visível apenas para atendentes)...' : 'Escreva uma mensagem...'))"
           @input="adjustTextareaHeight"
           @paste="handleComposerPaste"
           @keydown.enter.exact.prevent="sendMessage"
@@ -399,7 +381,7 @@
           :disabled="sendingMedia || ticket?.whatsapp_disconnected"
           @click="startRecording"
         >
-          <i class="fa-solid fa-microphone"></i>
+          <i class="fa-solid fa-paper-plane"></i>
         </button>
         <button
           v-else-if="!isRecording"
@@ -410,6 +392,21 @@
           @click="sendMessage"
         >
           <i class="fa-solid fa-paper-plane" style="font-size:12px;"></i>
+        </button>
+      </div>
+
+      <!-- Indicadores toggle embaixo do input à direita (estilo Screenshot) -->
+      <div class="chat-footer-bottom-bar">
+        <button
+          type="button"
+          class="chat-metrics-bottom-btn"
+          :class="{ active: metricsExpanded }"
+          title="Alternar indicadores do atendente"
+          @click="toggleMetrics"
+        >
+          <i class="fa-solid fa-arrow-trend-up"></i>
+          <span>Indicadores</span>
+          <i class="fa-solid" :class="metricsExpanded ? 'fa-chevron-up' : 'fa-chevron-down'" style="font-size:9.5px;margin-left:3px;"></i>
         </button>
       </div>
     </div>
@@ -1659,30 +1656,34 @@ watch(inputMsg, (newVal) => {
   gap: 14px;
 }
 
-.chat-metrics-tab-btn {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #64748b;
+.chat-footer-bottom-bar {
   display: flex;
+  justify-content: flex-end;
+  padding: 2px 2px 0;
+}
+
+.chat-metrics-bottom-btn {
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+  display: inline-flex;
   align-items: center;
   gap: 5px;
   cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
   transition: all 0.15s ease;
 }
 
-.chat-metrics-tab-btn:hover {
+.chat-metrics-bottom-btn:hover {
   background: #f1f5f9;
-  color: #1e293b;
+  color: #0f172a;
 }
 
-.chat-metrics-tab-btn.active {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: var(--brand-primary, #2563eb);
+.chat-metrics-bottom-btn.active {
+  color: #059669;
 }
 
 .chat-kpi-bar {

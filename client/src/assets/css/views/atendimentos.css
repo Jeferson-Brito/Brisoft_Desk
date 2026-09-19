@@ -283,23 +283,32 @@
 
 .chat-bubble {
   max-width: 65%;
-  padding: 9px 12px;
-  border-radius: 10px;
-  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 12.5px;
   line-height: 1.45;
   position: relative;
 }
 
 .chat-bubble.incoming {
-  background-color: #f2f4f7;
-  color: #0f172a;
-  border: 1px solid #e5e7eb;
+  background-color: #ffffff;
+  color: #1e293b;
+  border: 1px solid #edf2f7;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .chat-bubble.outgoing {
-  background-color: #eff6ff;
-  color: #0f172a;
-  border: 1px solid #dbeafe;
+  background-color: #059669;
+  color: #ffffff;
+  border: 1px solid transparent;
+}
+
+.chat-bubble.outgoing .chat-bubble-time {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.chat-bubble.outgoing .chat-bubble-time i {
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .chat-bubble-time {
@@ -343,8 +352,8 @@
 }
 
 .chat-mode-btn.active {
-  color: #1f62d0;
-  border-bottom-color: #1f62d0;
+  color: #0f172a;
+  border-bottom-color: #0f172a;
 }
 
 .chat-input-row {
@@ -353,9 +362,9 @@
   align-items: center;
   gap: 8px;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  border: 1px solid #edf2f7;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   padding: 4px 6px 4px 10px;
   min-height: 42px;
   box-sizing: border-box;
@@ -387,13 +396,13 @@
 }
 
 .composer-send-btn {
-  background: #1f62d0;
+  background: #059669;
   color: #ffffff;
   border: none;
-  border-radius: 6px;
-  width: 34px;
-  height: 34px;
-  min-width: 34px;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
   padding: 0;
   font-size: 12px;
   font-weight: 600;
@@ -406,7 +415,7 @@
 }
 
 .composer-send-btn:hover {
-  background: #1952b3;
+  background: #047857;
 }
 
 /* Contact Drawer Details Column (Column 5) */

@@ -424,11 +424,11 @@ onUnmounted(() => {
 
 <style scoped>
 .tools-sidebar {
-  width: 52px;
-  min-width: 52px;
-  max-width: 52px;
-  background: #f8fafc;
-  border-left: 1px solid #e2e8f0;
+  width: 46px;
+  min-width: 46px;
+  max-width: 46px;
+  background: #ffffff;
+  border-left: 1px solid #f1f5f9;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -442,40 +442,23 @@ onUnmounted(() => {
   position: relative;
 }
 
-/* Cabeçalho compacto com ícone de ferramentas */
+/* Oculta cabeçalho para manter minimalista */
 .tools-header {
-  margin-bottom: 10px;
+  display: none;
 }
 
-.tools-header-badge {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background: #e2e8f0;
-  color: #64748b;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  transition: all 0.18s ease;
-}
-
-.tools-header-badge:hover {
-  background: #cbd5e1;
-  color: #1e293b;
-}
-
-/* Dock Container / Trilha dos Balões */
+/* Dock Container / Trilha dos Ícones */
 .tools-dock-track {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  background: #ffffff;
-  padding: 8px 5px;
-  border-radius: 28px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 14px -2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  width: 100%;
 }
 
 /* Item Balão Individual */
@@ -484,25 +467,36 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
 }
 
-/* Botão em Formato de Balão (Floating Bubble) */
+/* Botão do Ícone */
 .tool-bubble-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
   color: #64748b;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: none;
+  transition: all 0.16s ease;
   position: relative;
   outline: none;
   padding: 0;
+}
+
+.tool-bubble-btn:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.tool-bubble-btn.active {
+  background: #e6f7f2 !important;
+  color: #059669 !important;
 }
 
 .tool-bubble-btn i {

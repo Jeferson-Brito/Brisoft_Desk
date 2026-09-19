@@ -98,12 +98,32 @@
       </div>
 
       <!-- Áudio / Mensagem de Voz -->
-      <div v-else-if="isAudio" style="margin-bottom:6px;min-width:220px;">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:11px;color:#64748b;">
-          <i class="fa-solid fa-microphone" style="color:#2563eb;"></i>
-          <span>Mensagem de Voz</span>
+      <div v-else-if="isAudio" class="custom-audio-player incoming" style="margin-bottom:6px;">
+        <button type="button" class="audio-play-btn" :class="{ playing: isPlayingAudio }" title="Tocar áudio" @click.stop="toggleAudioPlayback">
+          <i :class="isPlayingAudio ? 'fa-solid fa-pause' : 'fa-solid fa-play'"></i>
+        </button>
+        <div class="audio-waveform-container" @click.stop="seekAudio">
+          <div class="audio-waveform-bars">
+            <span
+              v-for="(barHeight, bIdx) in waveformHeights"
+              :key="bIdx"
+              class="audio-bar"
+              :class="{ active: (bIdx / waveformHeights.length) <= audioProgress }"
+              :style="{ height: `${barHeight}px` }"
+            ></span>
+          </div>
         </div>
-        <audio controls preload="metadata" :src="resolvedMediaSrc" style="width:100%;height:36px;border-radius:20px;" @error="mediaLoadError = true"></audio>
+        <span class="audio-duration">{{ formattedAudioDuration }}</span>
+        <audio
+          ref="audioElementRef"
+          :src="resolvedMediaSrc"
+          preload="metadata"
+          style="display:none;"
+          @timeupdate="onAudioTimeUpdate"
+          @loadedmetadata="onAudioLoadedMetadata"
+          @ended="onAudioEnded"
+          @error="mediaLoadError = true"
+        ></audio>
       </div>
 
       <!-- Vídeo -->
@@ -143,7 +163,7 @@
         <i class="fa-solid fa-chevron-down"></i>
       </button>
     <div class="chat-bubble outgoing">
-      <div v-if="agentName" style="font-weight:700;font-size:11px;color:#1d4ed8;margin-bottom:3px;">
+      <div v-if="agentName" style="font-weight:700;font-size:11px;color:rgba(255,255,255,0.95);margin-bottom:3px;">
         {{ agentName }}
         <span v-if="isDirectWhatsapp" class="direct-whatsapp-label">
           <i class="fa-brands fa-whatsapp"></i> enviado pelo celular
@@ -230,8 +250,32 @@
       </div>
 
       <!-- Áudio enviado -->
-      <div v-else-if="isAudio" style="margin-bottom:6px;min-width:220px;">
-        <audio controls preload="metadata" :src="resolvedMediaSrc" style="width:100%;height:36px;border-radius:20px;" @error="mediaLoadError = true"></audio>
+      <div v-else-if="isAudio" class="custom-audio-player outgoing" style="margin-bottom:6px;">
+        <button type="button" class="audio-play-btn" :class="{ playing: isPlayingAudio }" title="Tocar áudio" @click.stop="toggleAudioPlayback">
+          <i :class="isPlayingAudio ? 'fa-solid fa-pause' : 'fa-solid fa-play'"></i>
+        </button>
+        <div class="audio-waveform-container" @click.stop="seekAudio">
+          <div class="audio-waveform-bars">
+            <span
+              v-for="(barHeight, bIdx) in waveformHeights"
+              :key="bIdx"
+              class="audio-bar"
+              :class="{ active: (bIdx / waveformHeights.length) <= audioProgress }"
+              :style="{ height: `${barHeight}px` }"
+            ></span>
+          </div>
+        </div>
+        <span class="audio-duration">{{ formattedAudioDuration }}</span>
+        <audio
+          ref="audioElementRef"
+          :src="resolvedMediaSrc"
+          preload="metadata"
+          style="display:none;"
+          @timeupdate="onAudioTimeUpdate"
+          @loadedmetadata="onAudioLoadedMetadata"
+          @ended="onAudioEnded"
+          @error="mediaLoadError = true"
+        ></audio>
       </div>
 
       <!-- Vídeo enviado -->
@@ -658,6 +702,64 @@ async function copyMessage() {
   closeActions()
 }
 
+const audioElementRef = ref(null)
+const isPlayingAudio = ref(false)
+const audioCurrentTime = ref(0)
+const audioDuration = ref(0)
+const waveformHeights = [6, 11, 15, 8, 13, 17, 9, 14, 18, 12, 7, 15, 12, 8, 14, 16, 10, 7, 14, 10, 6, 12, 8, 5]
+
+const audioProgress = computed(() => {
+  if (!audioDuration.value || audioDuration.value === 0) return 0
+  return Math.min(1, Math.max(0, audioCurrentTime.value / audioDuration.value))
+})
+
+const formattedAudioDuration = computed(() => {
+  const targetTime = isPlayingAudio.value ? audioCurrentTime.value : (audioDuration.value || 0)
+  const mins = Math.floor(targetTime / 60)
+  const secs = Math.floor(targetTime % 60)
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`
+})
+
+function toggleAudioPlayback() {
+  if (!audioElementRef.value) return
+  if (isPlayingAudio.value) {
+    audioElementRef.value.pause()
+    isPlayingAudio.value = false
+  } else {
+    document.querySelectorAll('audio').forEach(el => {
+      if (el !== audioElementRef.value) el.pause()
+    })
+    audioElementRef.value.play().catch(e => console.warn('Erro ao tocar áudio:', e))
+    isPlayingAudio.value = true
+  }
+}
+
+function onAudioTimeUpdate() {
+  if (audioElementRef.value) {
+    audioCurrentTime.value = audioElementRef.value.currentTime
+  }
+}
+
+function onAudioLoadedMetadata() {
+  if (audioElementRef.value && Number.isFinite(audioElementRef.value.duration)) {
+    audioDuration.value = audioElementRef.value.duration
+  }
+}
+
+function onAudioEnded() {
+  isPlayingAudio.value = false
+  audioCurrentTime.value = 0
+}
+
+function seekAudio(event) {
+  if (!audioElementRef.value || !audioDuration.value) return
+  const rect = event.currentTarget.getBoundingClientRect()
+  const clickX = event.clientX - rect.left
+  const ratio = Math.min(1, Math.max(0, clickX / rect.width))
+  audioElementRef.value.currentTime = ratio * audioDuration.value
+  audioCurrentTime.value = audioElementRef.value.currentTime
+}
+
 onMounted(() => {
   document.addEventListener('click', closeActions)
   window.addEventListener('resize', closeActions)
@@ -995,5 +1097,105 @@ onUnmounted(() => {
 
 .btn-view-inline:hover {
   background: #f1f5f9;
+}
+
+/* Custom Audio Player */
+.custom-audio-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 210px;
+  max-width: 290px;
+  padding: 3px 2px;
+}
+
+.custom-audio-player .audio-play-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 11px;
+  transition: transform 0.12s ease, background-color 0.15s ease;
+}
+
+.custom-audio-player.incoming .audio-play-btn {
+  background: #e6f7f2;
+  color: #059669;
+}
+
+.custom-audio-player.incoming .audio-play-btn:hover {
+  background: #d1fae5;
+  transform: scale(1.05);
+}
+
+.custom-audio-player.outgoing .audio-play-btn {
+  background: #ffffff;
+  color: #059669;
+}
+
+.custom-audio-player.outgoing .audio-play-btn:hover {
+  background: #f8fafc;
+  transform: scale(1.05);
+}
+
+.audio-waveform-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.audio-waveform-bars {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+  height: 22px;
+}
+
+.audio-bar {
+  flex: 1;
+  width: 2.5px;
+  border-radius: 2px;
+  transition: height 0.15s ease, background-color 0.15s ease;
+}
+
+.custom-audio-player.incoming .audio-bar {
+  background: #cbd5e1;
+}
+
+.custom-audio-player.incoming .audio-bar.active {
+  background: #059669;
+}
+
+.custom-audio-player.outgoing .audio-bar {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.custom-audio-player.outgoing .audio-bar.active {
+  background: #ffffff;
+}
+
+.audio-duration {
+  font-size: 11px;
+  font-weight: 500;
+  flex-shrink: 0;
+  min-width: 26px;
+  text-align: right;
+}
+
+.custom-audio-player.incoming .audio-duration {
+  color: #64748b;
+}
+
+.custom-audio-player.outgoing .audio-duration {
+  color: rgba(255, 255, 255, 0.9);
 }
 </style>
