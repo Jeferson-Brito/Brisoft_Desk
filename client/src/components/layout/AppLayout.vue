@@ -4,9 +4,10 @@
     <AppSidebar />
     <main class="main-wrapper">
       <AppTopbar />
-      <div class="views-container">
+      <div class="views-container" :class="{ 'with-mobile-nav': !ui.isMobileChatOpen }">
         <RouterView />
       </div>
+      <MobileBottomNav />
     </main>
     <ToolsSidebar />
   </div>
@@ -16,6 +17,10 @@
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppTopbar  from '@/components/layout/AppTopbar.vue'
 import ToolsSidebar from '@/components/layout/ToolsSidebar.vue'
+import MobileBottomNav from '@/components/layout/MobileBottomNav.vue'
+import { useUiStore } from '@/stores/ui.store'
+
+const ui = useUiStore()
 </script>
 
 <style scoped>
@@ -47,5 +52,14 @@ import ToolsSidebar from '@/components/layout/ToolsSidebar.vue'
   display: flex;
   position: relative;
   z-index: 1;
+}
+
+@media (max-width: 768px) {
+  .views-container {
+    height: calc(100dvh - 48px - env(safe-area-inset-top, 0px));
+  }
+  .views-container.with-mobile-nav {
+    height: calc(100dvh - 48px - env(safe-area-inset-top, 0px) - 54px - env(safe-area-inset-bottom, 0px));
+  }
 }
 </style>

@@ -146,6 +146,10 @@ async function syncLiveData() {
   }
 }
 
+watch(mobilePanel, (val) => {
+  ui.setMobileChatOpen(val === 'chat')
+}, { immediate: true })
+
 watch(() => ticketStore.activeTicket, (ticket) => {
   if (!ticket) mobilePanel.value = 'queue'
 })
@@ -172,6 +176,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', syncLiveData)
   document.removeEventListener('keydown', minimizeActiveChat)
   window.removeEventListener('popstate', handlePopState)
+  ui.setMobileChatOpen(false)
 })
 </script>
 

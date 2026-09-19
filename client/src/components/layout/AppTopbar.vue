@@ -1,6 +1,6 @@
 <template>
   <header class="topbar-bitrix" id="appTopNavigation" ref="topbarRef">
-    <!-- Hambúrguer (visível apenas em mobile) -->
+    <!-- Hambúrguer (desktop/tablet) -->
     <button
       class="topbar-hamburger"
       title="Abrir menu"
@@ -9,6 +9,11 @@
     >
       <span class="topbar-icon-box"><i class="ri-menu-line"></i></span>
     </button>
+
+    <!-- Logo Oficial no topo Mobile (substitui o hambúrguer no celular) -->
+    <RouterLink to="/atendimentos" class="topbar-mobile-brand" title="Brisoft Desk">
+      <img :src="logoUrl" alt="Brisoft Desk" class="topbar-mobile-logo" />
+    </RouterLink>
 
     <!-- Trilho de Navegação de Abas (Estilo da Imagem de Referência) -->
     <div class="topbar-tabs-track" aria-label="Navegação do módulo">
@@ -133,6 +138,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useSidebarStore } from '@/stores/sidebar.store'
 import { useTicketStore } from '@/stores/tickets.store'
+import logoUrl from '@/assets/img/logo_tema_claro.png'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -671,17 +677,35 @@ onUnmounted(() => {
   transform: translateY(-6px) scale(0.96);
 }
 
-/* Botão Tela Cheia / Modo App */
+.topbar-mobile-brand {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .topbar-bitrix {
-    padding-left: max(8px, env(safe-area-inset-left, 8px));
-    padding-right: max(8px, env(safe-area-inset-right, 8px));
-    padding-top: max(0px, env(safe-area-inset-top, 0px));
+    padding-left: max(12px, env(safe-area-inset-left, 12px));
+    padding-right: max(12px, env(safe-area-inset-right, 12px));
+    padding-top: env(safe-area-inset-top, 0px);
+    height: calc(48px + env(safe-area-inset-top, 0px));
+    min-height: calc(48px + env(safe-area-inset-top, 0px));
+    max-height: calc(48px + env(safe-area-inset-top, 0px));
   }
+  /* Ocultar hambúrguer no mobile (navegação agora é inferior) */
   .topbar-hamburger {
-    display: inline-flex;
+    display: none !important;
+  }
+  /* Logo da Brisoft no canto superior esquerdo */
+  .topbar-mobile-brand {
+    display: flex;
     align-items: center;
-    justify-content: center;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+  .topbar-mobile-logo {
+    height: 28px;
+    max-width: 130px;
+    object-fit: contain;
+    display: block;
   }
   /* Ocultar abas superiores no mobile (Fila, Chatbot, Conversas, Campanhas) */
   .topbar-tabs-track {
