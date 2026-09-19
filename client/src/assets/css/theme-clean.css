@@ -615,7 +615,10 @@ textarea:focus,
 
 .chat-messages-container {
   padding: 18px 24px 24px;
-  background: #f0f2f5;
+  background-color: #f0f2f5;
+  background-image: url('/chat-wallpaper.svg');
+  background-repeat: repeat;
+  background-size: 420px 420px;
   gap: 10px;
 }
 

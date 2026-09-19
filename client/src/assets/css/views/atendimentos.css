@@ -212,29 +212,30 @@
   background: #dcfce7;
 }
 
-/* Botão Assumir Atendimento no Header */
+/* Botão Assumir Atendimento no Header (Compacto e Elegante) */
 .btn-assume-header {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   background: #059669;
   color: #ffffff;
   border: none;
-  border-radius: 8px;
-  padding: 6px 14px;
+  border-radius: 6px;
+  padding: 0 10px;
+  height: 28px;
   font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.25);
-  transition: all 0.16s ease;
+  box-shadow: 0 1px 2px rgba(5, 150, 105, 0.2);
+  transition: all 0.15s ease;
   white-space: nowrap;
 }
 
 .btn-assume-header:hover:not(:disabled) {
   background: #047857;
   transform: translateY(-1px);
-  box-shadow: 0 3px 6px rgba(5, 150, 105, 0.35);
+  box-shadow: 0 2px 5px rgba(5, 150, 105, 0.3);
 }
 
 .btn-assume-header:active:not(:disabled) {
@@ -247,10 +248,10 @@
 }
 
 .btn-assume-header i {
-  font-size: 15px;
+  font-size: 13px;
 }
 
-/* Chat Messages Container */
+/* Chat Messages Container com Papel de Parede Doodles Denso */
 .chat-messages-container {
   position: relative;
   z-index: 1;
@@ -258,6 +259,9 @@
   padding: 16px 24px;
   overflow-y: auto;
   background-color: #f0f2f5;
+  background-image: url('/chat-wallpaper.svg');
+  background-repeat: repeat;
+  background-size: 420px 420px;
   display: flex;
   flex-direction: column;
   gap: 12px;

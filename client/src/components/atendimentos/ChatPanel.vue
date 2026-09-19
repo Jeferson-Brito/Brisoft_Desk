@@ -53,7 +53,7 @@
           @click="handleAssume"
         >
           <i :class="isAssuming ? 'ri-loader-4-line ri-spin' : 'ri-user-follow-line'"></i>
-          <span>{{ isAssuming ? 'Assumindo...' : 'Assumir atendimento' }}</span>
+          <span>{{ isAssuming ? 'Assumindo...' : 'Assumir' }}</span>
         </button>
 
         <!-- Botões de chamada, vídeo, histórico e busca (aparecem assim que o atendimento for assumido) -->
