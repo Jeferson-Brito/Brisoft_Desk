@@ -39,7 +39,7 @@ input,
 select,
 textarea,
 p,
-span,
+span:not([class^="ri-"]):not([class*=" ri-"]),
 .nav-label,
 .chat-mode-btn,
 .tag-department-chip,
@@ -47,6 +47,22 @@ span,
 .queue-status-tab,
 .topbar-nav-pill {
   font-family: var(--font-body);
+}
+
+/* Garante integridade e visibilidade das fontes de ícones */
+[class^="ri-"], [class*=" ri-"] {
+  font-family: 'remixicon' !important;
+  font-style: normal;
+  display: inline-block;
+  line-height: 1;
+  text-rendering: auto;
+}
+
+[class^="fa-"], [class*=" fa-"],
+.fa-solid, .fa-regular, .fa-brands {
+  font-style: normal;
+  display: inline-block;
+  line-height: 1;
 }
 
 button:focus-visible,
