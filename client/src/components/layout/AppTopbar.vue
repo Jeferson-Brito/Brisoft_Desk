@@ -838,7 +838,7 @@ onUnmounted(() => {
   }
   .topbar-right {
     gap: 8px;
-    margin-left: 8px;
+    margin-left: auto;
   }
   .topbar-user-avatar {
     width: 32px;
