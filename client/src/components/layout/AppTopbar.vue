@@ -117,8 +117,9 @@
         </Transition>
       </div>
 
-      <!-- Botão + Novo atendimento (Estilo Imagem de Referência) -->
+      <!-- Botão + Novo atendimento (Exibido exclusivamente no módulo de Atendimentos) -->
       <button
+        v-if="currentModule === 'atendimentos'"
         type="button"
         class="btn-new-attendance-cta"
         title="Iniciar novo atendimento"
@@ -519,7 +520,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-left: 14px;
+  margin-left: auto; /* Garante que fique SEMPRE alinhado na extrema direita */
   flex-shrink: 0;
 }
 

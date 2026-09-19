@@ -29,10 +29,16 @@
             <td>
               <div style="display:flex;align-items:center;gap:10px;">
                 <div
-                  style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;"
+                  style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:#fff;flex-shrink:0;overflow:hidden;"
                   :style="{ background: u.role === 'Administrador' ? '#059669' : '#7c3aed' }"
                 >
-                  {{ getUserInitials(u.name) }}
+                  <img
+                    v-if="u.avatar_url"
+                    :src="u.avatar_url"
+                    :alt="u.name"
+                    style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;"
+                  />
+                  <span v-else>{{ getUserInitials(u.name) }}</span>
                 </div>
                 <div>
                   <span style="font-weight:600;font-size:12.5px;">{{ normalizePersonName(u.name) || '—' }}</span>
