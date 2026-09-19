@@ -196,7 +196,7 @@
                     <div
                       class="initial-avatar"
                       style="width:34px;height:34px;font-size:12px;flex-shrink:0;"
-                      :style="{ background: item.avatarColor || '#2563eb' }"
+                      :style="{ background: item.avatarColor || '#059669' }"
                     >
                       <img v-if="item.avatar_url" :src="item.avatar_url" alt="Foto do cliente" referrerpolicy="no-referrer" class="history-avatar-image" />
                       <span v-else>{{ item.initials || 'CL' }}</span>
@@ -340,7 +340,7 @@
             <div class="history-customer-summary">
               <div
                 class="initial-avatar history-detail-avatar"
-                :style="{ background: selectedTicketModal.avatarColor || '#2563eb' }"
+                :style="{ background: selectedTicketModal.avatarColor || '#059669' }"
               >
                 <img v-if="selectedTicketModal.avatar_url" :src="selectedTicketModal.avatar_url" alt="Foto do cliente" referrerpolicy="no-referrer" class="history-avatar-image" />
                 <span v-else>{{ selectedTicketModal.initials || 'CL' }}</span>
@@ -724,7 +724,7 @@ function shortProtocol(id) {
 
 function getDeptColor(deptName) {
   const d = settingsStore.departments.find(x => x.name === deptName)
-  return d?.color || '#2563eb'
+  return d?.color || '#059669'
 }
 
 async function openDetailsModal(item) {
@@ -801,15 +801,15 @@ onBeforeUnmount(() => {
 .history-conversation-toolbar>div>div { min-width:0;display:flex;flex-direction:column;gap:1px; }
 .history-conversation-toolbar strong { color:#334155;font-size:12px;font-weight:600; }
 .history-conversation-toolbar small { color:#94a3b8;font-size:9.5px; }
-.history-toolbar-icon { width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none;background:#eff6ff;color:#2563eb;font-size:11px; }
+.history-toolbar-icon { width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none;background:#ecfdf5;color:#059669;font-size:11px; }
 .history-message-count { padding:4px 8px;border:1px solid #e2e8f0;border-radius:999px;flex:none;background:#f8fafc;color:#64748b;font-size:9.5px;font-weight:600; }
-.history-conversation-messages { flex:1;min-height:0;padding:20px 22px 28px;overflow-y:auto;background:radial-gradient(circle at 50% 0,rgba(219,234,254,.28),transparent 34%),#f6f8fc;scrollbar-width:thin;scrollbar-color:#cbd5e1 transparent; }
+.history-conversation-messages { flex:1;min-height:0;padding:20px 22px 28px;overflow-y:auto;background:radial-gradient(circle at 50% 0,rgba(209,250,229,.35),transparent 34%),#f6f8fc;scrollbar-width:thin;scrollbar-color:#cbd5e1 transparent; }
 .history-start-pill { width:max-content;margin:0 auto 18px;padding:4px 10px;border:1px solid #dbe2ea;border-radius:999px;background:rgba(255,255,255,.9);color:#64748b;font-size:9.5px;font-weight:500;box-shadow:0 2px 6px rgba(15,23,42,.03); }
 .history-start-pill i { margin-right:4px;color:#94a3b8; }
 .history-conversation-state { min-height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:5px;color:#64748b;text-align:center; }
 .history-conversation-state strong { color:#475569;font-size:12px;font-weight:600; }
 .history-conversation-state small { max-width:280px;color:#94a3b8;font-size:10.5px;line-height:1.45; }
-.history-state-icon { width:42px;height:42px;margin-bottom:4px;border-radius:12px;display:grid;place-items:center;background:#eff6ff;color:#2563eb;font-size:15px; }
+.history-state-icon { width:42px;height:42px;margin-bottom:4px;border-radius:12px;display:grid;place-items:center;background:#ecfdf5;color:#059669;font-size:15px; }
 .history-state-icon.empty { background:#f1f5f9;color:#94a3b8; }
 .history-detail-sidebar { min-width:0;padding:15px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;background:#f8fafc;scrollbar-width:thin;scrollbar-color:#cbd5e1 transparent; }
 .history-rating-card,.history-info-card { border:1px solid #e2e8f0;border-radius:12px;background:#fff;box-shadow:0 3px 12px rgba(15,23,42,.025); }
@@ -832,10 +832,10 @@ onBeforeUnmount(() => {
 .history-info-card-header>div { min-width:0;display:flex;flex:1;flex-direction:column;gap:1px; }
 .history-info-card-header strong { color:#334155;font-size:11px;font-weight:600; }
 .history-info-card-header small { color:#94a3b8;font-size:9px; }
-.history-info-card-icon { width:29px;height:29px;border-radius:8px;display:grid;place-items:center;flex:none;background:#eff6ff;color:#2563eb;font-size:10px; }
+.history-info-card-icon { width:29px;height:29px;border-radius:8px;display:grid;place-items:center;flex:none;background:#ecfdf5;color:#059669;font-size:10px; }
 .history-info-card-icon.customer { background:#f0fdf4;color:#059669; }
 .history-edit-contact { min-height:27px;padding:0 8px;border:1px solid #dbe2ea;border-radius:7px;display:inline-flex;align-items:center;gap:5px;flex:none;background:#fff;color:#475569;font-size:9.5px;font-weight:600;cursor:pointer;transition:all .15s ease; }
-.history-edit-contact:hover { border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8; }
+.history-edit-contact:hover { border-color:#a7f3d0;background:#ecfdf5;color:#047857; }
 .history-detail-list { padding:3px 12px; }
 .history-detail-row { padding:8px 0;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:9px; }
 .history-detail-row:last-child { border-bottom:0; }

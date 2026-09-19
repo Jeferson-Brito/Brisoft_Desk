@@ -2,14 +2,14 @@
   <nav v-if="!ui.isMobileChatOpen" class="mobile-bottom-nav" aria-label="Navegação inferior mobile">
     <div class="mobile-nav-container">
       <template v-for="tab in visibleTabs" :key="tab.id">
-        <!-- Aba Central Destacada: Atendimentos -->
+        <!-- Aba Central com Destaque: Atendimentos -->
         <RouterLink
           v-if="tab.isProminent"
           :to="tab.path"
           class="mobile-nav-tab prominent-tab"
           active-class="active"
         >
-          <div class="prominent-action-btn">
+          <div class="prominent-icon-box">
             <i :class="tab.icon"></i>
             <span v-if="tab.badge > 0" class="prominent-badge">
               {{ tab.badge > 99 ? '99+' : tab.badge }}
@@ -18,16 +18,16 @@
           <span class="nav-tab-label">{{ tab.label }}</span>
         </RouterLink>
 
-        <!-- Abas Padrão (Conversas, Dashboard, Desempenho) -->
+        <!-- Abas Convencionais (Conversas, Dashboard, Desempenho) -->
         <RouterLink
           v-else
           :to="tab.path"
           class="mobile-nav-tab standard-tab"
           active-class="active"
         >
-          <div class="nav-tab-icon-wrap">
+          <div class="standard-icon-box">
             <i :class="tab.icon"></i>
-            <span v-if="tab.badge > 0" class="nav-tab-badge">
+            <span v-if="tab.badge > 0" class="standard-badge">
               {{ tab.badge > 99 ? '99+' : tab.badge }}
             </span>
           </div>
@@ -54,7 +54,7 @@ const waitingCount = computed(() => tickets.waitingTickets?.length || 0)
 const visibleTabs = computed(() => {
   const tabs = []
 
-  // 1. Aba à Esquerda: Conversas (Histórico)
+  // 1. Aba à Esquerda: Conversas
   tabs.push({
     id: 'conversas',
     label: 'Conversas',
@@ -68,7 +68,7 @@ const visibleTabs = computed(() => {
     id: 'atendimentos',
     label: 'Atendimentos',
     path: '/atendimentos',
-    icon: 'ri-inbox-archive-line',
+    icon: 'ri-customer-service-2-line',
     badge: waitingCount.value,
     isProminent: true
   })
@@ -110,14 +110,14 @@ const visibleTabs = computed(() => {
     bottom: 0;
     left: 0;
     right: 0;
-    height: calc(56px + env(safe-area-inset-bottom, 0px));
+    height: calc(58px + env(safe-area-inset-bottom, 0px));
     padding-bottom: max(4px, env(safe-area-inset-bottom, 4px));
-    padding-top: 2px;
+    padding-top: 4px;
     padding-left: max(16px, env(safe-area-inset-left, 16px));
     padding-right: max(16px, env(safe-area-inset-right, 16px));
     background: #ffffff;
-    border-top: 1px solid #e2e8f0;
-    box-shadow: 0 -2px 14px rgba(15, 23, 42, 0.07);
+    border-top: 1px solid #eef2f6;
+    box-shadow: 0 -2px 10px rgba(15, 23, 42, 0.04);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -128,7 +128,7 @@ const visibleTabs = computed(() => {
 
   .mobile-nav-container {
     width: 100%;
-    max-width: 480px;
+    max-width: 440px;
     display: flex;
     align-items: center;
     justify-content: space-around;
@@ -141,48 +141,40 @@ const visibleTabs = computed(() => {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: 3px;
     height: 100%;
     min-width: 0;
     text-decoration: none;
     color: #64748b;
     position: relative;
-    padding: 2px;
-    transition: all 0.16s ease;
+    padding: 3px 0;
+    transition: color 0.15s ease;
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* ─── Abas Padrão ─── */
-  .standard-tab .nav-tab-icon-wrap {
+  /* ─── Abas Padrão (Conversas, Dashboard, Desempenho) ─── */
+  .standard-icon-box {
     position: relative;
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 24px;
+    width: 38px;
+    height: 28px;
+    border-radius: 14px;
+    transition: all 0.16s ease;
   }
 
-  .standard-tab .nav-tab-icon-wrap i {
+  .standard-icon-box i {
     font-size: 21px;
     line-height: 1;
-    transition: transform 0.16s ease;
+    color: inherit;
+    transition: transform 0.15s ease;
   }
 
-  .nav-tab-label {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 10.5px;
-    font-weight: 500;
-    line-height: 1.1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-  }
-
-  .nav-tab-badge {
+  .standard-badge {
     position: absolute;
-    top: -4px;
-    right: -7px;
+    top: -2px;
+    right: 2px;
     background: #ef4444;
     color: #ffffff;
     font-size: 9px;
@@ -194,7 +186,6 @@ const visibleTabs = computed(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 1px 3px rgba(239, 68, 68, 0.4);
     border: 1.5px solid #ffffff;
   }
 
@@ -203,8 +194,13 @@ const visibleTabs = computed(() => {
     color: #059669;
   }
 
-  .standard-tab.active .nav-tab-icon-wrap i {
-    transform: scale(1.1);
+  .standard-tab.active .standard-icon-box {
+    background: #ecfdf5;
+  }
+
+  .standard-tab.active .standard-icon-box i {
+    color: #059669;
+    transform: scale(1.05);
   }
 
   .standard-tab.active .nav-tab-label {
@@ -212,41 +208,34 @@ const visibleTabs = computed(() => {
     color: #059669;
   }
 
-  /* ─── Aba Central Destacada (Atendimentos) ─── */
-  .prominent-tab {
+  /* ─── Aba Central com Destaque: Atendimentos ─── */
+  .prominent-icon-box {
     position: relative;
-    top: -6px;
-    overflow: visible;
-  }
-
-  .prominent-action-btn {
-    position: relative;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: #ffffff;
+    width: 42px;
+    height: 30px;
+    border-radius: 15px;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #059669;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.38), 0 2px 4px rgba(5, 150, 105, 0.2);
-    border: 2.5px solid #ffffff;
-    transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease;
+    transition: all 0.18s ease;
   }
 
-  .prominent-action-btn i {
-    font-size: 22px;
+  .prominent-icon-box i {
+    font-size: 20px;
     line-height: 1;
   }
 
   .prominent-badge {
     position: absolute;
-    top: -3px;
-    right: -5px;
+    top: -4px;
+    right: -4px;
     background: #ef4444;
     color: #ffffff;
     font-size: 9.5px;
-    font-weight: 800;
+    font-weight: 700;
     min-width: 17px;
     height: 17px;
     padding: 0 4px;
@@ -254,30 +243,44 @@ const visibleTabs = computed(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 4px rgba(239, 68, 68, 0.45);
     border: 1.5px solid #ffffff;
-    z-index: 2;
+    box-shadow: 0 1px 3px rgba(239, 68, 68, 0.35);
   }
 
   .prominent-tab .nav-tab-label {
-    font-size: 11px;
-    font-weight: 600;
     color: #059669;
-    margin-top: 1px;
+    font-weight: 600;
   }
 
-  .prominent-tab:active .prominent-action-btn {
-    transform: scale(0.94);
+  /* Quando Atendimentos está ativa: botão fica sólido verde com ícone branco */
+  .prominent-tab.active .prominent-icon-box {
+    background: #059669;
+    border-color: #059669;
+    color: #ffffff;
+    box-shadow: 0 3px 8px rgba(5, 150, 105, 0.28);
   }
 
-  .prominent-tab.active .prominent-action-btn {
-    box-shadow: 0 6px 16px rgba(5, 150, 105, 0.5), 0 0 0 3px rgba(16, 185, 129, 0.25);
-    transform: scale(1.05);
+  .prominent-tab.active .prominent-icon-box i {
+    color: #ffffff;
+    transform: scale(1.04);
   }
 
   .prominent-tab.active .nav-tab-label {
     font-weight: 700;
     color: #047857;
+  }
+
+  /* ─── Tipografia dos Rótulos (Alinhados na mesma linha de base) ─── */
+  .nav-tab-label {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 10.5px;
+    font-weight: 500;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    letter-spacing: -0.01em;
   }
 }
 </style>

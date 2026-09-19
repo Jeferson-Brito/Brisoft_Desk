@@ -4,8 +4,8 @@
 
 :root {
   /* Brand Identity */
-  --brand-primary: #1f62d0;
-  --brand-primary-hover: #174ea6;
+  --brand-primary: #059669;
+  --brand-primary-hover: #047857;
   --brand-red: #e11d48;
   --brand-dark: #172033;
   
@@ -23,15 +23,15 @@
   --text-muted: #667085;
   --text-light: #98a2b3;
   --text-sidebar: #667085;
-  --text-sidebar-active: #1f62d0;
+  --text-sidebar-active: #059669;
   
   /* Borders & Dividers */
   --border-color: #e3e6ea;
   --border-subtle: #eef0f3;
   
   /* Departments Badge Colors */
-  --dept-financeiro-bg: #eff6ff;
-  --dept-financeiro-text: #1f62d0;
+  --dept-financeiro-bg: #ecfdf5;
+  --dept-financeiro-text: #059669;
   --dept-comercial-bg: #f5f3ff;
   --dept-comercial-text: #7c3aed;
   --dept-operacional-bg: #ecfdf5;
@@ -44,12 +44,12 @@
   --status-active-text: #168a52;
   --status-inactive-bg: #f1f5f9;
   --status-inactive-text: #64748b;
-  --status-finished-bg: #eff6ff;
-  --status-finished-text: #1f62d0;
+  --status-finished-bg: #ecfdf5;
+  --status-finished-text: #059669;
   
   /* Customer Segment Badges */
-  --seg-corp-bg: #eff6ff;
-  --seg-corp-text: #1f62d0;
+  --seg-corp-bg: #ecfdf5;
+  --seg-corp-text: #059669;
   --seg-peq-bg: #f8fafc;
   --seg-peq-text: #475569;
   --seg-med-bg: #fefce8;

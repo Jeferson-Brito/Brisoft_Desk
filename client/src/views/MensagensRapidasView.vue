@@ -375,7 +375,7 @@ function authorLabel(message) {
 }
 function categoryStyle(category = 'Geral') {
   const palettes = [
-    ['#eff6ff', '#2563eb'], ['#f5f3ff', '#7c3aed'], ['#ecfdf5', '#059669'],
+    ['#ecfdf5', '#059669'], ['#f5f3ff', '#7c3aed'], ['#f0fdf4', '#16a34a'],
     ['#fff7ed', '#ea580c'], ['#fdf2f8', '#db2777'], ['#f0f9ff', '#0284c7']
   ]
   const index = [...category].reduce((total, char) => total + char.charCodeAt(0), 0) % palettes.length
@@ -731,9 +731,9 @@ onBeforeUnmount(() => {
 }
 
 .qm-scope-pill.global {
-  background: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
 }
 
 .qm-scope-pill.dept {
@@ -766,12 +766,12 @@ onBeforeUnmount(() => {
 }
 
 .qm-scope-option.selected {
-  border-color: #3b82f6;
-  background: #eff6ff;
+  border-color: #10b981;
+  background: #ecfdf5;
 }
 
 .qm-scope-option input[type="radio"] {
-  accent-color: #2563eb;
+  accent-color: #059669;
 }
 
 .scope-option-info {

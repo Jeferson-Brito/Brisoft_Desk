@@ -61,7 +61,7 @@
     </section>
 
     <section v-if="auth.canManageTeam" class="performance-departments">
-      <article v-for="department in departments" :key="department.id" class="department-performance-card" :style="{ '--dept-color': department.color || '#2563eb' }">
+      <article v-for="department in departments" :key="department.id" class="department-performance-card" :style="{ '--dept-color': department.color || '#059669' }">
         <div class="department-performance-title"><i class="fa-solid fa-users"></i><div><strong>{{ department.name }}</strong><small>{{ department.headcount }} atendente(s) ativo(s)</small></div></div>
         <div class="department-performance-grid"><div><span>Concluídos</span><strong>{{ department.completed }}</strong></div><div><span>Média/atendente</span><strong>{{ department.averagePerAgent }}</strong></div><div><span>SLA</span><strong>{{ department.slaPercent }}%</strong></div><div><span>Nota</span><strong>{{ department.ratingAverage == null ? '—' : department.ratingAverage }}</strong></div></div>
       </article>
@@ -93,7 +93,7 @@ const maxTrend = computed(() => Math.max(1, ...trendPoints.value.flatMap(point =
 const availableAgents = computed(() => filterOptions.value.agents.filter(agent => !filters.value.departmentId || String(agent.department_id) === String(filters.value.departmentId)))
 const completionRate = computed(() => metrics.value.total ? Math.min(100, Math.round((metrics.value.completed / metrics.value.total) * 100)) : 0)
 const metricCards = computed(() => [
-  { key: 'total', label: 'Chats recebidos', value: metrics.value.total, change: comparison.value.total, icon: 'fa-regular fa-comments', color: '#2563eb', background: '#eff6ff' },
+  { key: 'total', label: 'Chats recebidos', value: metrics.value.total, change: comparison.value.total, icon: 'fa-regular fa-comments', color: '#059669', background: '#ecfdf5' },
   { key: 'completed', label: 'Atendimentos concluídos', value: metrics.value.completed, change: comparison.value.completed, icon: 'fa-solid fa-circle-check', color: '#059669', background: '#ecfdf5' },
   { key: 'tma', label: 'Tempo médio de atendimento', value: metrics.value.tma, change: comparison.value.tma, icon: 'fa-regular fa-clock', color: '#7c3aed', background: '#f5f3ff' },
   { key: 'tme', label: 'Tempo médio de espera', value: metrics.value.tme, change: comparison.value.tme, icon: 'fa-solid fa-hourglass-half', color: '#ea580c', background: '#fff7ed' },

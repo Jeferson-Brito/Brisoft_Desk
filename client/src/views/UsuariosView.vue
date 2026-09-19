@@ -30,13 +30,13 @@
               <div style="display:flex;align-items:center;gap:10px;">
                 <div
                   style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;"
-                  :style="{ background: u.role === 'Administrador' ? '#2563eb' : '#7c3aed' }"
+                  :style="{ background: u.role === 'Administrador' ? '#059669' : '#7c3aed' }"
                 >
                   {{ getUserInitials(u.name) }}
                 </div>
                 <div>
                   <span style="font-weight:600;font-size:12.5px;">{{ normalizePersonName(u.name) || '—' }}</span>
-                  <span v-if="u.id === authStore.user?.id" style="margin-left:6px;background:#e0f2fe;color:#0369a1;border-radius:20px;font-size:9px;font-weight:700;padding:1px 6px;">VOCÊ</span>
+                  <span v-if="u.id === authStore.user?.id" style="margin-left:6px;background:#ecfdf5;color:#047857;border-radius:20px;font-size:9px;font-weight:700;padding:1px 6px;">VOCÊ</span>
                 </div>
               </div>
             </td>
@@ -45,9 +45,9 @@
               <span
                 class="badge"
                 :style="{
-                  background: u.role === 'Administrador' ? '#eff6ff' : '#f5f3ff',
-                  color: u.role === 'Administrador' ? '#2563eb' : '#7c3aed',
-                  border: `1px solid ${u.role === 'Administrador' ? '#bfdbfe' : '#ddd6fe'}`
+                  background: u.role === 'Administrador' ? '#ecfdf5' : '#f5f3ff',
+                  color: u.role === 'Administrador' ? '#059669' : '#7c3aed',
+                  border: `1px solid ${u.role === 'Administrador' ? '#a7f3d0' : '#ddd6fe'}`
                 }"
               >
                 {{ u.role || 'Analista' }}
@@ -63,7 +63,7 @@
               </span>
             </td>
             <td style="text-align:right;">
-              <button class="btn-icon" style="color:#2563eb;margin-right:4px;" title="Editar" @click="editUser(u)">
+              <button class="btn-icon" style="color:#059669;margin-right:4px;" title="Editar" @click="editUser(u)">
                 <i class="fa-solid fa-pen"></i>
               </button>
               <button class="btn-icon" style="color:#ef4444;" title="Excluir" @click="deleteUser(u)">

@@ -101,7 +101,7 @@
 .pulse-ring {
   position: absolute;
   border-radius: 50%;
-  border: 1.5px solid rgba(37, 99, 235, 0.14);
+  border: 1.5px solid rgba(5, 150, 105, 0.16);
   pointer-events: none;
   transition: all 0.3s ease;
 }
@@ -115,14 +115,14 @@
 .ring-2 {
   width: 190px;
   height: 190px;
-  border-color: rgba(37, 99, 235, 0.09);
+  border-color: rgba(5, 150, 105, 0.10);
   animation: rippleRing 3.2s infinite ease-out 1.1s;
 }
 
 .ring-3 {
   width: 240px;
   height: 240px;
-  border-color: rgba(37, 99, 235, 0.05);
+  border-color: rgba(5, 150, 105, 0.05);
   animation: rippleRing 3.2s infinite ease-out 2.2s;
 }
 
@@ -144,7 +144,7 @@
 .particle {
   position: absolute;
   border-radius: 50%;
-  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  background: linear-gradient(135deg, #10b981, #34d399);
   pointer-events: none;
   opacity: 0.6;
 }
@@ -192,7 +192,7 @@
   width: 76px;
   height: 76px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(37, 99, 235, 0.18) 0%, rgba(37, 99, 235, 0) 70%);
+  background: radial-gradient(circle, rgba(5, 150, 105, 0.2) 0%, rgba(5, 150, 105, 0) 70%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -209,12 +209,12 @@
   width: 62px;
   height: 62px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
-  box-shadow: 0 10px 24px -4px rgba(37, 99, 235, 0.42), 0 4px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 24px -4px rgba(5, 150, 105, 0.38), 0 4px 10px rgba(0, 0, 0, 0.08);
   border: 3px solid #ffffff;
 }
 
@@ -266,8 +266,8 @@
 }
 
 .bubble-avatar-mini.client {
-  background: #eff6ff;
-  color: #2563eb;
+  background: #ecfdf5;
+  color: #059669;
 }
 
 .bubble-avatar-mini.agent {
@@ -297,7 +297,7 @@
 
 @keyframes typingBounce {
   0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-  30% { transform: translateY(-5px); opacity: 1; background: #2563eb; }
+  30% { transform: translateY(-5px); opacity: 1; background: #059669; }
 }
 
 /* Balão Atendente (Bottom Left) */

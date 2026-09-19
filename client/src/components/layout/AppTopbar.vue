@@ -747,9 +747,9 @@ onUnmounted(() => {
 .you-chip {
   font-size: 9.5px;
   font-weight: 600;
-  color: #2563eb;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  color: #059669;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
   padding: 0 4px;
   border-radius: 4px;
   line-height: 1.3;
@@ -850,11 +850,17 @@ onUnmounted(() => {
   }
 }
 
-/* ─── Perfil do Usuário na Topbar ─── */
+/* ─── Perfil do Usuário na Topbar (Apenas Mobile - No Desktop já existe no Sidebar) ─── */
 .user-menu-wrapper {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .user-menu-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
 }
 
 .topbar-user-avatar-btn {
@@ -887,7 +893,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   overflow: visible;
-  background: #1f62d0;
+  background: #059669;
   color: #ffffff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
@@ -933,7 +939,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: #1f62d0;
+  background: #059669;
   color: #ffffff;
   overflow: hidden;
 }

@@ -261,7 +261,7 @@ const filteredContacts = computed(() => {
   )
 })
 
-const avatarColors = ['#2563eb', '#7c3aed', '#db2777', '#059669', '#d97706', '#dc2626', '#0891b2']
+const avatarColors = ['#059669', '#10b981', '#7c3aed', '#db2777', '#d97706', '#dc2626', '#0891b2']
 function avatarColor(name) {
   let hash = 0
   for (const ch of (name || '')) hash = ch.charCodeAt(0) + ((hash << 5) - hash)

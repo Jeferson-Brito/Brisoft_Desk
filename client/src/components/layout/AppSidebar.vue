@@ -497,7 +497,7 @@ async function handleLogout() {
   justify-content: center;
   position: relative;
   overflow: hidden;
-  background: #1f62d0;
+  background: #059669;
   color: #ffffff;
   font-weight: 700;
   font-size: 12px;
@@ -629,7 +629,7 @@ async function handleLogout() {
   width: 260px;
 }
 
-.user-popup-profile{width:100%;border:0;background:transparent;display:grid;grid-template-columns:46px 1fr 12px;align-items:center;gap:10px;padding:0;text-align:left;cursor:pointer;color:#334155}.popup-avatar{width:46px;height:46px;border-radius:50%;background:#dbeafe;color:#1d4ed8;display:grid;place-items:center;overflow:hidden}.popup-avatar img{width:100%;height:100%;object-fit:cover}.user-popup-profile>i{font-size:11px;color:#94a3b8}
+.user-popup-profile{width:100%;border:0;background:transparent;display:grid;grid-template-columns:46px 1fr 12px;align-items:center;gap:10px;padding:0;text-align:left;cursor:pointer;color:#334155}.popup-avatar{width:46px;height:46px;border-radius:50%;background:#ecfdf5;color:#059669;display:grid;place-items:center;overflow:hidden}.popup-avatar img{width:100%;height:100%;object-fit:cover}.user-popup-profile>i{font-size:11px;color:#94a3b8}
 .user-popup-header {
   padding: 0;
   display: flex;
