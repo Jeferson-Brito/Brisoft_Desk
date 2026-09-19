@@ -320,7 +320,7 @@ onBeforeUnmount(() => {
 
 function resetToDefaultPosition() {
   if (typeof window === 'undefined') return
-  const size = 60
+  const size = 46
   const margin = 24
   posX.value = Math.max(16, window.innerWidth - size - margin)
   posY.value = Math.max(16, window.innerHeight - size - margin - 50) // acima do rodapé
@@ -328,7 +328,7 @@ function resetToDefaultPosition() {
 
 function handleWindowResize() {
   if (isDragging.value) return
-  const size = 60
+  const size = 46
   const margin = 16
   posX.value = Math.min(Math.max(margin, posX.value), window.innerWidth - size - margin)
   posY.value = Math.min(Math.max(margin, posY.value), window.innerHeight - size - margin)
@@ -373,7 +373,7 @@ function handlePointerMove(e) {
   }
 
   if (hasMoved.value) {
-    const size = 60
+    const size = 46
     const margin = 8
     posX.value = Math.min(Math.max(margin, dragStart.posX + dx), window.innerWidth - size - margin)
     posY.value = Math.min(Math.max(margin, dragStart.posY + dy), window.innerHeight - size - margin)
@@ -389,8 +389,8 @@ function checkDropZoneProximity() {
   }
   const dropRect = dropZoneEl.value.getBoundingClientRect()
   const bubbleCenter = {
-    x: posX.value + 30,
-    y: posY.value + 30
+    x: posX.value + 23,
+    y: posY.value + 23
   }
   const dropCenter = {
     x: dropRect.left + dropRect.width / 2,
@@ -493,8 +493,8 @@ function formatPhone(phone) {
   position: absolute;
   top: 0;
   left: 0;
-  width: 60px;
-  height: 60px;
+  width: 46px;
+  height: 46px;
   pointer-events: auto;
   user-select: none;
   touch-action: none;
@@ -514,12 +514,12 @@ function formatPhone(phone) {
 
 /* ─── Bolha Circular do WhatsApp ─────────────────────────────────────────── */
 .floating-wa-bubble {
-  width: 60px;
-  height: 60px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
   border: 2px solid #ffffff;
-  box-shadow: 0 8px 24px rgba(37, 211, 102, 0.4), 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 6px 20px rgba(37, 211, 102, 0.35), 0 3px 10px rgba(0, 0, 0, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -533,7 +533,7 @@ function formatPhone(phone) {
 
 .floating-wa-bubble:hover {
   transform: scale(1.08);
-  box-shadow: 0 10px 28px rgba(37, 211, 102, 0.5), 0 6px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 24px rgba(37, 211, 102, 0.45), 0 5px 14px rgba(0, 0, 0, 0.18);
 }
 
 .floating-wa-bubble:active {
@@ -541,7 +541,7 @@ function formatPhone(phone) {
 }
 
 .wa-icon {
-  font-size: 32px;
+  font-size: 24px;
   color: #ffffff;
   position: relative;
   z-index: 2;
@@ -549,7 +549,7 @@ function formatPhone(phone) {
 
 .wa-icon-glow {
   position: absolute;
-  inset: -4px;
+  inset: -3px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(239, 68, 68, 0.35) 0%, rgba(239, 68, 68, 0) 70%);
   animation: pulse-ring 2s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
@@ -565,20 +565,20 @@ function formatPhone(phone) {
 /* Badge de Alerta na Bolha */
 .wa-alert-badge {
   position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 22px;
-  height: 22px;
+  top: -3px;
+  right: -3px;
+  width: 17px;
+  height: 17px;
   border-radius: 50%;
   background: #ef4444;
   color: #ffffff;
-  font-size: 11px;
+  font-size: 9.5px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid #ffffff;
-  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 2px 5px rgba(239, 68, 68, 0.4);
   z-index: 3;
 }
 
@@ -599,11 +599,11 @@ function formatPhone(phone) {
 }
 
 .floating-wa-message.side-left {
-  right: 72px;
+  right: 58px;
 }
 
 .floating-wa-message.side-right {
-  left: 72px;
+  left: 58px;
 }
 
 .msg-header {

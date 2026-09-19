@@ -271,6 +271,7 @@ async function handleLogout() {
 .sidebar.is-expanded .sidebar-header {
   justify-content: center;
   padding: 0 10px 10px;
+  height: 54px;
 }
 
 .brand-logo-container {
@@ -283,14 +284,14 @@ async function handleLogout() {
 }
 
 .brand-logo-symbol {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   object-fit: contain;
 }
 
 .brand-logo-full {
-  height: 32px;
-  max-width: 165px;
+  height: 42px;
+  max-width: 185px;
   object-fit: contain;
   margin: 0 auto;
 }

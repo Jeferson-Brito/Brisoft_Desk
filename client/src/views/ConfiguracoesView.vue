@@ -366,12 +366,14 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import ModalDepartamento from '@/components/modals/ModalDepartamento.vue'
 import ConnectionsSettings from '@/components/settings/ConnectionsSettings.vue'
 
+const route = useRoute()
 const settingsStore = useSettingsStore()
 const authStore = useAuthStore()
 const ui = useUiStore()
@@ -383,6 +385,15 @@ const props = defineProps({
 const activeTab = ref(props.initialTab)
 const botSection = ref('overview')
 const savingBot = ref(false)
+
+// Sincronizar com route.query.tab (Topbar Bitrix24)
+watch(
+  () => route.query.tab,
+  (tab) => {
+    if (tab) activeTab.value = tab
+  },
+  { immediate: true }
+)
 
 // As rotas de configurações usam o mesmo componente. O Vue pode preservar a
 // instância ao alternar entre elas, então sincronizamos a aba com a nova rota.

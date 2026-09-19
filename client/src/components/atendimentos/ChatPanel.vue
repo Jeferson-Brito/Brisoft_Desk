@@ -188,19 +188,8 @@
 
     <!-- Mensagens do Chat -->
     <div class="chat-messages-container" id="chatMessagesBox" ref="msgBoxRef">
-      <!-- Empty state se não tiver ticket -->
-      <div
-        v-if="!ticket"
-        style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#94a3b8;gap:12px;margin:auto;"
-      >
-        <div style="width:52px;height:52px;border-radius:50%;background:#eff6ff;color:var(--brand-primary);display:flex;align-items:center;justify-content:center;font-size:22px;">
-          <i class="fa-regular fa-comments"></i>
-        </div>
-        <strong style="color:#334155;font-size:14px;">Central Pronta para Atendimento</strong>
-        <p style="font-size:11.5px;color:#64748b;max-width:300px;text-align:center;margin:0;line-height:1.45;">
-          Conecte uma conta em Configurações → Conexões. As mensagens dos clientes aparecerão aqui automaticamente.
-        </p>
-      </div>
+      <!-- Empty state com animação moderna quando nenhum chat está aberto -->
+      <EmptyChatAnimation v-if="!ticket" />
 
       <!-- Histórico de Mensagens agrupado por data com Sticky Header do WhatsApp -->
       <div v-else-if="ticketStore.isLoadingMessages(ticket.id) && visibleMessages.length === 0" class="conversation-loading">
@@ -542,6 +531,7 @@ import { classifyBotInteractions } from '@/utils/chat-message-visibility'
 import { preloadTicketMedia } from '@/utils/protected-media-cache'
 import { splitPersonLabel } from '@/utils/person-display'
 import ChatBubble from './ChatBubble.vue'
+import EmptyChatAnimation from './EmptyChatAnimation.vue'
 import ModalTransferir from '@/components/modals/ModalTransferir.vue'
 import ModalColaboradores from '@/components/modals/ModalColaboradores.vue'
 import ModalHistoricoCliente from '@/components/modals/ModalHistoricoCliente.vue'

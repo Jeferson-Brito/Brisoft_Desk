@@ -29,103 +29,7 @@
 
       <div class="tool-dock-divider"></div>
 
-      <!-- 2. Balão: Gerador de Link WhatsApp (wa.me) -->
-      <div class="tool-bubble-item" ref="waWrapperRef">
-        <button
-          type="button"
-          class="tool-bubble-btn tool-btn-whatsapp"
-          :class="{ active: activePopover === 'whatsapp' }"
-          title="Link WhatsApp (wa.me)"
-          aria-label="Link WhatsApp"
-          @click="togglePopover('whatsapp')"
-        >
-          <i class="fa-brands fa-whatsapp"></i>
-        </button>
-        <div class="tool-bubble-tooltip">
-          <span>Link WhatsApp</span>
-        </div>
-
-        <!-- Popover Flutuante: Gerador de Link WhatsApp -->
-        <Teleport to="body">
-          <div
-            v-if="activePopover === 'whatsapp'"
-            class="tool-floating-popover wa-popover"
-            @click.stop
-          >
-            <div class="popover-header">
-              <div class="popover-header-title">
-                <i class="fa-brands fa-whatsapp wa-icon-header"></i>
-                <span>Link WhatsApp</span>
-              </div>
-              <button type="button" class="popover-close-btn" @click="closePopovers" title="Fechar (Esc)">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-
-            <div class="popover-body">
-              <div class="tool-field-group">
-                <label class="tool-label">Número do WhatsApp (DDD + Número)</label>
-                <div class="tool-input-wrap">
-                  <span class="tool-input-prefix">+55</span>
-                  <input
-                    v-model="waPhone"
-                    type="tel"
-                    class="tool-input tool-input-with-prefix"
-                    placeholder="(11) 99999-9999"
-                    @input="formatWaPhone"
-                  />
-                </div>
-              </div>
-
-              <div class="tool-field-group">
-                <label class="tool-label">Mensagem pronta (opcional)</label>
-                <textarea
-                  v-model="waMessage"
-                  rows="2"
-                  class="tool-textarea"
-                  placeholder="Olá! Segue seu atendimento..."
-                ></textarea>
-              </div>
-
-              <div v-if="waLink" class="wa-preview-box">
-                <span class="wa-preview-label">Link gerado:</span>
-                <div class="wa-preview-url" :title="waLink">{{ waLink }}</div>
-              </div>
-
-              <div class="tool-actions-row">
-                <button
-                  type="button"
-                  class="tool-btn-primary"
-                  :disabled="!cleanWaPhone"
-                  @click="copyWaLink"
-                >
-                  <i class="fa-solid" :class="waCopied ? 'fa-check' : 'fa-copy'"></i>
-                  <span>{{ waCopied ? 'Copiado!' : 'Copiar Link' }}</span>
-                </button>
-                <button
-                  type="button"
-                  class="tool-btn-secondary"
-                  :disabled="!cleanWaPhone"
-                  @click="openWaChat"
-                  title="Abrir conversa"
-                >
-                  <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                </button>
-                <button
-                  type="button"
-                  class="tool-btn-ghost"
-                  @click="clearWa"
-                  title="Limpar campos"
-                >
-                  <i class="fa-solid fa-trash-can"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-        </Teleport>
-      </div>
-
-      <!-- 3. Balão: Validador & Formatador CPF / CNPJ -->
+      <!-- 2. Balão: Validador & Formatador CPF / CNPJ -->
       <div class="tool-bubble-item" ref="docWrapperRef">
         <button
           type="button"
@@ -296,63 +200,6 @@
         </Teleport>
       </div>
 
-      <!-- 5. Balão: Atalhos Rápidos do Sistema -->
-      <div class="tool-bubble-item" ref="shortcutsWrapperRef">
-        <button
-          type="button"
-          class="tool-bubble-btn tool-btn-shortcuts"
-          :class="{ active: activePopover === 'shortcuts' }"
-          title="Atalhos Rápidos"
-          aria-label="Atalhos Rápidos"
-          @click="togglePopover('shortcuts')"
-        >
-          <i class="fa-solid fa-keyboard"></i>
-        </button>
-        <div class="tool-bubble-tooltip">
-          <span>Atalhos Rápidos</span>
-        </div>
-
-        <!-- Popover Flutuante de Atalhos Rápidos -->
-        <Teleport to="body">
-          <div
-            v-if="activePopover === 'shortcuts'"
-            class="tool-floating-popover shortcuts-popover"
-            @click.stop
-          >
-            <div class="popover-header">
-              <div class="popover-header-title">
-                <i class="fa-solid fa-keyboard shortcuts-icon-header"></i>
-                <span>Atalhos Rápidos</span>
-              </div>
-              <button type="button" class="popover-close-btn" @click="closePopovers" title="Fechar (Esc)">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-            <div class="shortcuts-list">
-              <div class="shortcut-row">
-                <span class="shortcut-desc">Enviar mensagem</span>
-                <kbd class="shortcut-kbd">Enter</kbd>
-              </div>
-              <div class="shortcut-row">
-                <span class="shortcut-desc">Quebra de linha</span>
-                <kbd class="shortcut-kbd">Shift + Enter</kbd>
-              </div>
-              <div class="shortcut-row">
-                <span class="shortcut-desc">Buscar mensagens rápidas</span>
-                <kbd class="shortcut-kbd">/</kbd>
-              </div>
-              <div class="shortcut-row">
-                <span class="shortcut-desc">Fechar janela / painel</span>
-                <kbd class="shortcut-kbd">Esc</kbd>
-              </div>
-              <div class="shortcut-row">
-                <span class="shortcut-desc">Recolher/Expandir menu</span>
-                <kbd class="shortcut-kbd">&gt; ou &lt;</kbd>
-              </div>
-            </div>
-          </div>
-        </Teleport>
-      </div>
     </div>
 
     <!-- Drawer do Bloco de Notas já existente -->
@@ -372,14 +219,13 @@ const hasDirtyTab = computed(() => {
 })
 
 // Controle de Popover Ativo (apenas 1 aberto por vez)
-const activePopover = ref(null) // 'whatsapp' | 'doc' | 'calc' | 'shortcuts' | null
+const activePopover = ref(null) // 'doc' | 'calc' | null
 
 function togglePopover(name) {
   if (activePopover.value === name) {
     activePopover.value = null
   } else {
     activePopover.value = name
-    // Se o bloco de notas estiver aberto, mantemos; caso queira fechar, podemos fechar
   }
 }
 
@@ -392,64 +238,7 @@ function toggleNotepad() {
   notepad.toggle()
 }
 
-// ─── 1. GERADOR LINK WHATSAPP ────────────────────────────────────────────────
-const waPhone = ref('')
-const waMessage = ref('')
-const waCopied = ref(false)
-
-const cleanWaPhone = computed(() => {
-  return waPhone.value.replace(/\D/g, '')
-})
-
-function formatWaPhone() {
-  let digits = waPhone.value.replace(/\D/g, '')
-  if (digits.startsWith('55') && digits.length > 11) {
-    digits = digits.substring(2)
-  }
-  if (digits.length > 11) digits = digits.slice(0, 11)
-  
-  if (digits.length <= 2) {
-    waPhone.value = digits ? `(${digits}` : ''
-  } else if (digits.length <= 6) {
-    waPhone.value = `(${digits.slice(0, 2)}) ${digits.slice(2)}`
-  } else if (digits.length <= 10) {
-    waPhone.value = `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
-  } else {
-    waPhone.value = `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`
-  }
-}
-
-const waLink = computed(() => {
-  const digits = cleanWaPhone.value
-  if (!digits) return ''
-  const fullNum = digits.startsWith('55') && digits.length >= 12 ? digits : `55${digits}`
-  const base = `https://wa.me/${fullNum}`
-  return waMessage.value.trim() ? `${base}?text=${encodeURIComponent(waMessage.value.trim())}` : base
-})
-
-async function copyWaLink() {
-  if (!waLink.value) return
-  try {
-    await navigator.clipboard.writeText(waLink.value)
-    waCopied.value = true
-    setTimeout(() => { waCopied.value = false }, 2000)
-  } catch (err) {
-    console.error('Erro ao copiar link:', err)
-  }
-}
-
-function openWaChat() {
-  if (!waLink.value) return
-  window.open(waLink.value, '_blank', 'noopener,noreferrer')
-}
-
-function clearWa() {
-  waPhone.value = ''
-  waMessage.value = ''
-  waCopied.value = false
-}
-
-// ─── 2. VALIDADOR CPF / CNPJ ─────────────────────────────────────────────────
+// ─── 1. VALIDADOR CPF / CNPJ ─────────────────────────────────────────────────
 const docInput = ref('')
 const docCopiedFmt = ref(false)
 const docCopiedCln = ref(false)

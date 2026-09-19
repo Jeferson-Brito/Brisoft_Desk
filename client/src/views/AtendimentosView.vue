@@ -144,7 +144,7 @@ onBeforeUnmount(() => {
 .atendimentos-view-layout {
   position: relative;
   display: flex;
-  height: 100vh;
+  height: 100%;
   width: 100%;
   overflow: hidden;
   background-color: #ffffff;
@@ -153,7 +153,7 @@ onBeforeUnmount(() => {
 .atendimentos-main-grid {
   display: flex;
   flex: 1;
-  height: 100vh;
+  height: 100%;
   min-height: 0;
   min-width: 0;
   overflow: hidden;

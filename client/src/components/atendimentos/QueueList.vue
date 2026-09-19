@@ -209,10 +209,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useTicketStore } from '@/stores/tickets.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { useNavigationStore } from '@/stores/navigation.store'
 import QueueItem from '@/components/atendimentos/QueueItem.vue'
 import NewConversationModal from '@/components/atendimentos/NewConversationModal.vue'
 
@@ -221,6 +222,7 @@ const emit = defineEmits(['ticket-selected'])
 const ticketStore = useTicketStore()
 const settingsStore = useSettingsStore()
 const authStore = useAuthStore()
+const nav = useNavigationStore()
 
 const currentTab = ref('aguardando')
 const searchTerm = ref('')
@@ -231,6 +233,48 @@ const unreadFirst = ref(false)
 const onlyMine = ref(false)
 const showFilterPopover = ref(false)
 const showNewConversation = ref(false)
+
+// ─── Sincronização com o Menu Superior (Bitrix24) ───────────────────────────
+watch(() => nav.atendimentosTab, (newTab) => {
+  if (newTab === 'todos') {
+    currentTab.value = 'todos'
+    onlyMine.value = false
+  } else if (newTab === 'aguardando') {
+    currentTab.value = 'aguardando'
+    onlyMine.value = false
+  } else if (newTab === 'em_atendimento') {
+    currentTab.value = 'em_atendimento'
+    onlyMine.value = false
+  } else if (newTab === 'grupos') {
+    currentTab.value = 'grupos'
+    onlyMine.value = false
+  } else if (newTab === 'meus') {
+    currentTab.value = 'em_atendimento'
+    onlyMine.value = true
+  }
+})
+
+watch(() => nav.atendimentosDept, (newDept) => {
+  selectedDepartment.value = newDept || ''
+})
+
+watch(() => nav.atendimentosAction, (act) => {
+  if (act === 'new_conversation') {
+    showNewConversation.value = true
+  }
+})
+
+watch([currentTab, onlyMine], ([tab, mine]) => {
+  if (mine) {
+    nav.atendimentosTab = 'meus'
+  } else {
+    nav.atendimentosTab = tab
+  }
+})
+
+watch(selectedDepartment, (dept) => {
+  nav.atendimentosDept = dept || ''
+})
 
 onMounted(() => {
   if (settingsStore.departments.length === 0) {
@@ -377,7 +421,7 @@ const filteredTickets = computed(() => {
   border-right: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   box-sizing: border-box;
   overflow: hidden;
   position: relative;

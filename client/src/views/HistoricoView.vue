@@ -500,15 +500,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ticketsApi } from '@/api/tickets.api'
 import { useSettingsStore } from '@/stores/settings.store'
+import { useAuthStore } from '@/stores/auth.store'
+import { useNavigationStore } from '@/stores/navigation.store'
 import { formatPhone, formatCnpjCpf, formatDateTime } from '@/utils/formatters'
 import { normalizePersonName } from '@/utils/person-display'
 import ChatBubble from '@/components/atendimentos/ChatBubble.vue'
 import ModalEditarContato from '@/components/modals/ModalEditarContato.vue'
 
 const settingsStore = useSettingsStore()
+const authStore = useAuthStore()
+const nav = useNavigationStore()
 
 const historyList = ref([])
 const loading = ref(false)
@@ -531,6 +535,33 @@ const filters = ref({
   rating: '',
   dateFrom: '',
   dateTo: ''
+})
+
+// Sincronização com Topbar (Bitrix24)
+watch(() => nav.historicoTab, (tab) => {
+  if (tab === 'todos') {
+    filters.value.agent = ''
+    filters.value.rating = ''
+  } else if (tab === 'meus') {
+    filters.value.agent = authStore.user?.name || ''
+    filters.value.rating = ''
+  } else if (tab === 'avaliados') {
+    filters.value.rating = 'com_avaliacao'
+  }
+  currentPage.value = 1
+})
+
+watch(() => nav.historicoDept, (dept) => {
+  filters.value.department = dept || ''
+  currentPage.value = 1
+})
+
+watch(() => nav.historicoAction, (action) => {
+  if (action === 'clear_filters') {
+    clearFilters()
+  } else if (action === 'export_csv') {
+    exportFilteredHistoryCsv()
+  }
 })
 
 function toggleSearch() {
@@ -621,6 +652,29 @@ function clearFilters() {
   currentPage.value = 1
 }
 
+function exportFilteredHistoryCsv() {
+  const list = filteredHistory.value
+  if (!list.length) return
+  let csv = '\uFEFFProtocolo;Cliente;Telefone;Departamento;Atendente;Avaliação;Data\r\n'
+  for (const row of list) {
+    const proto = row.protocolo || row.id || ''
+    const client = (row.clientName || row.client_name || '').replace(/;/g, ',')
+    const phone = row.phone || ''
+    const dept = row.deptFinal || row.department || ''
+    const agent = row.agent || row.encerrado_por || ''
+    const rating = row.rating ? `${row.rating} estrelas` : 'Sem avaliação'
+    const date = row.closed_at || row.created_at || ''
+    csv += `${proto};${client};${phone};${dept};${agent};${rating};${date}\r\n`
+  }
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `historico_conversas_${new Date().toISOString().slice(0, 10)}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 const filteredHistory = computed(() => {
   return historyList.value.filter(item => {
     // 1. Busca textual
@@ -649,7 +703,9 @@ const filteredHistory = computed(() => {
 
     // 4. Avaliação CSAT
     if (filters.value.rating) {
-      if (filters.value.rating === 'sem_avaliacao') {
+      if (filters.value.rating === 'com_avaliacao') {
+        if (!item.rating) return false
+      } else if (filters.value.rating === 'sem_avaliacao') {
         if (item.rating) return false
       } else {
         if (String(item.rating) !== String(filters.value.rating)) return false

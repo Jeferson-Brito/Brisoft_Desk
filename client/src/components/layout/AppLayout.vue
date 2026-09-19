@@ -2,9 +2,9 @@
   <!-- Layout padrão para todas as rotas autenticadas -->
   <div class="app-container">
     <AppSidebar />
-    <main class="main-wrapper" :class="{ 'is-inbox-view': isInboxView }">
-      <AppTopbar v-if="!isInboxView" />
-      <div class="views-container" :class="{ 'no-topbar': isInboxView }">
+    <main class="main-wrapper">
+      <AppTopbar />
+      <div class="views-container">
         <RouterView />
       </div>
     </main>
@@ -13,14 +13,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppTopbar  from '@/components/layout/AppTopbar.vue'
 import ToolsSidebar from '@/components/layout/ToolsSidebar.vue'
-
-const route = useRoute()
-const isInboxView = computed(() => route.path.startsWith('/atendimentos'))
 </script>
 
 <style scoped>
@@ -41,19 +36,11 @@ const isInboxView = computed(() => route.path.startsWith('/atendimentos'))
   overflow: hidden;
 }
 
-.main-wrapper.is-inbox-view {
-  height: 100vh;
-}
-
 .views-container {
   flex: 1;
-  height: calc(100vh - 58px);
+  height: calc(100vh - 48px);
   min-height: 0;
   overflow: hidden;
   display: flex;
-}
-
-.views-container.no-topbar {
-  height: 100vh;
 }
 </style>

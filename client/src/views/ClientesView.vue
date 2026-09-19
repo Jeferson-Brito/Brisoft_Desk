@@ -216,16 +216,18 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import api from '@/api/http'
 import { formatPhone } from '@/utils/formatters'
 import { normalizePersonName } from '@/utils/person-display'
 import { parseCsv, rowsToContacts } from '@/utils/contact-import'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useNavigationStore } from '@/stores/navigation.store'
 
 const auth = useAuthStore()
 const ui = useUiStore()
+const nav = useNavigationStore()
 
 const contacts = ref([])
 const loading = ref(true)
@@ -241,6 +243,27 @@ const activeContactTab = ref('customers')
 const importInput = ref(null)
 const importing = ref(false)
 const importSummary = ref('')
+
+// Sincronização com o Topbar (Bitrix24)
+watch(() => nav.clientesTab, (newTab) => {
+  if (newTab === 'customers' || newTab === 'employees') {
+    activeContactTab.value = newTab
+  }
+})
+
+watch(activeContactTab, (tab) => {
+  nav.clientesTab = tab
+})
+
+watch(() => nav.clientesAction, (action) => {
+  if (action === 'new_contact') {
+    openNewModal()
+  } else if (action === 'import') {
+    importInput.value?.click()
+  } else if (action === 'template') {
+    downloadImportTemplate()
+  }
+})
 
 const emptyForm = () => ({ name: '', phone: '', email: '', cnpj: '', channel: 'WhatsApp', status: 'Ativo', notes: '', is_employee: false, avatar_url: null })
 const form = ref(emptyForm())
