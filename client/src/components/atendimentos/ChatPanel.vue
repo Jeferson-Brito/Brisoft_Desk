@@ -4,8 +4,8 @@
     <div v-if="ticket" class="chat-header">
       <!-- Botão Voltar (mobile) -->
       <button
+        type="button"
         class="chat-back-btn"
-        style="display:none;"
         title="Voltar para fila"
         @click="$emit('go-back')"
       >
@@ -252,30 +252,6 @@
       class="chat-footer"
       id="chatFooter"
     >
-      <!-- Linha 1: Abas de Modo (Responder vs Observação) -->
-      <div class="chat-mode-tabs">
-        <div class="chat-mode-tabs-left">
-          <button
-            type="button"
-            class="chat-mode-btn"
-            :class="{ active: chatMode === 'responder' }"
-            id="chatModeResponder"
-            @click="setChatMode('responder')"
-          >
-            Responder
-          </button>
-          <button
-            type="button"
-            class="chat-mode-btn"
-            :class="{ active: chatMode === 'observacao' }"
-            id="chatModeObs"
-            @click="setChatMode('observacao')"
-          >
-            Observação
-          </button>
-        </div>
-      </div>
-
       <!-- Linha 2: Input + Ações -->
       <div v-if="showQuickMessages" class="composer-popover quick-message-popover">
         <div class="composer-popover-header">
@@ -348,8 +324,8 @@
           v-model="inputMsg"
           id="chatMessageInput"
           rows="1"
-          :disabled="ticket?.whatsapp_disconnected && chatMode !== 'observacao'"
-          :placeholder="ticket?.whatsapp_disconnected && chatMode !== 'observacao' ? 'WhatsApp desconectado. Reconecte para responder este contato...' : (editingMessage ? 'Corrija sua mensagem...' : (chatMode === 'observacao' ? 'Digite uma observação interna (visível apenas para atendentes)...' : 'Escreva uma mensagem...'))"
+          :disabled="ticket?.whatsapp_disconnected"
+          :placeholder="ticket?.whatsapp_disconnected ? 'WhatsApp desconectado. Reconecte para responder este contato...' : (editingMessage ? 'Corrija sua mensagem...' : 'Escreva uma mensagem...')"
           @input="adjustTextareaHeight"
           @paste="handleComposerPaste"
           @keydown.enter.exact.prevent="sendMessage"
@@ -370,7 +346,7 @@
           type="button"
           class="btn-primary composer-send-btn"
           :title="ticket?.whatsapp_disconnected ? 'WhatsApp desconectado' : 'Enviar (Enter)'"
-          :disabled="sendingMedia || (ticket?.whatsapp_disconnected && chatMode !== 'observacao')"
+          :disabled="sendingMedia || ticket?.whatsapp_disconnected"
           @click="sendMessage"
         >
           <span class="composer-icon-box"><i class="ri-send-plane-2-line"></i></span>
@@ -606,7 +582,6 @@ function callTime(value) {
 }
 
 const inputMsg = ref('')
-const chatMode = ref('responder') // 'responder' | 'observacao'
 const emojis = ['😀', '😊', '😉', '😍', '🥰', '😄', '😂', '🙂', '🙏', '👏', '👍', '👎', '✅', '⚠️', '📌', '📎', '📞', '💬', '🎉', '❤️', '💙', '⭐', '🔥', '🤝', '👋', '⏳', '🚚', '💰', '🔧', '📋']
 
 const filteredQuickMessages = computed(() => {
@@ -925,39 +900,15 @@ watch(canSend, (val) => {
   if (val) focusInput()
 })
 
-function setChatMode(mode) {
-  chatMode.value = mode
-  if (mode === 'observacao') cancelMessageContext()
-  focusInput()
-}
-
-function messagePlainText(message) {
-  if (!message) return ''
-  const mediaFallback = ({ image: 'Imagem', sticker: 'Figurinha', video: 'Vídeo', audio: 'Áudio', document: message.file_name || 'Documento' })[message.type]
-  return String(message.text || mediaFallback || 'Mensagem')
-    .replace(/^\*[^*]+:\*\s*/s, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 150)
-}
-
-function messageAuthorLabel(message) {
-  if (!message) return 'mensagem'
-  if (message.sender === 'client') return props.ticket?.clientName || props.ticket?.client_name || 'cliente'
-  return message.sender_name || 'atendente'
-}
-
 function startReply(message) {
   editingMessage.value = null
   replyingMessage.value = message
-  chatMode.value = 'responder'
   focusInput()
 }
 
 function startEdit(message) {
   replyingMessage.value = null
   editingMessage.value = message
-  chatMode.value = 'responder'
   inputMsg.value = messagePlainText(message)
   nextTick(adjustTextareaHeight)
   focusInput()
@@ -1081,7 +1032,7 @@ function clearPastedImage() {
 }
 
 function handleComposerPaste(event) {
-  if (chatMode.value !== 'responder' || editingMessage.value || !canSend.value) return
+  if (editingMessage.value || !canSend.value) return
   const imageItem = [...(event.clipboardData?.items || [])].find(item => item.kind === 'file' && item.type.startsWith('image/'))
   if (!imageItem) return
   const sourceFile = imageItem.getAsFile()
@@ -1233,12 +1184,12 @@ async function sendMessage() {
   const text = inputMsg.value.trim()
   if (!props.ticket) return
 
-  if (props.ticket?.whatsapp_disconnected && chatMode.value !== 'observacao') {
+  if (props.ticket?.whatsapp_disconnected) {
     ui.showToast('O WhatsApp deste departamento está desconectado. Reconecte o WhatsApp para enviar mensagens.', 'warning')
     return
   }
 
-  if (pastedImage.value && !editingMessage.value && chatMode.value === 'responder') {
+  if (pastedImage.value && !editingMessage.value) {
     const image = pastedImage.value.file
     clearPastedImage()
     await sendMediaFile(image, 'image', text)
@@ -1263,30 +1214,25 @@ async function sendMessage() {
     return
   }
 
-  const isObs = chatMode.value === 'observacao'
   const agentName = authStore.user?.name || 'Atendente'
   const now = new Date()
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 
-  const formattedText = isObs
-    ? null
-    : `*${agentName}:*\n\n${text}`
+  const formattedText = isAssuming.value ? text : `*${agentName}:*\n\n${text}`
 
-  const msg = isObs
-    ? { type: 'divider', text: `📌 NOTA INTERNA (${agentName}): ${text}`, time: timeStr }
-    : {
-        sender: 'agent',
-        user_id: authStore.user?.id,
-        sender_name: agentName,
-        text: formattedText,
-        time: timeStr,
-        read: true,
-        ...(replyingMessage.value ? {
-          reply_to_message_id: replyingMessage.value.id,
-          reply_preview: messagePlainText(replyingMessage.value),
-          reply_sender: messageAuthorLabel(replyingMessage.value)
-        } : {})
-      }
+  const msg = {
+    sender: 'agent',
+    user_id: authStore.user?.id,
+    sender_name: agentName,
+    text: formattedText,
+    time: timeStr,
+    read: true,
+    ...(replyingMessage.value ? {
+      reply_to_message_id: replyingMessage.value.id,
+      reply_preview: messagePlainText(replyingMessage.value),
+      reply_sender: messageAuthorLabel(replyingMessage.value)
+    } : {})
+  }
 
   const replyToMessageId = replyingMessage.value?.id || null
   ticketStore.appendMessage(props.ticket.id, msg)
@@ -1295,12 +1241,10 @@ async function sendMessage() {
   scrollToBottom()
   focusInput()
 
-  if (!isObs) {
-    try {
-      await ticketsApi.sendMessage(props.ticket.id, text, replyToMessageId)
-    } catch (e) {
-      console.warn('Erro ao enviar mensagem:', e)
-    }
+  try {
+    await ticketsApi.sendMessage(props.ticket.id, text, replyToMessageId)
+  } catch (error) {
+    ui.showToast(error.response?.data?.error || error.message || 'Erro ao enviar mensagem', 'error')
   }
 }
 
@@ -2347,5 +2291,63 @@ watch(inputMsg, (newVal) => {
 
 .chat-input-row.is-disconnected {
   opacity: 0.85;
+}
+
+@media (max-width: 768px) {
+  .chat-column {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .chat-back-btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #475569;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-right: 6px;
+  }
+
+  .chat-header {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .chat-header-title-box {
+    max-width: calc(100% - 85px);
+  }
+
+  .chat-header-avatar {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+  }
+
+  .chat-header-tools > .header-tool-btn:nth-child(1),
+  .chat-header-tools > .header-tool-btn:nth-child(2),
+  .history-dropdown-wrapper {
+    display: none !important;
+  }
+
+  .chat-footer {
+    padding: 6px 10px 8px;
+  }
+
+  .chat-kpi-bar-collapsed {
+    padding: 4px 10px;
+  }
+
+  .chat-kpi-bar {
+    grid-template-columns: repeat(2, 1fr);
+    padding: 8px;
+    gap: 6px;
+  }
 }
 </style>

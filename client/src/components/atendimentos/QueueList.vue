@@ -859,4 +859,13 @@ const filteredTickets = computed(() => {
   font-size: 12px;
   text-align: center;
 }
+
+@media (max-width: 768px) {
+  .queue-column {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    border-right: none !important;
+  }
+}
 </style>

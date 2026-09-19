@@ -18,7 +18,7 @@
         :performance="performance"
         :is-details-open="isDetailsOpen && !!ticketStore.activeTicket"
         @toggle-details="isDetailsOpen = !isDetailsOpen"
-        @go-back="mobilePanel = 'queue'"
+        @go-back="onGoBack"
       />
 
       <!-- Coluna 3: Detalhes do Atendimento & Contato -->
@@ -74,6 +74,11 @@ let liveSyncRunning        = false
 
 function onTicketSelected() {
   mobilePanel.value = 'chat'
+}
+
+function onGoBack() {
+  mobilePanel.value = 'queue'
+  ticketStore.minimizeActiveTicket()
 }
 
 function minimizeActiveChat(event) {
@@ -162,12 +167,32 @@ onBeforeUnmount(() => {
 @media (max-width: 768px) {
   .atendimentos-main-grid {
     position: relative;
+    width: 100%;
   }
-  .atendimentos-main-grid.mobile-chat-active .queue-column {
-    display: none;
+  .atendimentos-main-grid.mobile-chat-active :deep(.queue-column) {
+    display: none !important;
   }
-  .atendimentos-main-grid:not(.mobile-chat-active) .chat-column {
-    display: none;
+  .atendimentos-main-grid:not(.mobile-chat-active) :deep(.chat-column) {
+    display: none !important;
+  }
+  .atendimentos-main-grid.mobile-chat-active :deep(.chat-column) {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+  }
+  .atendimentos-main-grid:not(.mobile-chat-active) :deep(.queue-column) {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+  }
+  :deep(.contact-drawer) {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 2000 !important;
   }
 }
 </style>

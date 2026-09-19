@@ -120,7 +120,7 @@
         @click="ui.openModal('new_conversation')"
       >
         <span class="btn-icon-box"><i class="ri-add-line"></i></span>
-        <span>Novo atendimento</span>
+        <span class="btn-cta-text">Novo atendimento</span>
       </button>
     </div>
   </header>
@@ -676,6 +676,27 @@ onUnmounted(() => {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+  }
+  .btn-new-attendance-cta {
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border-radius: 8px;
+    justify-content: center;
+    gap: 0;
+  }
+  .btn-new-attendance-cta .btn-cta-text {
+    display: none !important;
+  }
+  .topbar-right-area {
+    gap: 8px;
+  }
+  .online-indicator-btn {
+    padding: 3px 8px;
+  }
+  .online-label-text {
+    font-size: 11px;
   }
 }
 </style>
