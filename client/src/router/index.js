@@ -26,7 +26,13 @@ const routes = [
     component: AppLayout,
     meta: { requiresAuth: true },
     children: [
-      { path: '',                  name: 'dashboard',         component: DashboardView, meta: { requiresAdmin: true } },
+      {
+        path: '',
+        alias: ['dashboard', '/dashboard'],
+        name: 'dashboard',
+        component: DashboardView,
+        meta: { requiresAdmin: true }
+      },
       { path: 'atendimentos',      name: 'atendimentos',      component: AtendimentosView      },
       { path: 'historico',         name: 'historico',         component: HistoricoView         },
       { path: 'desempenho',        name: 'desempenho',        component: AvaliacoesView        },

@@ -27,7 +27,13 @@
     <!-- Navigation Links -->
     <nav class="sidebar-nav">
       <!-- Dashboard (Relógio/Pie) -->
-      <RouterLink class="nav-item" to="/dashboard" active-class="active" title="Dashboard">
+      <RouterLink
+        class="nav-item"
+        to="/dashboard"
+        :class="{ active: isDashboardActive }"
+        active-class="active"
+        title="Dashboard"
+      >
         <span class="nav-icon-box"><i class="ri-pie-chart-2-line"></i></span>
         <span class="nav-label">Dashboard</span>
       </RouterLink>
@@ -167,6 +173,10 @@ const showUserDropdown = ref(false)
 const userMenuRef = ref(null)
 const mobileOpen = computed(() => sidebar.mobileOpen)
 const isExpanded = computed(() => sidebar.isExpanded)
+
+const isDashboardActive = computed(() => {
+  return route.name === 'dashboard' || route.path === '/' || route.path === '/dashboard'
+})
 
 function toggleExpanded() {
   sidebar.toggleExpanded()
