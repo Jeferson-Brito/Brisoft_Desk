@@ -10,149 +10,51 @@
       <i class="fa-solid fa-bars"></i>
     </button>
 
-    <!-- Trilho de Navegação de Abas (Estilo Bitrix24) -->
-    <div class="topbar-tabs-track">
+    <!-- Trilho de Navegação de Abas (Estilo Bitrix24 - Desativadas/Informativas no momento) -->
+    <div class="topbar-tabs-track" aria-label="Navegação do módulo">
 
       <!-- ================================================================= -->
       <!-- 1. MÓDULO: ATENDIMENTOS (/atendimentos)                          -->
       <!-- ================================================================= -->
       <template v-if="currentModule === 'atendimentos'">
-        <!-- Aba: Fila Geral / Todos -->
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.atendimentosTab === 'todos' && !nav.atendimentosDept }"
-          @click="selectAtendimentosTab('todos')"
-        >
+        <div class="topbar-nav-tab is-disabled active">
           <i class="fa-solid fa-inbox"></i>
           <span>Fila Geral</span>
-        </button>
+        </div>
 
-        <!-- Aba: Aguardando -->
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.atendimentosTab === 'aguardando' }"
-          @click="selectAtendimentosTab('aguardando')"
-        >
+        <div class="topbar-nav-tab is-disabled">
           <span>Aguardando</span>
           <span
-            class="topbar-tab-badge"
-            :class="{ 'badge-alert': waitingCount > 0, 'active': nav.atendimentosTab === 'aguardando' }"
+            v-if="waitingCount > 0"
+            class="topbar-tab-badge badge-alert"
           >
             {{ waitingCount }}
           </span>
-        </button>
+        </div>
 
-        <!-- Aba: Em Atendimento -->
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.atendimentosTab === 'em_atendimento' }"
-          @click="selectAtendimentosTab('em_atendimento')"
-        >
+        <div class="topbar-nav-tab is-disabled">
           <span>Em atendimento</span>
           <span
+            v-if="inProgressCount > 0"
             class="topbar-tab-badge"
-            :class="{ 'active': nav.atendimentosTab === 'em_atendimento' }"
           >
             {{ inProgressCount }}
           </span>
-        </button>
+        </div>
 
-        <!-- Aba: Grupos WhatsApp -->
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.atendimentosTab === 'grupos' }"
-          @click="selectAtendimentosTab('grupos')"
-        >
+        <div class="topbar-nav-tab is-disabled">
           <span>Grupos</span>
           <span
+            v-if="groupCount > 0"
             class="topbar-tab-badge"
-            :class="{ 'active': nav.atendimentosTab === 'grupos' }"
           >
             {{ groupCount }}
           </span>
-        </button>
-
-        <!-- Aba: Meus Atendimentos -->
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.atendimentosTab === 'meus' }"
-          @click="selectAtendimentosTab('meus')"
-        >
-          <i class="fa-solid fa-user-check"></i>
-          <span>Meus</span>
-        </button>
-
-        <!-- Dropdown: Departamentos -->
-        <div class="topbar-dropdown-wrapper" ref="deptDropdownRef">
-          <button
-            type="button"
-            class="topbar-nav-tab tab-has-dropdown"
-            :class="{ active: Boolean(nav.atendimentosDept), open: activeDropdown === 'atendimentos_dept' }"
-            @click="toggleDropdown('atendimentos_dept')"
-          >
-            <i class="fa-solid fa-building-user"></i>
-            <span>{{ nav.atendimentosDept ? `Setor: ${nav.atendimentosDept}` : 'Departamentos' }}</span>
-            <i class="fa-solid fa-chevron-down caret-icon"></i>
-          </button>
-
-          <Transition name="dropdown-pop">
-            <div v-if="activeDropdown === 'atendimentos_dept'" class="topbar-dropdown-menu">
-              <div
-                class="dropdown-menu-item"
-                :class="{ active: !nav.atendimentosDept }"
-                @click="selectAtendimentosDept('')"
-              >
-                <i class="fa-solid fa-layer-group"></i>
-                <span>Todos os setores</span>
-              </div>
-              <div
-                v-for="d in allowedDepartments"
-                :key="d.id"
-                class="dropdown-menu-item"
-                :class="{ active: nav.atendimentosDept === d.name }"
-                @click="selectAtendimentosDept(d.name)"
-              >
-                <span class="dept-dot" :style="{ background: d.color || '#2563eb' }"></span>
-                <span>{{ d.name }}</span>
-              </div>
-            </div>
-          </Transition>
         </div>
 
-        <!-- Dropdown: Mais Ações -->
-        <div class="topbar-dropdown-wrapper" ref="moreActionsRef">
-          <button
-            type="button"
-            class="topbar-nav-tab tab-has-dropdown"
-            :class="{ open: activeDropdown === 'atendimentos_more' }"
-            @click="toggleDropdown('atendimentos_more')"
-          >
-            <span>Ações</span>
-            <i class="fa-solid fa-chevron-down caret-icon"></i>
-          </button>
-
-          <Transition name="dropdown-pop">
-            <div v-if="activeDropdown === 'atendimentos_more'" class="topbar-dropdown-menu">
-              <div class="dropdown-menu-item" @click="handleAtendimentosAction('new_conversation')">
-                <i class="fa-solid fa-plus text-primary"></i>
-                <span>Nova conversa</span>
-              </div>
-              <div class="dropdown-menu-item" @click="handleAtendimentosAction('refresh')">
-                <i class="fa-solid fa-rotate"></i>
-                <span>Atualizar fila</span>
-              </div>
-              <div class="dropdown-divider"></div>
-              <a href="/painel-tv" target="_blank" rel="noopener" class="dropdown-menu-item" @click="closeDropdowns">
-                <i class="fa-solid fa-tv"></i>
-                <span>Abrir Painel TV ↗</span>
-              </a>
-            </div>
-          </Transition>
+        <div class="topbar-nav-tab is-disabled">
+          <i class="fa-solid fa-user-check"></i>
+          <span>Meus Atendimentos</span>
         </div>
       </template>
 
@@ -160,97 +62,24 @@
       <!-- 2. MÓDULO: CONVERSAS / HISTÓRICO (/historico)                    -->
       <!-- ================================================================= -->
       <template v-else-if="currentModule === 'historico'">
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.historicoTab === 'todos' }"
-          @click="selectHistoricoTab('todos')"
-        >
+        <div class="topbar-nav-tab is-disabled active">
           <i class="fa-regular fa-comments"></i>
           <span>Todas as Conversas</span>
-        </button>
-
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.historicoTab === 'meus' }"
-          @click="selectHistoricoTab('meus')"
-        >
-          <i class="fa-solid fa-user-check"></i>
-          <span>Meus Atendimentos</span>
-        </button>
-
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.historicoTab === 'avaliados' }"
-          @click="selectHistoricoTab('avaliados')"
-        >
-          <i class="fa-regular fa-star"></i>
-          <span>Com Avaliação</span>
-        </button>
-
-        <!-- Dropdown Departamentos Histórico -->
-        <div class="topbar-dropdown-wrapper">
-          <button
-            type="button"
-            class="topbar-nav-tab tab-has-dropdown"
-            :class="{ active: Boolean(nav.historicoDept), open: activeDropdown === 'historico_dept' }"
-            @click="toggleDropdown('historico_dept')"
-          >
-            <i class="fa-solid fa-building-user"></i>
-            <span>{{ nav.historicoDept ? `Setor: ${nav.historicoDept}` : 'Filtrar por Setor' }}</span>
-            <i class="fa-solid fa-chevron-down caret-icon"></i>
-          </button>
-
-          <Transition name="dropdown-pop">
-            <div v-if="activeDropdown === 'historico_dept'" class="topbar-dropdown-menu">
-              <div
-                class="dropdown-menu-item"
-                :class="{ active: !nav.historicoDept }"
-                @click="selectHistoricoDept('')"
-              >
-                <i class="fa-solid fa-layer-group"></i>
-                <span>Todos os setores</span>
-              </div>
-              <div
-                v-for="d in allowedDepartments"
-                :key="d.id"
-                class="dropdown-menu-item"
-                :class="{ active: nav.historicoDept === d.name }"
-                @click="selectHistoricoDept(d.name)"
-              >
-                <span class="dept-dot" :style="{ background: d.color || '#2563eb' }"></span>
-                <span>{{ d.name }}</span>
-              </div>
-            </div>
-          </Transition>
         </div>
 
-        <!-- Ações do Histórico -->
-        <div class="topbar-dropdown-wrapper">
-          <button
-            type="button"
-            class="topbar-nav-tab tab-has-dropdown"
-            :class="{ open: activeDropdown === 'historico_more' }"
-            @click="toggleDropdown('historico_more')"
-          >
-            <span>Ações</span>
-            <i class="fa-solid fa-chevron-down caret-icon"></i>
-          </button>
+        <div class="topbar-nav-tab is-disabled">
+          <i class="fa-solid fa-user-check"></i>
+          <span>Meus Atendimentos</span>
+        </div>
 
-          <Transition name="dropdown-pop">
-            <div v-if="activeDropdown === 'historico_more'" class="topbar-dropdown-menu">
-              <div class="dropdown-menu-item" @click="handleHistoricoAction('export_csv')">
-                <i class="fa-solid fa-file-csv"></i>
-                <span>Exportar CSV</span>
-              </div>
-              <div class="dropdown-menu-item" @click="handleHistoricoAction('clear_filters')">
-                <i class="fa-solid fa-filter-circle-xmark"></i>
-                <span>Limpar filtros</span>
-              </div>
-            </div>
-          </Transition>
+        <div class="topbar-nav-tab is-disabled">
+          <i class="fa-solid fa-check-double"></i>
+          <span>Finalizados</span>
+        </div>
+
+        <div class="topbar-nav-tab is-disabled">
+          <i class="fa-regular fa-star"></i>
+          <span>Com Avaliação</span>
         </div>
       </template>
 
@@ -258,227 +87,104 @@
       <!-- 3. MÓDULO: CONTATOS (/clientes)                                   -->
       <!-- ================================================================= -->
       <template v-else-if="currentModule === 'clientes'">
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.clientesTab === 'customers' }"
-          @click="selectClientesTab('customers')"
-        >
+        <div class="topbar-nav-tab is-disabled active">
           <i class="fa-solid fa-user-group"></i>
           <span>Clientes</span>
-        </button>
-
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.clientesTab === 'employees' }"
-          @click="selectClientesTab('employees')"
-        >
-          <i class="fa-solid fa-id-badge"></i>
-          <span>Funcionários</span>
-        </button>
-
-        <!-- Ações de Importação -->
-        <div class="topbar-dropdown-wrapper" v-if="auth.canManageTeam">
-          <button
-            type="button"
-            class="topbar-nav-tab tab-has-dropdown"
-            :class="{ open: activeDropdown === 'clientes_more' }"
-            @click="toggleDropdown('clientes_more')"
-          >
-            <i class="fa-solid fa-file-excel"></i>
-            <span>Planilha</span>
-            <i class="fa-solid fa-chevron-down caret-icon"></i>
-          </button>
-
-          <Transition name="dropdown-pop">
-            <div v-if="activeDropdown === 'clientes_more'" class="topbar-dropdown-menu">
-              <div class="dropdown-menu-item" @click="handleClientesAction('import')">
-                <i class="fa-solid fa-file-import"></i>
-                <span>Importar contatos</span>
-              </div>
-              <div class="dropdown-menu-item" @click="handleClientesAction('template')">
-                <i class="fa-solid fa-download"></i>
-                <span>Baixar modelo de planilha</span>
-              </div>
-            </div>
-          </Transition>
         </div>
 
-        <button
-          type="button"
-          class="topbar-cta-btn"
-          @click="handleClientesAction('new_contact')"
-        >
-          <i class="fa-solid fa-plus"></i>
-          <span>Novo Contato</span>
-        </button>
+        <div class="topbar-nav-tab is-disabled">
+          <i class="fa-solid fa-id-badge"></i>
+          <span>Funcionários</span>
+        </div>
+
+        <div class="topbar-nav-tab is-disabled">
+          <i class="fa-solid fa-building"></i>
+          <span>Empresas</span>
+        </div>
+
+        <div class="topbar-nav-tab is-disabled">
+          <i class="fa-solid fa-tags"></i>
+          <span>Etiquetas</span>
+        </div>
       </template>
 
       <!-- ================================================================= -->
       <!-- 4. MÓDULO: MENSAGENS RÁPIDAS (/mensagens-rapidas)                 -->
       <!-- ================================================================= -->
       <template v-else-if="currentModule === 'mensagens_rapidas'">
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.mensagensTab === 'todas' }"
-          @click="nav.mensagensTab = 'todas'"
-        >
+        <div class="topbar-nav-tab is-disabled active">
           <i class="fa-solid fa-bolt"></i>
           <span>Todas as Mensagens</span>
-        </button>
+        </div>
 
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.mensagensTab === 'gerais' }"
-          @click="nav.mensagensTab = 'gerais'"
-        >
+        <div class="topbar-nav-tab is-disabled">
           <i class="fa-solid fa-globe"></i>
           <span>Gerais / Empresa</span>
-        </button>
+        </div>
 
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.mensagensTab === 'minhas' }"
-          @click="nav.mensagensTab = 'minhas'"
-        >
+        <div class="topbar-nav-tab is-disabled">
           <i class="fa-solid fa-user"></i>
           <span>Minhas Mensagens</span>
-        </button>
+        </div>
 
-        <button
-          type="button"
-          class="topbar-cta-btn"
-          @click="handleMensagensAction('new_message')"
-        >
-          <i class="fa-solid fa-plus"></i>
-          <span>Nova Mensagem</span>
-        </button>
+        <div class="topbar-nav-tab is-disabled">
+          <i class="fa-solid fa-folder-tree"></i>
+          <span>Categorias</span>
+        </div>
       </template>
 
       <!-- ================================================================= -->
       <!-- 5. MÓDULO: DESEMPENHO (/desempenho)                               -->
       <!-- ================================================================= -->
       <template v-else-if="currentModule === 'desempenho'">
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.desempenhoTab === 'visao_geral' }"
-          @click="nav.desempenhoTab = 'visao_geral'"
-        >
+        <div class="topbar-nav-tab is-disabled active">
           <i class="fa-solid fa-chart-line"></i>
           <span>Visão Geral</span>
-        </button>
+        </div>
 
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.desempenhoTab === 'atendentes' }"
-          @click="nav.desempenhoTab = 'atendentes'"
-        >
+        <div class="topbar-nav-tab is-disabled">
           <i class="fa-solid fa-users"></i>
           <span>Atendentes</span>
-        </button>
+        </div>
 
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.desempenhoTab === 'avaliacoes' }"
-          @click="nav.desempenhoTab = 'avaliacoes'"
-        >
+        <div class="topbar-nav-tab is-disabled">
           <i class="fa-regular fa-star"></i>
           <span>Satisfação & CSAT</span>
-        </button>
+        </div>
 
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.desempenhoTab === 'sla' }"
-          @click="nav.desempenhoTab = 'sla'"
-        >
+        <div class="topbar-nav-tab is-disabled">
           <i class="fa-solid fa-gauge-high"></i>
           <span>SLA & Tempos</span>
-        </button>
+        </div>
       </template>
 
       <!-- ================================================================= -->
       <!-- 6. MÓDULO: CONFIGURAÇÕES E ADMINISTRAÇÃO                          -->
       <!-- ================================================================= -->
       <template v-else-if="currentModule === 'configuracoes'">
-        <!-- Conexões WhatsApp -->
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: route.name === 'configuracoes' && (!route.query.tab || route.query.tab === 'conexoes') }"
-          @click="goToSettingsTab('conexoes')"
-        >
+        <div class="topbar-nav-tab is-disabled active">
           <i class="fa-brands fa-whatsapp text-success"></i>
           <span>Conexões WhatsApp</span>
-        </button>
+        </div>
 
-        <!-- Informações da Empresa -->
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: route.name === 'configuracoes' && route.query.tab === 'geral' }"
-          @click="goToSettingsTab('geral')"
-        >
+        <div class="topbar-nav-tab is-disabled">
           <i class="fa-solid fa-sliders"></i>
           <span>Empresa & Geral</span>
-        </button>
+        </div>
 
-        <!-- Departamentos -->
-        <button
-          v-if="auth.isAdmin"
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: route.name === 'configuracoes' && route.query.tab === 'departamentos' }"
-          @click="goToSettingsTab('departamentos')"
-        >
+        <div class="topbar-nav-tab is-disabled">
           <i class="fa-solid fa-building"></i>
           <span>Departamentos</span>
-        </button>
+        </div>
 
-        <!-- Usuários & Equipe -->
-        <button
-          v-if="auth.isAdmin"
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: route.name === 'usuarios' }"
-          @click="router.push('/usuarios')"
-        >
+        <div class="topbar-nav-tab is-disabled">
           <i class="fa-solid fa-users-gear"></i>
           <span>Usuários</span>
-        </button>
+        </div>
 
-        <!-- Dropdown Chatbot & IA -->
-        <div class="topbar-dropdown-wrapper" v-if="auth.isAdmin">
-          <button
-            type="button"
-            class="topbar-nav-tab tab-has-dropdown"
-            :class="{ active: route.name === 'configuracao_ia', open: activeDropdown === 'config_ia' }"
-            @click="toggleDropdown('config_ia')"
-          >
-            <i class="fa-solid fa-robot"></i>
-            <span>Chatbot & IA</span>
-            <i class="fa-solid fa-chevron-down caret-icon"></i>
-          </button>
-
-          <Transition name="dropdown-pop">
-            <div v-if="activeDropdown === 'config_ia'" class="topbar-dropdown-menu">
-              <div class="dropdown-menu-item" @click="router.push('/configuracao-ia'); closeDropdowns()">
-                <i class="fa-solid fa-brain"></i>
-                <span>Configuração do Bot</span>
-              </div>
-              <div class="dropdown-menu-item" @click="goToSettingsTab('bot_regras')">
-                <i class="fa-solid fa-clock"></i>
-                <span>Regras de Inatividade</span>
-              </div>
-            </div>
-          </Transition>
+        <div class="topbar-nav-tab is-disabled">
+          <i class="fa-solid fa-robot"></i>
+          <span>Chatbot & IA</span>
         </div>
       </template>
 
@@ -486,40 +192,20 @@
       <!-- 7. MÓDULO: DASHBOARD (/)                                          -->
       <!-- ================================================================= -->
       <template v-else-if="currentModule === 'dashboard'">
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.dashboardTab === 'visao_geral' }"
-          @click="nav.dashboardTab = 'visao_geral'"
-        >
+        <div class="topbar-nav-tab is-disabled active">
           <i class="fa-solid fa-chart-pie"></i>
           <span>Visão Geral</span>
-        </button>
+        </div>
 
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.dashboardTab === 'tempo_real' }"
-          @click="nav.dashboardTab = 'tempo_real'"
-        >
+        <div class="topbar-nav-tab is-disabled">
           <i class="fa-solid fa-bolt text-warning"></i>
           <span>Filas em Tempo Real</span>
-        </button>
+        </div>
 
-        <button
-          type="button"
-          class="topbar-nav-tab"
-          :class="{ active: nav.dashboardTab === 'metricas' }"
-          @click="nav.dashboardTab = 'metricas'"
-        >
+        <div class="topbar-nav-tab is-disabled">
           <i class="fa-solid fa-calendar-days"></i>
           <span>Métricas do Mês</span>
-        </button>
-
-        <a href="/painel-tv" target="_blank" rel="noopener" class="topbar-nav-tab">
-          <i class="fa-solid fa-tv"></i>
-          <span>Painel TV ↗</span>
-        </a>
+        </div>
       </template>
 
       <!-- Fallback / Outras Telas (ex: Meu Perfil) -->
@@ -529,11 +215,60 @@
 
     </div>
 
-    <!-- Área Direita: Indicadores de Status e Ações Globais -->
+    <!-- Área Direita: Indicador de Usuários Online (com popover de detalhes) -->
     <div class="topbar-right">
-      <div class="system-status-indicator" title="Sistema conectado ao servidor em tempo real">
-        <span class="status-live-dot"></span>
-        <span class="status-live-text">Ao Vivo</span>
+      <div class="online-users-wrapper" ref="onlineUsersDropdownRef">
+        <button
+          type="button"
+          class="online-users-badge"
+          :class="{ open: showOnlineUsersList }"
+          @click="toggleOnlineUsersList"
+          :title="`${onlineCount} usuário(s) conectado(s) no momento. Clique para ver quem está online.`"
+        >
+          <span class="online-pulse-dot"></span>
+          <i class="fa-solid fa-users"></i>
+          <span class="online-users-count">{{ onlineCount }}</span>
+          <span class="online-users-label">{{ onlineCount === 1 ? 'online' : 'online' }}</span>
+          <i class="fa-solid fa-chevron-down caret-mini" :class="{ rotated: showOnlineUsersList }"></i>
+        </button>
+
+        <!-- Dropdown com lista detalhada de usuários online -->
+        <Transition name="dropdown-pop">
+          <div v-if="showOnlineUsersList" class="online-users-popover">
+            <div class="online-popover-header">
+              <div class="popover-title-row">
+                <span class="status-live-dot-mini"></span>
+                <span class="popover-title">Usuários Online</span>
+              </div>
+              <span class="online-count-pill">{{ onlineCount }} conectado{{ onlineCount === 1 ? '' : 's' }}</span>
+            </div>
+
+            <div class="online-users-list-scroll">
+              <div
+                v-for="user in activeUsersList"
+                :key="user.id || user.name"
+                class="online-user-item"
+              >
+                <div class="online-user-avatar">
+                  <img v-if="user.avatar_url" :src="user.avatar_url" :alt="user.name" />
+                  <span v-else class="avatar-initials">{{ getInitials(user.name) }}</span>
+                  <span class="avatar-online-badge"></span>
+                </div>
+                <div class="online-user-details">
+                  <div class="online-user-name-row">
+                    <span class="online-user-name">{{ user.name }}</span>
+                    <span v-if="user.id === auth.user?.id" class="you-chip">Você</span>
+                  </div>
+                  <span class="online-user-role">{{ formatRole(user.role) }}</span>
+                </div>
+              </div>
+
+              <div v-if="activeUsersList.length === 0" class="online-empty-msg">
+                <span>Nenhum usuário detectado</span>
+              </div>
+            </div>
+          </div>
+        </Transition>
       </div>
     </div>
   </header>
@@ -541,23 +276,21 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
+import { useUiStore } from '@/stores/ui.store'
 import { useSidebarStore } from '@/stores/sidebar.store'
 import { useTicketStore } from '@/stores/tickets.store'
-import { useSettingsStore } from '@/stores/settings.store'
-import { useNavigationStore } from '@/stores/navigation.store'
 
 const route = useRoute()
-const router = useRouter()
 const auth = useAuthStore()
+const ui = useUiStore()
 const sidebar = useSidebarStore()
 const ticketStore = useTicketStore()
-const settingsStore = useSettingsStore()
-const nav = useNavigationStore()
 
 const topbarRef = ref(null)
-const activeDropdown = ref(null) // string | null
+const onlineUsersDropdownRef = ref(null)
+const showOnlineUsersList = ref(false)
 
 // ─── Identificação do Módulo Ativo ──────────────────────────────────────────
 const currentModule = computed(() => {
@@ -582,113 +315,68 @@ const waitingCount = computed(() => ticketStore.waitingTickets?.length || 0)
 const inProgressCount = computed(() => ticketStore.inProgressTickets?.length || 0)
 const groupCount = computed(() => ticketStore.groupTickets?.length || 0)
 
-// ─── Departamentos Permitidos ──────────────────────────────────────────────
-const allowedDepartments = computed(() => {
-  if (auth.isAdmin) return settingsStore.departments
-  if (auth.isSupervisor) {
-    const supervisorDepts = (auth.departmentIds || []).map(String)
-    return settingsStore.departments.filter(d => supervisorDepts.includes(String(d.id)))
+// ─── Usuários Online ────────────────────────────────────────────────────────
+const activeUsersList = computed(() => {
+  if (Array.isArray(ui.onlineUsersList) && ui.onlineUsersList.length > 0) {
+    return ui.onlineUsersList
   }
-  return settingsStore.departments
+  // Se ainda não recebeu a lista via socket, usa o usuário autenticado atual como base
+  if (auth.user) {
+    return [{
+      id: auth.user.id,
+      name: auth.user.name || 'Usuário Atual',
+      role: auth.user.role || 'agent',
+      avatar_url: auth.user.avatar_url || null
+    }]
+  }
+  return []
 })
 
-// ─── Funções de Controle de Dropdown ───────────────────────────────────────
-function toggleDropdown(name) {
-  activeDropdown.value = activeDropdown.value === name ? null : name
+const onlineCount = computed(() => {
+  const socketCount = Number(ui.onlineUsersCount) || 0
+  const listCount = activeUsersList.value.length
+  return Math.max(socketCount, listCount, 1)
+})
+
+function toggleOnlineUsersList() {
+  showOnlineUsersList.value = !showOnlineUsersList.value
 }
 
-function closeDropdowns() {
-  activeDropdown.value = null
+function formatRole(role) {
+  if (role === 'admin') return 'Administrador'
+  if (role === 'supervisor') return 'Supervisor'
+  return 'Atendente'
 }
 
+function getInitials(name) {
+  if (!name) return 'U'
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+// Fechar popover ao clicar fora ou pressionar Escape
 function handleDocumentClick(e) {
-  if (topbarRef.value && !topbarRef.value.contains(e.target)) {
-    closeDropdowns()
+  if (onlineUsersDropdownRef.value && !onlineUsersDropdownRef.value.contains(e.target)) {
+    showOnlineUsersList.value = false
   }
 }
 
 function handleEscKey(e) {
   if (e.key === 'Escape') {
-    closeDropdowns()
+    showOnlineUsersList.value = false
   }
 }
 
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
   document.addEventListener('keydown', handleEscKey)
-  if (settingsStore.departments.length === 0) {
-    settingsStore.fetchDepartments()
-  }
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick)
   document.removeEventListener('keydown', handleEscKey)
 })
-
-// ─── Ações de Atendimentos ──────────────────────────────────────────────────
-function selectAtendimentosTab(tab) {
-  nav.atendimentosTab = tab
-  closeDropdowns()
-}
-
-function selectAtendimentosDept(dept) {
-  nav.atendimentosDept = dept
-  closeDropdowns()
-}
-
-function handleAtendimentosAction(action) {
-  closeDropdowns()
-  if (action === 'refresh') {
-    ticketStore.fetchQueue()
-  } else {
-    nav.triggerAtendimentosAction(action)
-  }
-}
-
-// ─── Ações de Histórico ─────────────────────────────────────────────────────
-function selectHistoricoTab(tab) {
-  nav.historicoTab = tab
-  closeDropdowns()
-}
-
-function selectHistoricoDept(dept) {
-  nav.historicoDept = dept
-  closeDropdowns()
-}
-
-function handleHistoricoAction(action) {
-  closeDropdowns()
-  nav.triggerHistoricoAction(action)
-}
-
-// ─── Ações de Clientes ──────────────────────────────────────────────────────
-function selectClientesTab(tab) {
-  nav.clientesTab = tab
-  closeDropdowns()
-}
-
-function handleClientesAction(action) {
-  closeDropdowns()
-  nav.triggerClientesAction(action)
-}
-
-// ─── Ações de Mensagens Rápidas ─────────────────────────────────────────────
-function handleMensagensAction(action) {
-  closeDropdowns()
-  nav.triggerMensagensAction(action)
-}
-
-// ─── Ações de Configurações ─────────────────────────────────────────────────
-function goToSettingsTab(tab) {
-  closeDropdowns()
-  if (route.name !== 'configuracoes') {
-    router.push({ path: '/configuracoes', query: { tab } })
-  } else {
-    router.replace({ query: { ...route.query, tab } })
-    nav.configuracoesTab = tab
-  }
-}
 </script>
 
 <style scoped>
@@ -737,29 +425,29 @@ function goToSettingsTab(tab) {
   display: none;
 }
 
-/* ─── Botão / Pílula de Aba ──────────────────────────────────────────────── */
+/* ─── Pílula de Aba (Visual Bitrix24, Desativada para cliques) ───────────── */
 .topbar-nav-tab {
   height: 32px;
   padding: 0 12px;
   border-radius: 8px;
   font-size: 12.5px;
   font-weight: 500;
-  color: #475569;
+  color: #64748b;
   background: transparent;
   border: 1px solid transparent;
-  cursor: pointer;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   text-decoration: none;
   box-sizing: border-box;
 }
 
-.topbar-nav-tab:hover {
-  background: #f1f5f9;
-  color: #0f172a;
+/* Desativada: sem clique, cursor padrão */
+.topbar-nav-tab.is-disabled {
+  cursor: default !important;
+  pointer-events: none !important;
+  user-select: none;
 }
 
 .topbar-nav-tab.active {
@@ -768,27 +456,6 @@ function goToSettingsTab(tab) {
   font-weight: 600;
   border-color: #bfdbfe;
   box-shadow: 0 1px 2px rgba(37, 99, 235, 0.06);
-}
-
-.topbar-nav-tab.tab-has-dropdown {
-  padding-right: 9px;
-}
-
-.topbar-nav-tab.tab-has-dropdown.open {
-  background: #f1f5f9;
-  color: #0f172a;
-  border-color: #cbd5e1;
-}
-
-.caret-icon {
-  font-size: 9px;
-  color: #94a3b8;
-  transition: transform 0.2s ease;
-}
-
-.topbar-nav-tab.open .caret-icon {
-  transform: rotate(180deg);
-  color: #2563eb;
 }
 
 /* Badge de Contagem na Aba */
@@ -804,101 +471,265 @@ function goToSettingsTab(tab) {
   text-align: center;
 }
 
-.topbar-tab-badge.active {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
 .topbar-tab-badge.badge-alert {
   background: #fee2e2;
   color: #dc2626;
 }
 
-/* Botão de Ação Primária no Header */
-.topbar-cta-btn {
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 7px;
-  background: #2563eb;
-  color: #ffffff;
-  font-size: 12px;
+.topbar-fallback-title {
+  font-size: 14px;
   font-weight: 600;
-  border: none;
-  cursor: pointer;
-  display: inline-flex;
+  color: #1e293b;
+}
+
+/* Cores de Destaque */
+.text-success {
+  color: #22c55e;
+}
+
+.text-warning {
+  color: #f59e0b;
+}
+
+/* ─── Área Direita: Usuários Online ─────────────────────────────────────── */
+.topbar-right {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-  box-shadow: 0 2px 5px rgba(37, 99, 235, 0.22);
-  transition: all 0.16s ease;
-  margin-left: 4px;
+  margin-left: 14px;
+  flex-shrink: 0;
 }
 
-.topbar-cta-btn:hover {
-  background: #1d4ed8;
-  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.32);
-}
-
-/* ─── Menus Suspensos / Dropdown Popovers ─────────────────────────────────── */
-.topbar-dropdown-wrapper {
+.online-users-wrapper {
   position: relative;
   display: inline-flex;
   align-items: center;
 }
 
-.topbar-dropdown-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.15), 0 4px 10px rgba(15, 23, 42, 0.05);
+.online-users-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: #f8fafc;
   border: 1px solid #e2e8f0;
-  min-width: 200px;
-  max-width: 280px;
-  max-height: 340px;
-  overflow-y: auto;
-  padding: 6px;
-  z-index: 1000;
-  box-sizing: border-box;
-}
-
-.dropdown-menu-item {
-  padding: 8px 12px;
-  border-radius: 8px;
   font-size: 12px;
   color: #334155;
-  font-weight: 500;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  transition: background-color 0.14s ease, color 0.14s ease;
-  text-decoration: none;
+  transition: all 0.16s ease;
+  user-select: none;
 }
 
-.dropdown-menu-item:hover {
-  background: #f8fafc;
-  color: #0f172a;
-}
-
-.dropdown-menu-item.active {
-  background: #eff6ff;
-  color: #1d4ed8;
-  font-weight: 600;
-}
-
-.dropdown-divider {
-  height: 1px;
+.online-users-badge:hover,
+.online-users-badge.open {
   background: #f1f5f9;
-  margin: 4px 0;
+  border-color: #cbd5e1;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.dept-dot {
+.online-pulse-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+  animation: pulseGreen 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
   flex-shrink: 0;
+}
+
+@keyframes pulseGreen {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+.online-users-badge i.fa-users {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.online-users-count {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.online-users-label {
+  font-weight: 500;
+  color: #64748b;
+  font-size: 11.5px;
+}
+
+.caret-mini {
+  font-size: 9px;
+  color: #94a3b8;
+  margin-left: 2px;
+  transition: transform 0.2s ease;
+}
+
+.caret-mini.rotated {
+  transform: rotate(180deg);
+  color: #2563eb;
+}
+
+/* Popover Lista de Usuários Online */
+.online-users-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 260px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.04);
+  border: 1px solid #e2e8f0;
+  z-index: 1000;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.online-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.popover-title-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.status-live-dot-mini {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.popover-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.online-count-pill {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #15803d;
+  background: #dcfce7;
+  padding: 2px 7px;
+  border-radius: 12px;
+}
+
+.online-users-list-scroll {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.online-user-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  transition: background-color 0.12s ease;
+}
+
+.online-user-item:hover {
+  background: #f8fafc;
+}
+
+.online-user-avatar {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 700;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.online-user-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatar-online-badge {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 1.5px solid #ffffff;
+}
+
+.online-user-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.online-user-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.online-user-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.you-chip {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 0 4px;
+  border-radius: 4px;
+  line-height: 1.3;
+}
+
+.online-user-role {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.2;
+}
+
+.online-empty-msg {
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: #94a3b8;
 }
 
 /* Transições do Dropdown */
@@ -911,61 +742,6 @@ function goToSettingsTab(tab) {
 .dropdown-pop-leave-to {
   opacity: 0;
   transform: translateY(-6px) scale(0.96);
-}
-
-/* ─── Área Direita: Live Status ─────────────────────────────────────────── */
-.topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-left: 14px;
-  flex-shrink: 0;
-}
-
-.system-status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 20px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  font-size: 11px;
-  color: #64748b;
-  font-weight: 600;
-}
-
-.status-live-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
-  animation: liveDotPulse 2s infinite ease-in-out;
-}
-
-@keyframes liveDotPulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.85); }
-}
-
-.topbar-fallback-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1e293b;
-}
-
-/* Cores de Destaque */
-.text-primary {
-  color: #2563eb;
-}
-
-.text-success {
-  color: #22c55e;
-}
-
-.text-warning {
-  color: #f59e0b;
 }
 
 @media (max-width: 768px) {

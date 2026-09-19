@@ -16,8 +16,10 @@ export const useUiStore = defineStore('ui', () => {
   const whatsappQrCode = ref(null)
   const whatsappAccounts = ref([])
 
-  // Status de conexão com o servidor
+  // Status de conexão com o servidor e usuários online
   const serverOnline = ref(false)
+  const onlineUsersCount = ref(1)
+  const onlineUsersList = ref([])
 
   function switchView(view) {
     activeView.value = view
@@ -38,6 +40,7 @@ export const useUiStore = defineStore('ui', () => {
 
   return {
     activeView, toasts, openModals, whatsappStatus, whatsappQrCode, whatsappAccounts, serverOnline,
+    onlineUsersCount, onlineUsersList,
     switchView, showToast, openModal, closeModal, isModalOpen
   }
 })

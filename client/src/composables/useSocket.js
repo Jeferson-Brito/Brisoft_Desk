@@ -66,6 +66,13 @@ export function useSocket() {
       tickets.notifyKpisUpdated()
     })
 
+    socket.on('online_users', (data) => {
+      if (data) {
+        ui.onlineUsersCount = typeof data.count === 'number' ? data.count : 0
+        ui.onlineUsersList = Array.isArray(data.users) ? data.users : []
+      }
+    })
+
     // ── WhatsApp ─────────────────────────────────────────────────────────────
     socket.on('whatsapp_status', (data) => {
       ui.whatsappStatus = data.status

@@ -504,7 +504,6 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ticketsApi } from '@/api/tickets.api'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useAuthStore } from '@/stores/auth.store'
-import { useNavigationStore } from '@/stores/navigation.store'
 import { formatPhone, formatCnpjCpf, formatDateTime } from '@/utils/formatters'
 import { normalizePersonName } from '@/utils/person-display'
 import ChatBubble from '@/components/atendimentos/ChatBubble.vue'
@@ -512,7 +511,6 @@ import ModalEditarContato from '@/components/modals/ModalEditarContato.vue'
 
 const settingsStore = useSettingsStore()
 const authStore = useAuthStore()
-const nav = useNavigationStore()
 
 const historyList = ref([])
 const loading = ref(false)
@@ -535,33 +533,6 @@ const filters = ref({
   rating: '',
   dateFrom: '',
   dateTo: ''
-})
-
-// Sincronização com Topbar (Bitrix24)
-watch(() => nav.historicoTab, (tab) => {
-  if (tab === 'todos') {
-    filters.value.agent = ''
-    filters.value.rating = ''
-  } else if (tab === 'meus') {
-    filters.value.agent = authStore.user?.name || ''
-    filters.value.rating = ''
-  } else if (tab === 'avaliados') {
-    filters.value.rating = 'com_avaliacao'
-  }
-  currentPage.value = 1
-})
-
-watch(() => nav.historicoDept, (dept) => {
-  filters.value.department = dept || ''
-  currentPage.value = 1
-})
-
-watch(() => nav.historicoAction, (action) => {
-  if (action === 'clear_filters') {
-    clearFilters()
-  } else if (action === 'export_csv') {
-    exportFilteredHistoryCsv()
-  }
 })
 
 function toggleSearch() {

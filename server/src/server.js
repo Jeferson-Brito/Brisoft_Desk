@@ -143,6 +143,28 @@ io.use((socket, next) => {
 });
 
 // Socket.io Connection Handler
+async function broadcastOnlineUsers() {
+  try {
+    const sockets = await io.fetchSockets();
+    const userMap = new Map();
+    for (const s of sockets) {
+      if (s.user?.id) {
+        userMap.set(s.user.id, {
+          id: s.user.id,
+          name: s.user.name,
+          role: s.user.role,
+          avatar_url: s.user.avatar_url || null
+        });
+      }
+    }
+    const users = Array.from(userMap.values());
+    io.emit('online_users', {
+      count: users.length,
+      users
+    });
+  } catch (_) {}
+}
+
 io.on('connection', (socket) => {
   console.log(`🔌 Cliente conectado via WebSocket: ${socket.id}`);
 
@@ -154,9 +176,13 @@ io.on('connection', (socket) => {
   // Envia status atual do WhatsApp assim que o cliente conecta
   socket.emit('whatsapp_status', whatsappService.getStatusForUser(socket.user));
 
+  // Transmite lista e total de usuários online
+  broadcastOnlineUsers();
+
   socket.on('disconnect', () => {
     if (socket.authExpiryTimer) clearTimeout(socket.authExpiryTimer);
     console.log(`❌ Cliente desconectado: ${socket.id}`);
+    setTimeout(broadcastOnlineUsers, 500);
   });
 });
 
