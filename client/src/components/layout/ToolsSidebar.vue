@@ -428,7 +428,8 @@ onUnmounted(() => {
   min-width: 46px;
   max-width: 46px;
   background: #ffffff;
-  border-left: 1px solid #f1f5f9;
+  border-left: 1px solid #e2e8f0;
+  box-shadow: -1px 0 4px rgba(15, 23, 42, 0.03);
   display: flex;
   flex-direction: column;
   align-items: center;

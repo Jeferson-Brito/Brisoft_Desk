@@ -41,44 +41,60 @@
         </div>
       </div>
 
-      <!-- Ações à Direita (estilo Image 2: Phone, Video, Calendar, Search, 3 Dots) -->
+      <!-- Ações à Direita: Botão Assumir quando aguardando, ou Ferramentas quando em atendimento -->
       <div class="chat-header-tools">
-        <button type="button" class="header-tool-btn" title="Ligação">
-          <span class="tool-icon-box"><i class="ri-phone-line"></i></span>
-        </button>
-        <button type="button" class="header-tool-btn" title="Chamada de vídeo">
-          <span class="tool-icon-box"><i class="ri-video-chat-line"></i></span>
+        <!-- Botão Assumir Atendimento (visível enquanto o chamado aguarda e ainda não foi assumido) -->
+        <button
+          v-if="canAssume"
+          type="button"
+          class="btn-assume-header"
+          :disabled="isAssuming"
+          title="Assumir este atendimento"
+          @click="handleAssume"
+        >
+          <i :class="isAssuming ? 'ri-loader-4-line ri-spin' : 'ri-user-follow-line'"></i>
+          <span>{{ isAssuming ? 'Assumindo...' : 'Assumir atendimento' }}</span>
         </button>
 
-        <!-- Janelinha de Histórico do Cliente (Ícone de Calendário estilo Image 2) -->
-        <div v-if="ticket && !ticket.is_group" class="history-dropdown-wrapper" style="position: relative;">
+        <!-- Botões de chamada, vídeo, histórico e busca (aparecem assim que o atendimento for assumido) -->
+        <template v-else>
+          <button type="button" class="header-tool-btn" title="Ligação">
+            <span class="tool-icon-box"><i class="ri-phone-line"></i></span>
+          </button>
+          <button type="button" class="header-tool-btn" title="Chamada de vídeo">
+            <span class="tool-icon-box"><i class="ri-video-chat-line"></i></span>
+          </button>
+
+          <!-- Janelinha de Histórico do Cliente (Ícone de Calendário estilo Image 2) -->
+          <div v-if="ticket && !ticket.is_group" class="history-dropdown-wrapper" style="position: relative;">
+            <button
+              type="button"
+              class="header-tool-btn"
+              :class="{ active: showClientHistoryModal }"
+              title="Histórico de atendimentos deste cliente"
+              aria-label="Histórico de atendimentos deste cliente"
+              @click="showClientHistoryModal = !showClientHistoryModal"
+            >
+              <span class="tool-icon-box"><i class="ri-calendar-line"></i></span>
+            </button>
+            <ModalHistoricoCliente
+              :is-open="showClientHistoryModal"
+              :ticket="ticket"
+              @close="showClientHistoryModal = false"
+            />
+          </div>
+
           <button
             type="button"
             class="header-tool-btn"
-            :class="{ active: showClientHistoryModal }"
-            title="Histórico de atendimentos deste cliente"
-            aria-label="Histórico de atendimentos deste cliente"
-            @click="showClientHistoryModal = !showClientHistoryModal"
+            :class="{ active: showMessageSearch }"
+            title="Pesquisar mensagens nesta conversa"
+            aria-label="Pesquisar mensagens nesta conversa"
+            @click="toggleMessageSearch"
           >
-            <span class="tool-icon-box"><i class="ri-calendar-line"></i></span>
+            <span class="tool-icon-box"><i class="ri-search-line"></i></span>
           </button>
-          <ModalHistoricoCliente
-            :is-open="showClientHistoryModal"
-            :ticket="ticket"
-            @close="showClientHistoryModal = false"
-          />
-        </div>
-
-        <button
-          type="button"
-          class="header-tool-btn"
-          :class="{ active: showMessageSearch }"
-          title="Pesquisar mensagens nesta conversa"
-          aria-label="Pesquisar mensagens nesta conversa"
-          @click="toggleMessageSearch"
-        >
-          <span class="tool-icon-box"><i class="ri-search-line"></i></span>
-        </button>
+        </template>
 
         <!-- 3 Pontinhos Dropdown (Menu de Ações) -->
         <div v-if="ticket && !ticket.is_group" class="actions-dropdown-wrapper" ref="actionsDropdownRef">

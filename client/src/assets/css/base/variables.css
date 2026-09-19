@@ -10,8 +10,8 @@
   --brand-dark: #172033;
   
   /* Layout & Backgrounds */
-  --bg-app: #f6f7f9;
-  --bg-sidebar: #f1f2f4;
+  --bg-app: #f8fafc;
+  --bg-sidebar: #ffffff;
   --bg-sidebar-active: #ffffff;
   --bg-topbar: #ffffff;
   --bg-card: #ffffff;
@@ -26,8 +26,8 @@
   --text-sidebar-active: #059669;
   
   /* Borders & Dividers */
-  --border-color: #e3e6ea;
-  --border-subtle: #eef0f3;
+  --border-color: #e2e8f0;
+  --border-subtle: #edf2f7;
   
   /* Departments Badge Colors */
   --dept-financeiro-bg: #ecfdf5;

@@ -30,7 +30,7 @@ const ui = useUiStore()
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
-  background: #ffffff;
+  background: var(--bg-app, #f8fafc);
 }
 
 .main-wrapper {
@@ -41,6 +41,7 @@ const ui = useUiStore()
   height: 100dvh;
   min-width: 0;
   overflow: hidden;
+  background: var(--bg-app, #f8fafc);
 }
 
 .views-container {
@@ -52,6 +53,7 @@ const ui = useUiStore()
   display: flex;
   position: relative;
   z-index: 1;
+  background: var(--bg-app, #f8fafc);
 }
 
 @media (max-width: 768px) {

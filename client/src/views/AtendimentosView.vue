@@ -187,7 +187,7 @@ onBeforeUnmount(() => {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background-color: #ffffff;
+  background-color: var(--bg-app, #f8fafc);
 }
 
 .atendimentos-main-grid {
