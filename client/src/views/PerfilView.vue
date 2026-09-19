@@ -27,9 +27,71 @@
         <h3>Alterar senha</h3>
         <p>Deixe os campos abaixo vazios para manter a senha atual.</p>
         <div class="grid three">
-          <label>Senha atual<input v-model="form.current_password" type="password" class="form-control" autocomplete="current-password" /></label>
-          <label>Nova senha<input v-model="form.new_password" type="password" class="form-control" autocomplete="new-password" /></label>
-          <label>Confirmar nova senha<input v-model="confirmPassword" type="password" class="form-control" autocomplete="new-password" /></label>
+          <label>
+            Senha atual
+            <div class="password-input-wrapper">
+              <input
+                v-model="form.current_password"
+                :type="showCurrentPassword ? 'text' : 'password'"
+                class="form-control"
+                autocomplete="current-password"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                class="password-toggle-btn"
+                @click="showCurrentPassword = !showCurrentPassword"
+                :title="showCurrentPassword ? 'Ocultar senha' : 'Exibir senha'"
+                tabindex="-1"
+              >
+                <i :class="showCurrentPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
+              </button>
+            </div>
+          </label>
+
+          <label>
+            Nova senha
+            <div class="password-input-wrapper">
+              <input
+                v-model="form.new_password"
+                :type="showNewPassword ? 'text' : 'password'"
+                class="form-control"
+                autocomplete="new-password"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                class="password-toggle-btn"
+                @click="showNewPassword = !showNewPassword"
+                :title="showNewPassword ? 'Ocultar senha' : 'Exibir senha'"
+                tabindex="-1"
+              >
+                <i :class="showNewPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
+              </button>
+            </div>
+          </label>
+
+          <label>
+            Confirmar nova senha
+            <div class="password-input-wrapper">
+              <input
+                v-model="confirmPassword"
+                :type="showConfirmPassword ? 'text' : 'password'"
+                class="form-control"
+                autocomplete="new-password"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                class="password-toggle-btn"
+                @click="showConfirmPassword = !showConfirmPassword"
+                :title="showConfirmPassword ? 'Ocultar senha' : 'Exibir senha'"
+                tabindex="-1"
+              >
+                <i :class="showConfirmPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
+              </button>
+            </div>
+          </label>
         </div>
       </div>
 
@@ -49,6 +111,10 @@ const auth = useAuthStore()
 const ui = useUiStore()
 const saving = ref(false)
 const confirmPassword = ref('')
+const showCurrentPassword = ref(false)
+const showNewPassword = ref(false)
+const showConfirmPassword = ref(false)
+
 const form = reactive({ name: auth.user?.name || '', phone: auth.user?.phone || '', avatar_url: auth.user?.avatar_url || null, current_password: '', new_password: '' })
 const initials = computed(() => (form.name || 'U').split(' ').slice(0, 2).map(v => v[0]).join('').toUpperCase())
 
@@ -76,5 +142,5 @@ async function save() {
 </script>
 
 <style scoped>
-.profile-page{padding:20px;max-width:980px;margin:0 auto;width:100%;box-sizing:border-box}.profile-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:24px;box-shadow:0 1px 2px rgba(15,23,42,.04)}.profile-heading{display:flex;align-items:center;gap:18px;padding-bottom:22px;border-bottom:1px solid #e2e8f0}.profile-heading h2{margin:0;color:#0f172a;font-size:20px}.profile-heading p,.password-box p{margin:4px 0 10px;color:#64748b;font-size:12px}.photo-wrap{width:82px;height:82px;border-radius:50%;overflow:hidden;background:#e8f0ff;color:#1f62d0;display:grid;place-items:center;font-size:22px;font-weight:800}.photo-wrap img{width:100%;height:100%;object-fit:cover}.photo-actions{display:flex;align-items:center;gap:12px}.photo-actions .btn-secondary{cursor:pointer;padding:7px 11px;font-size:12px}.link-danger{border:0;background:none;color:#dc2626;cursor:pointer;font-size:12px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}.grid.three{grid-template-columns:repeat(3,1fr);margin-top:14px}.grid label{font-size:12px;font-weight:650;color:#334155}.form-control{display:block;width:100%;box-sizing:border-box;margin-top:6px}.form-control.locked{background:#f8fafc;color:#64748b}.grid small{display:block;color:#94a3b8;font-weight:400;margin-top:5px}.password-box{margin-top:24px;padding:18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px}.password-box h3{margin:0;font-size:14px;color:#0f172a}.actions{display:flex;justify-content:flex-end;margin-top:20px}@media(max-width:760px){.grid,.grid.three{grid-template-columns:1fr}.profile-page{padding:12px}.profile-card{padding:16px}}
+.profile-page{padding:20px 20px 40px;max-width:980px;margin:0 auto;width:100%;height:100%;overflow-y:auto;box-sizing:border-box}.profile-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:24px;box-shadow:0 1px 2px rgba(15,23,42,.04)}.profile-heading{display:flex;align-items:center;gap:18px;padding-bottom:22px;border-bottom:1px solid #e2e8f0}.profile-heading h2{margin:0;color:#0f172a;font-size:20px}.profile-heading p,.password-box p{margin:4px 0 10px;color:#64748b;font-size:12px}.photo-wrap{width:82px;height:82px;border-radius:50%;overflow:hidden;background:#e8f0ff;color:#1f62d0;display:grid;place-items:center;font-size:22px;font-weight:800}.photo-wrap img{width:100%;height:100%;object-fit:cover}.photo-actions{display:flex;align-items:center;gap:12px}.photo-actions .btn-secondary{cursor:pointer;padding:7px 11px;font-size:12px}.link-danger{border:0;background:none;color:#dc2626;cursor:pointer;font-size:12px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}.grid.three{grid-template-columns:repeat(3,1fr);margin-top:14px}.grid label{font-size:12px;font-weight:650;color:#334155}.form-control{display:block;width:100%;box-sizing:border-box;margin-top:6px}.form-control.locked{background:#f8fafc;color:#64748b}.grid small{display:block;color:#94a3b8;font-weight:400;margin-top:5px}.password-box{margin-top:24px;padding:18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px}.password-box h3{margin:0;font-size:14px;color:#0f172a}.password-input-wrapper{position:relative;display:flex;align-items:center;margin-top:6px}.password-input-wrapper .form-control{margin-top:0;padding-right:38px;width:100%}.password-toggle-btn{position:absolute;right:10px;background:none;border:none;color:#64748b;cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;font-size:13px;transition:color .15s ease}.password-toggle-btn:hover{color:#0f172a}.actions{display:flex;justify-content:flex-end;margin-top:20px}@media(max-width:760px){.grid,.grid.three{grid-template-columns:1fr}.profile-page{padding:12px}.profile-card{padding:16px}}
 </style>

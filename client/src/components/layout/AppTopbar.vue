@@ -15,8 +15,8 @@
       <img :src="logoUrl" alt="Brisoft Desk" class="topbar-mobile-logo" />
     </RouterLink>
 
-    <!-- Trilho de Navegação de Abas (Estilo da Imagem de Referência) -->
-    <div class="topbar-tabs-track" aria-label="Navegação do módulo">
+    <!-- Trilho de Navegação de Abas (Exibido exclusivamente no módulo de Atendimentos) -->
+    <div v-if="currentModule === 'atendimentos'" class="topbar-tabs-track" aria-label="Navegação do módulo">
       <!-- Aba Ativa: Fila de Atendimento com Badge de Contagem -->
       <div class="topbar-nav-pill active" title="Fila de Atendimento">
         <span class="pill-icon-box"><i class="ri-folder-line"></i></span>

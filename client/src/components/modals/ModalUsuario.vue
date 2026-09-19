@@ -44,7 +44,25 @@
               <label>
                 {{ editingUser ? 'Nova Senha (deixe em branco para manter a atual)' : 'Senha de Acesso *' }}
               </label>
-              <input v-model="formData.password" type="password" :required="!editingUser" placeholder="••••••••" class="form-control" />
+              <div style="position:relative;display:flex;align-items:center;">
+                <input
+                  v-model="formData.password"
+                  :type="showPassword ? 'text' : 'password'"
+                  :required="!editingUser"
+                  placeholder="••••••••"
+                  class="form-control"
+                  style="padding-right:38px;width:100%;"
+                />
+                <button
+                  type="button"
+                  @click="showPassword = !showPassword"
+                  :title="showPassword ? 'Ocultar senha' : 'Exibir senha'"
+                  tabindex="-1"
+                  style="position:absolute;right:10px;background:none;border:none;color:#64748b;cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;font-size:14px;"
+                >
+                  <i :class="showPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
+                </button>
+              </div>
             </div>
 
             <!-- Perfil + Departamento -->
@@ -128,6 +146,7 @@ const settingsStore = useSettingsStore()
 const ui = useUiStore()
 const auth = useAuthStore()
 const loading = ref(false)
+const showPassword = ref(false)
 
 const formData = ref({
   name: props.editingUser?.name || '',

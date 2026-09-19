@@ -152,15 +152,20 @@ onMounted(() => {
 
 <style scoped>
 .page-container {
-  padding: 16px 20px;
+  padding: 16px 20px 32px;
   width: 100%;
+  height: 100%;
   box-sizing: border-box;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  flex-shrink: 0;
 }
 .page-title {
   font-size: 16px;
@@ -173,6 +178,8 @@ onMounted(() => {
   border: 1px solid var(--border-color);
   padding: 16px;
   box-shadow: none;
+  overflow-x: auto;
+  margin-bottom: 24px;
 }
 .badge {
   display: inline-flex;
