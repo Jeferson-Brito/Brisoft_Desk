@@ -9,11 +9,11 @@
       <div class="queue-header-right">
         <button
           type="button"
-          class="queue-refresh-icon-btn"
-          title="Atualizar fila"
+          class="queue-filter-btn"
+          title="Filtros e ordenação"
           @click="refreshQueue"
         >
-          <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': isRefreshing }"></i>
+          <i class="fa-solid fa-sliders" :class="{ 'fa-spin': isRefreshing }"></i>
         </button>
       </div>
     </div>
@@ -222,9 +222,9 @@ const filteredTickets = computed(() => {
 
 /* 1. Header */
 .queue-header-row {
-  height: 48px;
-  min-height: 48px;
-  padding: 0 14px;
+  height: 52px;
+  min-height: 52px;
+  padding: 16px 14px 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -238,7 +238,7 @@ const filteredTickets = computed(() => {
 }
 
 .queue-title-bold {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
@@ -246,13 +246,13 @@ const filteredTickets = computed(() => {
 }
 
 .queue-pill-badge {
-  background: #ecfdf5;
+  background: #d1fae5;
   color: #059669;
   border: none;
-  border-radius: 12px;
+  border-radius: 999px;
   font-size: 11px;
-  font-weight: 600;
-  padding: 1.5px 7px;
+  font-weight: 700;
+  padding: 2px 8px;
   line-height: 1.3;
 }
 
@@ -261,46 +261,54 @@ const filteredTickets = computed(() => {
   align-items: center;
 }
 
-.queue-refresh-icon-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+.queue-filter-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   border: none;
   background: transparent;
-  color: #94a3b8 !important;
+  color: #64748b;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 14px;
   transition: all 0.15s ease;
 }
 
-.queue-refresh-icon-btn:hover {
+.queue-filter-btn:hover {
   background: #f8fafc;
   color: #0f172a;
 }
 
-/* 2. Sub-Abas de Status (Aguardando 30  Grupos 17  Em atend. 1) */
+/* 2. Trilho de Abas em Cápsula (Aguardando 30  Grupos 17  Em atend. 1) */
 .queue-status-tabs-row {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 0 14px 8px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 3px;
+  margin: 0 14px 12px;
+  gap: 2px;
 }
 
 .queue-status-tab {
+  flex: 1;
+  height: 28px;
   border: none;
   background: transparent;
-  padding: 0;
+  border-radius: 999px;
+  padding: 0 8px;
   font-size: 11.5px;
   font-weight: 500;
   color: #64748b;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  transition: color 0.15s ease;
+  transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .queue-status-tab:hover {
@@ -308,34 +316,37 @@ const filteredTickets = computed(() => {
 }
 
 .queue-status-tab.active {
-  color: #0f172a;
-  font-weight: 700;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .tab-counter {
   font-size: 11px;
   color: #94a3b8;
+  font-weight: 500;
 }
 
 .queue-status-tab.active .tab-counter {
-  color: #0f172a;
-  font-weight: 700;
+  color: #94a3b8;
+  font-weight: 500;
 }
 
 /* 3. Campo de Busca */
 .queue-search-row {
-  padding: 0 14px 10px;
+  padding: 0 14px 12px;
 }
 
 .queue-search-box {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 34px;
-  background: #fbfcfd;
-  border: 1px solid #f1f5f9;
+  height: 38px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-  padding: 0 10px;
+  padding: 0 12px;
   transition: all 0.15s ease;
 }
 
@@ -346,7 +357,7 @@ const filteredTickets = computed(() => {
 }
 
 .search-mag-icon {
-  font-size: 12px;
+  font-size: 13px;
   color: #94a3b8;
   flex-shrink: 0;
 }
@@ -356,7 +367,7 @@ const filteredTickets = computed(() => {
   min-width: 0;
   border: none;
   background: transparent;
-  font-size: 11.5px;
+  font-size: 12px;
   color: #0f172a;
   outline: none;
 }
@@ -378,8 +389,11 @@ const filteredTickets = computed(() => {
 .queue-list-container {
   flex: 1;
   overflow-y: auto;
+  padding: 0 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   min-height: 0;
-  padding-bottom: 12px;
 }
 
 .queue-empty-message {

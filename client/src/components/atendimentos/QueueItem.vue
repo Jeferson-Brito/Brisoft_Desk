@@ -23,7 +23,7 @@
         />
         <span v-else>{{ fallbackInitials }}</span>
       </div>
-      <span class="avatar-online-dot"></span>
+      <span class="avatar-online-dot" :class="statusDotClass"></span>
     </div>
 
     <!-- Conteúdo do Card -->
@@ -165,6 +165,13 @@ function cleanPreview(preview) {
     .replace(/🎵?\s*\[Áudio\]/i, 'Áudio')
   return clean || 'Nova mensagem'
 }
+
+const statusDotClass = computed(() => {
+  if (props.ticket.status_dot) return props.ticket.status_dot
+  if (props.ticket.presence === 'away' || props.ticket.is_away) return 'away'
+  if (props.ticket.presence === 'offline' || props.ticket.is_offline) return 'offline'
+  return 'online'
+})
 </script>
 
 <style scoped>
@@ -173,10 +180,9 @@ function cleanPreview(preview) {
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 12px;
   padding: 10px 12px;
-  border-bottom: 1px solid #f1f5f9;
-  border-left: 3px solid transparent;
+  border-radius: 12px;
   cursor: pointer;
   background: #ffffff;
   transition: all 0.15s ease;
@@ -185,33 +191,44 @@ function cleanPreview(preview) {
 }
 
 .queue-item-card:hover {
-  background: #fbfcfd;
+  background: #f8fafc;
 }
 
-/* Card Ativo com Borda Esquerda Verde */
+/* Card Ativo com Borda Esquerda Verde e Fundo Verde Suave */
 .queue-item-card.active {
-  background: #fbfcfd !important;
-  border-left-color: #059669 !important;
+  background: #eefbf4 !important;
+}
+
+.queue-item-card.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 32px;
+  background-color: #059669;
+  border-radius: 0 4px 4px 0;
 }
 
 /* ─── Avatar com Ponto Online ────────────────────────────────────────────── */
 .queue-avatar-wrap {
   position: relative;
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .queue-avatar-circle {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   font-weight: 700;
-  font-size: 11.5px;
+  font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .queue-avatar-circle img {
@@ -225,11 +242,19 @@ function cleanPreview(preview) {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: #10b981;
-  border: 1.5px solid #ffffff;
+  border: 2px solid #ffffff;
+}
+
+.avatar-online-dot.away {
+  background: #f59e0b;
+}
+
+.avatar-online-dot.offline {
+  background: #cbd5e1;
 }
 
 /* ─── Corpo do Card ──────────────────────────────────────────────────────── */
@@ -257,8 +282,8 @@ function cleanPreview(preview) {
 }
 
 .queue-contact-name {
-  font-size: 12.5px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   color: #0f172a;
   white-space: nowrap;
   overflow: hidden;
@@ -266,19 +291,19 @@ function cleanPreview(preview) {
 }
 
 .queue-group-icon {
-  font-size: 10px;
+  font-size: 10.5px;
   color: #2563eb;
 }
 
 .queue-call-icon {
-  font-size: 10px;
+  font-size: 10.5px;
   color: #ef4444;
 }
 
 .queue-item-time {
   font-size: 11px;
   color: #94a3b8;
-  font-weight: 500;
+  font-weight: 400;
   flex-shrink: 0;
 }
 
@@ -289,7 +314,7 @@ function cleanPreview(preview) {
 }
 
 .queue-preview-text {
-  font-size: 11.5px;
+  font-size: 12px;
   color: #64748b;
   white-space: nowrap;
   overflow: hidden;
@@ -299,7 +324,7 @@ function cleanPreview(preview) {
 
 .queue-preview-text.is-unread {
   color: #1e293b;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* Linha 3: Tags + Badge Não Lidos */
@@ -308,13 +333,13 @@ function cleanPreview(preview) {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
 .queue-tags-left {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   flex-wrap: wrap;
   min-width: 0;
 }
@@ -323,54 +348,52 @@ function cleanPreview(preview) {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: transparent;
+  background: #f1f5f9;
   border: none;
-  color: #64748b;
+  color: #475569;
   font-size: 10.5px;
   font-weight: 500;
-  padding: 0;
+  padding: 2px 7px;
+  border-radius: 6px;
   white-space: nowrap;
 }
 
 .tag-department-chip i {
-  font-size: 10px;
-  color: #94a3b8;
+  font-size: 10.5px;
+  color: #64748b;
 }
 
 .tag-role-pill {
   display: inline-flex;
   align-items: center;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
-  padding: 1.5px 7px;
-  border-radius: 10px;
+  padding: 2px 7px;
+  border-radius: 6px;
   border: none;
   white-space: nowrap;
 }
 
-.tag-role-pill.employee {
-  background: #fff7ed;
-  color: #ea580c;
-}
-
+.tag-role-pill.employee,
 .tag-role-pill.alarm {
-  background: #fff7ed;
+  background: #ffedd5;
   color: #ea580c;
 }
 
 /* Badge Verde Circular de Não Lidos */
 .queue-unread-circle {
-  width: 17px;
-  height: 17px;
+  width: 19px;
+  height: 19px;
   border-radius: 50%;
-  background: #10b981;
+  background: #059669;
   color: #ffffff;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   line-height: 1;
+  margin-left: auto;
 }
 </style>
