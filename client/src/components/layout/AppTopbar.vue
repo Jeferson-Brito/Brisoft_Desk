@@ -112,6 +112,19 @@
         </Transition>
       </div>
 
+      <!-- Botão Tela Cheia / Modo App (recolhe barra de URL no navegador) -->
+      <button
+        type="button"
+        class="topbar-fullscreen-btn"
+        :title="isFullscreen ? 'Sair da tela cheia' : 'Modo App (Tela Cheia)'"
+        aria-label="Alternar tela cheia"
+        @click="toggleFullscreen"
+      >
+        <span class="topbar-icon-box">
+          <i :class="isFullscreen ? 'ri-fullscreen-exit-line' : 'ri-fullscreen-line'"></i>
+        </span>
+      </button>
+
       <!-- Botão + Novo atendimento (Estilo Imagem de Referência) -->
       <button
         type="button"
@@ -259,14 +272,47 @@ function handleEscKey(e) {
   }
 }
 
+const isFullscreen = ref(false)
+
+function toggleFullscreen() {
+  const doc = document
+  const docEl = doc.documentElement
+  if (!doc.fullscreenElement && !doc.webkitFullscreenElement) {
+    if (docEl.requestFullscreen) {
+      docEl.requestFullscreen().catch(() => {})
+    } else if (docEl.webkitRequestFullscreen) {
+      docEl.webkitRequestFullscreen()
+    }
+  } else {
+    if (doc.exitFullscreen) {
+      doc.exitFullscreen().catch(() => {})
+    } else if (doc.webkitExitFullscreen) {
+      doc.webkitExitFullscreen()
+    }
+  }
+}
+
+function updateFullscreenStatus() {
+  isFullscreen.value = Boolean(document.fullscreenElement || document.webkitFullscreenElement)
+}
+
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
   document.addEventListener('keydown', handleEscKey)
+  document.addEventListener('fullscreenchange', updateFullscreenStatus)
+  document.addEventListener('webkitfullscreenchange', updateFullscreenStatus)
+  if (window.innerWidth <= 768) {
+    setTimeout(() => {
+      window.scrollTo(0, 1)
+    }, 350)
+  }
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick)
   document.removeEventListener('keydown', handleEscKey)
+  document.removeEventListener('fullscreenchange', updateFullscreenStatus)
+  document.removeEventListener('webkitfullscreenchange', updateFullscreenStatus)
 })
 </script>
 
@@ -671,11 +717,48 @@ onUnmounted(() => {
   transform: translateY(-6px) scale(0.96);
 }
 
+/* Botão Tela Cheia / Modo App */
+.topbar-fullscreen-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.topbar-fullscreen-btn:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.topbar-fullscreen-btn i {
+  font-size: 16px;
+  line-height: 1;
+}
+
 @media (max-width: 768px) {
+  .topbar-bitrix {
+    padding-left: max(8px, env(safe-area-inset-left, 8px));
+    padding-right: max(8px, env(safe-area-inset-right, 8px));
+    padding-top: max(0px, env(safe-area-inset-top, 0px));
+  }
   .topbar-hamburger {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+  }
+  .topbar-fullscreen-btn {
+    width: 32px;
+    height: 32px;
   }
   .btn-new-attendance-cta {
     padding: 0;

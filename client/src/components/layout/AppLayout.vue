@@ -23,6 +23,7 @@ import ToolsSidebar from '@/components/layout/ToolsSidebar.vue'
   display: flex;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background: #ffffff;
 }
@@ -32,6 +33,7 @@ import ToolsSidebar from '@/components/layout/ToolsSidebar.vue'
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   min-width: 0;
   overflow: hidden;
 }
@@ -39,6 +41,7 @@ import ToolsSidebar from '@/components/layout/ToolsSidebar.vue'
 .views-container {
   flex: 1;
   height: calc(100vh - 48px);
+  height: calc(100dvh - 48px);
   min-height: 0;
   overflow: hidden;
   display: flex;

@@ -90,6 +90,15 @@
   .chat-header {
     padding: 0 10px !important;
     gap: 6px;
+    justify-content: space-between !important;
+  }
+
+  .chat-header-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    min-width: 0 !important;
+    flex: 1 !important;
   }
 
   .handling-channel-badge,

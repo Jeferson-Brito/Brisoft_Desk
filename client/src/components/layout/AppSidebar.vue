@@ -7,11 +7,21 @@
     <!-- Brand Logo Header (Centralizado) -->
     <div class="sidebar-header">
       <RouterLink to="/atendimentos" class="brand-logo-container" title="Brisoft Desk">
-        <!-- Quando expandido: exibe logo horizontal completa com nome Brisoft Desk centralizada -->
-        <img v-if="isExpanded" :src="logoUrl" alt="Brisoft Desk" class="brand-logo-full" />
-        <!-- Quando recolhido: exibe ícone/símbolo centralizado -->
+        <!-- Quando expandido ou mobile: exibe logo horizontal completa com nome Brisoft Desk -->
+        <img v-if="isExpanded || mobileOpen" :src="logoUrl" alt="Brisoft Desk" class="brand-logo-full" />
+        <!-- Quando recolhido no desktop: exibe ícone/símbolo centralizado -->
         <img v-else :src="iconUrl" alt="Brisoft Desk" class="brand-logo-symbol" />
       </RouterLink>
+      <button
+        v-if="mobileOpen"
+        type="button"
+        class="mobile-sidebar-close-btn"
+        title="Fechar menu lateral"
+        aria-label="Fechar menu lateral"
+        @click="closeMobile"
+      >
+        <i class="ri-close-line"></i>
+      </button>
     </div>
 
     <!-- Navigation Links -->
@@ -645,6 +655,10 @@ async function handleLogout() {
   background: #fef2f2;
 }
 
+.mobile-sidebar-close-btn {
+  display: none;
+}
+
 .sidebar-overlay {
   display: none;
 }
@@ -652,16 +666,49 @@ async function handleLogout() {
 @media (max-width: 768px) {
   .sidebar {
     position: fixed;
-    left: -260px;
-    width: 220px;
-    min-width: 220px;
-    max-width: 220px;
+    top: 0;
+    bottom: 0;
+    left: -280px;
+    width: 250px;
+    min-width: 250px;
+    max-width: 260px;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 3100 !important;
+    background: #ffffff;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
     align-items: flex-start;
-    padding: 16px;
-    transition: left 0.25s ease;
+    padding: max(14px, env(safe-area-inset-top, 14px)) 16px max(14px, env(safe-area-inset-bottom, 14px));
+    transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .sidebar.mobile-open {
     left: 0;
+  }
+  .sidebar-header {
+    width: 100%;
+    justify-content: space-between;
+    padding: 0 0 12px 0;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .brand-logo-full {
+    height: 32px;
+    max-width: 140px;
+    margin: 0;
+  }
+  .mobile-sidebar-close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: #f1f5f9;
+    color: #475569;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 18px;
+    flex-shrink: 0;
   }
   .sidebar-toggle-bubble {
     display: none;
@@ -685,11 +732,12 @@ async function handleLogout() {
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.4);
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(2px);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.25s ease;
-    z-index: 55;
+    z-index: 3050 !important;
   }
   .sidebar-overlay.visible {
     opacity: 1;

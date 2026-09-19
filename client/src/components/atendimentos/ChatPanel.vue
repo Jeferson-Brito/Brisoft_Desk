@@ -2,38 +2,41 @@
   <div class="chat-column">
     <!-- Header do Chat estilo Image 2 -->
     <div v-if="ticket" class="chat-header">
-      <!-- Botão Voltar (mobile) -->
-      <button
-        type="button"
-        class="chat-back-btn"
-        title="Voltar para fila"
-        @click="$emit('go-back')"
-      >
-        <span class="header-icon-box"><i class="ri-arrow-left-s-line"></i></span>
-      </button>
+      <!-- Lado Esquerdo: Botão Voltar + Contato (Alinhados juntos à esquerda) -->
+      <div class="chat-header-left">
+        <!-- Botão Voltar (mobile) -->
+        <button
+          type="button"
+          class="chat-back-btn"
+          title="Voltar para fila"
+          @click="$emit('go-back')"
+        >
+          <span class="header-icon-box"><i class="ri-arrow-left-s-line"></i></span>
+        </button>
 
-      <!-- Título: Nome do Cliente (clique para abrir detalhes) -->
-      <div
-        class="chat-header-title-box"
-        :style="{ cursor: ticket.is_group ? 'default' : 'pointer' }"
-        :title="ticket.is_group ? 'Grupo do WhatsApp' : 'Clique para ver os detalhes do contato'"
-        @click="!ticket.is_group && $emit('toggle-details')"
-      >
-        <div class="chat-header-avatar" :style="{ background: ticket.avatarColor || '#2563eb' }">
-          <img v-if="ticket.avatar_url && !headerAvatarFailed" :src="ticket.avatar_url" alt="Foto do contato" referrerpolicy="no-referrer" @error="headerAvatarFailed = true" />
-          <span v-else>{{ ticket.initials || 'CL' }}</span>
-        </div>
-        <div class="chat-contact-copy">
-          <div class="chat-contact-name-line">
-            <h2 class="chat-contact-title">{{ headerPerson.name || 'Cliente' }}</h2>
-            <i v-if="!ticket.is_group" class="ri-arrow-down-s-line chat-contact-chevron" :class="{ 'rotate-180': isDetailsOpen }"></i>
-            <span v-if="ticket.is_group" class="group-contact-badge"><span class="badge-icon-box"><i class="ri-group-line"></i></span> {{ groupParticipantLabel }}</span>
-            <span class="employee-contact-badge" title="Funcionário da empresa">Funcionário</span>
+        <!-- Título: Nome do Cliente (clique para abrir detalhes) -->
+        <div
+          class="chat-header-title-box"
+          :style="{ cursor: ticket.is_group ? 'default' : 'pointer' }"
+          :title="ticket.is_group ? 'Grupo do WhatsApp' : 'Clique para ver os detalhes do contato'"
+          @click="!ticket.is_group && $emit('toggle-details')"
+        >
+          <div class="chat-header-avatar" :style="{ background: ticket.avatarColor || '#2563eb' }">
+            <img v-if="ticket.avatar_url && !headerAvatarFailed" :src="ticket.avatar_url" alt="Foto do contato" referrerpolicy="no-referrer" @error="headerAvatarFailed = true" />
+            <span v-else>{{ ticket.initials || 'CL' }}</span>
           </div>
-          <div class="chat-contact-subtitle">
-            <span v-if="headerPerson.role">{{ headerPerson.role }}</span>
-            <span v-else-if="ticket?.department"><span class="subtitle-icon-box"><i class="ri-map-pin-line"></i></span>{{ ticket.department }}</span>
-            <span v-else><span class="subtitle-icon-box"><i class="ri-map-pin-line"></i></span>Monitorando 24h</span>
+          <div class="chat-contact-copy">
+            <div class="chat-contact-name-line">
+              <h2 class="chat-contact-title">{{ headerPerson.name || 'Cliente' }}</h2>
+              <i v-if="!ticket.is_group" class="ri-arrow-down-s-line chat-contact-chevron" :class="{ 'rotate-180': isDetailsOpen }"></i>
+              <span v-if="ticket.is_group" class="group-contact-badge"><span class="badge-icon-box"><i class="ri-group-line"></i></span> {{ groupParticipantLabel }}</span>
+              <span class="employee-contact-badge" title="Funcionário da empresa">Funcionário</span>
+            </div>
+            <div class="chat-contact-subtitle">
+              <span v-if="headerPerson.role">{{ headerPerson.role }}</span>
+              <span v-else-if="ticket?.department"><span class="subtitle-icon-box"><i class="ri-map-pin-line"></i></span>{{ ticket.department }}</span>
+              <span v-else><span class="subtitle-icon-box"><i class="ri-map-pin-line"></i></span>Monitorando 24h</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1387,6 +1390,14 @@ watch(inputMsg, (newVal) => {
   line-height: 1;
 }
 
+.chat-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
 .chat-header-avatar {
   display: grid;
   place-items: center;
@@ -2300,6 +2311,14 @@ watch(inputMsg, (newVal) => {
     max-width: 100% !important;
   }
 
+  .chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+
   .chat-back-btn {
     display: inline-flex !important;
     align-items: center;
@@ -2312,16 +2331,18 @@ watch(inputMsg, (newVal) => {
     color: #475569;
     cursor: pointer;
     flex-shrink: 0;
-    margin-right: 6px;
+    margin-right: 0 !important;
   }
 
   .chat-header {
     padding: 8px 10px;
-    gap: 6px;
+    gap: 8px;
   }
 
   .chat-header-title-box {
-    max-width: calc(100% - 85px);
+    max-width: 100%;
+    flex: 1;
+    min-width: 0;
   }
 
   .chat-header-avatar {
@@ -2337,7 +2358,9 @@ watch(inputMsg, (newVal) => {
   }
 
   .chat-footer {
-    padding: 6px 10px 8px;
+    padding: 6px 10px max(14px, env(safe-area-inset-bottom, 14px)) !important;
+    padding-left: max(10px, env(safe-area-inset-left, 10px));
+    padding-right: max(10px, env(safe-area-inset-right, 10px));
   }
 
   .chat-kpi-bar-collapsed {

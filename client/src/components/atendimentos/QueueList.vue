@@ -867,5 +867,8 @@ const filteredTickets = computed(() => {
     max-width: 100% !important;
     border-right: none !important;
   }
+  .queue-list-container {
+    padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
+  }
 }
 </style>
