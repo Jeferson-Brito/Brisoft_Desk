@@ -251,7 +251,7 @@ async function handleLogout() {
 
 .sidebar.is-expanded .sidebar-header {
   justify-content: flex-start;
-  padding: 0 4px 10px;
+  padding: 0 12px 10px;
   height: 52px;
 }
 
@@ -264,6 +264,10 @@ async function handleLogout() {
   width: 100%;
 }
 
+.sidebar.is-expanded .brand-logo-container {
+  justify-content: flex-start;
+}
+
 .brand-logo-symbol {
   width: 30px;
   height: 30px;
@@ -271,10 +275,10 @@ async function handleLogout() {
 }
 
 .brand-logo-full {
-  height: 42px;
-  max-width: 185px;
+  height: 36px;
+  max-width: 175px;
   object-fit: contain;
-  margin: 0 auto;
+  margin: 0;
 }
 
 .sidebar-nav-footer {

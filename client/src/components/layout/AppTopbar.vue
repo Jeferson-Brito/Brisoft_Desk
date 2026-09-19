@@ -14,9 +14,9 @@
     <div class="topbar-tabs-track" aria-label="Navegação do módulo">
       <!-- Aba Ativa: Fila de Atendimento com Badge de Contagem -->
       <div class="topbar-nav-pill active" title="Fila de Atendimento">
-        <i class="fa-solid fa-inbox pill-icon"></i>
+        <i class="fa-regular fa-folder pill-icon"></i>
         <span class="pill-label">Fila de Atendimento</span>
-        <span class="pill-count-badge">{{ waitingCount || totalTicketsCount || 33 }}</span>
+        <span class="pill-count-badge">{{ waitingCount || totalTicketsCount || 30 }}</span>
       </div>
 
       <!-- Abas Secundárias (Chatbot, Conversas, Campanhas) -->

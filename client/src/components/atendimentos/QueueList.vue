@@ -4,7 +4,7 @@
     <div class="queue-header-row">
       <div class="queue-header-left">
         <h2 class="queue-title-bold">Fila de Atendimento</h2>
-        <span class="queue-pill-badge">{{ waitingCount || totalVisibleCount || 7 }}</span>
+        <span class="queue-pill-badge">{{ waitingCount ?? totalVisibleCount ?? 0 }}</span>
       </div>
       <div class="queue-header-right">
         <button

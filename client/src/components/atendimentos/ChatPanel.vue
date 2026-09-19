@@ -331,9 +331,6 @@
           <button type="button" class="btn-icon" :class="{ active: showEmojiPicker }" title="Emojis" @click="toggleEmojiPicker">
             <i class="fa-regular fa-face-smile"></i>
           </button>
-          <button type="button" class="btn-icon" :class="{ active: showQuickMessages }" title="Mensagens rápidas" @click="toggleQuickMessages">
-            <i class="fa-solid fa-bolt"></i>
-          </button>
         </div>
 
         <div v-if="isRecording" class="recording-status">

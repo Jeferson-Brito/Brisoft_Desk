@@ -163,7 +163,7 @@
         <i class="fa-solid fa-chevron-down"></i>
       </button>
     <div class="chat-bubble outgoing">
-      <div v-if="agentName && !isAudio && !isDirectWhatsapp" style="font-weight:700;font-size:11px;color:rgba(255,255,255,0.95);margin-bottom:3px;">
+      <div v-if="isGroup && agentName && !isAudio && !isDirectWhatsapp" style="font-weight:700;font-size:11px;color:rgba(255,255,255,0.95);margin-bottom:3px;">
         {{ agentName }}
       </div>
 
