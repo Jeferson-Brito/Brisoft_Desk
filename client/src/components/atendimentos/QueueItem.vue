@@ -323,18 +323,17 @@ function cleanPreview(preview) {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: transparent;
+  border: none;
   color: #64748b;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 500;
-  padding: 1px 6px;
-  border-radius: 4px;
+  padding: 0;
   white-space: nowrap;
 }
 
 .tag-department-chip i {
-  font-size: 9px;
+  font-size: 10px;
   color: #94a3b8;
 }
 
@@ -343,21 +342,20 @@ function cleanPreview(preview) {
   align-items: center;
   font-size: 10px;
   font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 4px;
+  padding: 1.5px 7px;
+  border-radius: 10px;
+  border: none;
   white-space: nowrap;
 }
 
 .tag-role-pill.employee {
   background: #fff7ed;
-  border: 1px solid #ffedd5;
   color: #ea580c;
 }
 
 .tag-role-pill.alarm {
   background: #fff7ed;
-  border: 1px solid #fed7aa;
-  color: #c2410c;
+  color: #ea580c;
 }
 
 /* Badge Verde Circular de Não Lidos */

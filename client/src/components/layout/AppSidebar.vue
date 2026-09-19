@@ -67,13 +67,13 @@
       </RouterLink>
     </nav>
 
-    <!-- Seção Inferior: Notas e Configurações (acima do perfil) -->
+    <!-- Seção Inferior: Painel TV e Configurações (estilo Image 2) -->
     <div class="sidebar-nav-footer">
-      <!-- Notas / Documentos -->
-      <button type="button" class="nav-item" title="Notas e Documentos" @click="sidebar.toggleTool('notepad')">
-        <i class="fa-regular fa-file-lines"></i>
-        <span class="nav-label">Notas</span>
-      </button>
+      <!-- Painel TV -->
+      <RouterLink class="nav-item" to="/painel-tv" active-class="active" title="Painel TV">
+        <i class="fa-solid fa-tv"></i>
+        <span class="nav-label">Painel TV</span>
+      </RouterLink>
 
       <!-- Configurações -->
       <RouterLink v-if="auth.canManageTeam" class="nav-item" to="/configuracoes" active-class="active" id="settingsNavUsuarios" :title="auth.isAdmin ? 'Configurações' : 'Equipe'">
@@ -84,7 +84,7 @@
 
     <!-- Sidebar Bottom: User Profile Avatar -->
     <div class="sidebar-bottom">
-      <div ref="userMenuRef" class="user-menu-wrapper" style="position:relative; width: 100%; display: flex; justify-content: center;">
+      <div ref="userMenuRef" class="user-menu-wrapper" style="position:relative; width: 100%;">
         <button
           type="button"
           class="user-avatar-btn"
@@ -123,6 +123,17 @@
           </button>
         </div>
       </div>
+
+      <!-- Botão Recolher Menu (estilo Image 2) -->
+      <button
+        type="button"
+        class="sidebar-collapse-btn"
+        :title="isExpanded ? 'Recolher menu' : 'Expandir menu'"
+        @click="toggleExpanded"
+      >
+        <i class="fa-solid" :class="isExpanded ? 'fa-chevron-left' : 'fa-chevron-right'"></i>
+        <span v-if="isExpanded">Recolher menu</span>
+      </button>
     </div>
   </aside>
 
@@ -199,35 +210,32 @@ async function handleLogout() {
   min-width: 58px;
   max-width: 58px;
   background-color: #ffffff;
-  border-right: 1px solid #f1f5f9;
+  border-right: 1px solid #edf2f7;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
   height: 100vh;
-  padding: 12px 0 16px;
+  padding: 12px 0 14px;
   box-sizing: border-box;
   flex-shrink: 0;
   z-index: 60;
   user-select: none;
   position: relative;
+  transition: width 0.2s ease, min-width 0.2s ease, max-width 0.2s ease;
 }
 
-/* Oculta botão de expansão para manter trilho minimalista */
+.sidebar.is-expanded {
+  width: 220px !important;
+  min-width: 220px !important;
+  max-width: 220px !important;
+  padding: 12px 14px 14px;
+  align-items: stretch;
+}
+
+/* Oculta botão balão */
 .sidebar-toggle-bubble {
   display: none !important;
-}
-
-.sidebar-toggle-bubble:hover {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #ffffff;
-  transform: scale(1.15);
-  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
-}
-
-.sidebar-toggle-bubble:active {
-  transform: scale(0.95);
 }
 
 .sidebar-header {
@@ -236,15 +244,15 @@ async function handleLogout() {
   justify-content: center;
   width: 100%;
   padding-bottom: 10px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #f1f5f9;
   height: 48px;
   box-sizing: border-box;
 }
 
 .sidebar.is-expanded .sidebar-header {
-  justify-content: center;
-  padding: 0 10px 10px;
-  height: 54px;
+  justify-content: flex-start;
+  padding: 0 4px 10px;
+  height: 52px;
 }
 
 .brand-logo-container {
@@ -440,21 +448,22 @@ async function handleLogout() {
 /* Quando expandido */
 .user-avatar-btn.expanded-user-btn {
   width: 100%;
-  height: 44px;
-  border-radius: 10px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  padding: 4px 8px;
+  height: 42px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   justify-content: flex-start;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
 }
 
 .user-avatar-btn.expanded-user-btn:hover {
   background: #f8fafc;
-  border-color: #cbd5e1;
 }
 
 .user-avatar-btn.expanded-user-btn .user-avatar-circle {
@@ -504,6 +513,33 @@ async function handleLogout() {
   border-radius: 50%;
   background: #16a34a;
   box-shadow: 0 0 0 2px #ffffff;
+}
+
+.sidebar-collapse-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-top: 4px;
+}
+
+.sidebar-collapse-btn:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.sidebar:not(.is-expanded) .sidebar-collapse-btn {
+  justify-content: center;
+  padding: 6px 0;
 }
 
 .user-popup-menu {

@@ -163,11 +163,8 @@
         <i class="fa-solid fa-chevron-down"></i>
       </button>
     <div class="chat-bubble outgoing">
-      <div v-if="agentName" style="font-weight:700;font-size:11px;color:rgba(255,255,255,0.95);margin-bottom:3px;">
+      <div v-if="agentName && !isAudio && !isDirectWhatsapp" style="font-weight:700;font-size:11px;color:rgba(255,255,255,0.95);margin-bottom:3px;">
         {{ agentName }}
-        <span v-if="isDirectWhatsapp" class="direct-whatsapp-label">
-          <i class="fa-brands fa-whatsapp"></i> enviado pelo celular
-        </span>
       </div>
 
       <div v-if="replyPreview" class="message-reply-preview">
@@ -706,7 +703,7 @@ const audioElementRef = ref(null)
 const isPlayingAudio = ref(false)
 const audioCurrentTime = ref(0)
 const audioDuration = ref(0)
-const waveformHeights = [6, 11, 15, 8, 13, 17, 9, 14, 18, 12, 7, 15, 12, 8, 14, 16, 10, 7, 14, 10, 6, 12, 8, 5]
+const waveformHeights = [4, 7, 12, 16, 9, 6, 14, 18, 11, 8, 15, 12, 7, 14, 16, 10, 6, 13, 9, 5, 12, 8, 14, 10, 6, 11, 8, 4]
 
 const audioProgress = computed(() => {
   if (!audioDuration.value || audioDuration.value === 0) return 0
@@ -953,16 +950,15 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   text-align: center;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  color: #475569;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
   font-size: 11px;
   font-weight: 500;
-  padding: 4px 12px;
-  border-radius: 6px;
+  padding: 2px 8px;
   max-width: 90%;
   line-height: 1.4;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  box-shadow: none;
 }
 
 .large-media-box {
@@ -1155,15 +1151,16 @@ onUnmounted(() => {
 .audio-waveform-bars {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   width: 100%;
   height: 22px;
 }
 
 .audio-bar {
   flex: 1;
-  width: 2.5px;
-  border-radius: 2px;
+  width: 2px;
+  min-width: 2px;
+  border-radius: 1px;
   transition: height 0.15s ease, background-color 0.15s ease;
 }
 

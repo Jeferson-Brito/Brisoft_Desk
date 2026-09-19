@@ -353,7 +353,8 @@
 
 .chat-mode-btn.active {
   color: #0f172a;
-  border-bottom-color: #0f172a;
+  font-weight: 700;
+  border-bottom: 2px solid transparent;
 }
 
 .chat-input-row {

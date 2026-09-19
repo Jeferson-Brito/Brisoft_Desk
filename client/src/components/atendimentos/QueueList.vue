@@ -248,11 +248,11 @@ const filteredTickets = computed(() => {
 .queue-pill-badge {
   background: #ecfdf5;
   color: #059669;
-  border: 1px solid #a7f3d0;
-  border-radius: 20px;
-  font-size: 10.5px;
-  font-weight: 700;
-  padding: 1px 7px;
+  border: none;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1.5px 7px;
   line-height: 1.3;
 }
 
@@ -267,7 +267,7 @@ const filteredTickets = computed(() => {
   border-radius: 6px;
   border: none;
   background: transparent;
-  color: #94a3b8;
+  color: #94a3b8 !important;
   display: flex;
   align-items: center;
   justify-content: center;

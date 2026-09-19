@@ -38,7 +38,7 @@
         </div>
       </div>
 
-      <!-- Ações à Direita -->
+      <!-- Ações à Direita (estilo Image 2: Phone, Video, Calendar, Search, 3 Dots) -->
       <div class="chat-header-tools">
         <button type="button" class="header-tool-btn" title="Ligação">
           <i class="fa-solid fa-phone"></i>
@@ -47,34 +47,7 @@
           <i class="fa-solid fa-video"></i>
         </button>
 
-        <!-- Conexão WhatsApp / Atendente Responsável -->
-        <div
-          v-if="handlingChannel?.label"
-          class="handling-channel-indicator"
-          :class="handlingChannel.kind"
-          tabindex="0"
-          :aria-label="handlingChannel.label"
-        >
-          <i :class="handlingChannel.icon"></i>
-          <div class="handling-channel-popover" role="tooltip">
-            <strong><i :class="handlingChannel.icon"></i>{{ handlingChannel.label }}</strong>
-            <p>{{ handlingChannel.description }}</p>
-          </div>
-        </div>
-
-        <button
-          v-if="canAssume"
-          type="button"
-          class="assignee-assume-btn"
-          :disabled="isAssuming"
-          id="btnAssumirChat"
-          @click="handleAssume"
-        >
-          <i class="fa-solid" :class="isAssuming ? 'fa-spinner fa-spin' : 'fa-hand-pointer'"></i>
-          <span>{{ isAssuming ? 'Assumindo...' : 'Assumir' }}</span>
-        </button>
-
-        <!-- Janelinha de Histórico do Cliente (Ícone de Calendário estilo Screenshot) -->
+        <!-- Janelinha de Histórico do Cliente (Ícone de Calendário estilo Image 2) -->
         <div v-if="ticket && !ticket.is_group" class="history-dropdown-wrapper" style="position: relative;">
           <button
             type="button"
@@ -117,6 +90,16 @@
           </button>
 
           <div v-if="showActionsMenu" class="actions-menu-dropdown">
+            <button
+              v-if="canAssume"
+              type="button"
+              class="actions-menu-item"
+              :disabled="isAssuming"
+              @click="handleAssume"
+            >
+              <i class="fa-solid" :class="isAssuming ? 'fa-spinner fa-spin' : 'fa-hand-pointer'"></i>
+              <span>{{ isAssuming ? 'Assumindo...' : 'Assumir atendimento' }}</span>
+            </button>
             <button type="button" class="actions-menu-item" @click="showClientHistoryModal = true; showActionsMenu = false;">
               <i class="fa-solid fa-clock-rotate-left"></i>
               <span>Histórico do cliente</span>
@@ -551,11 +534,10 @@ const props = defineProps({
   }
 })
 
-const metricsExpanded = ref(localStorage.getItem('attendance_metrics_expanded') === 'true')
+const metricsExpanded = ref(false)
 
 function toggleMetrics() {
   metricsExpanded.value = !metricsExpanded.value
-  localStorage.setItem('attendance_metrics_expanded', String(metricsExpanded.value))
 }
 
 const ratingLabel = computed(() => {
@@ -1371,15 +1353,14 @@ watch(inputMsg, (newVal) => {
 .employee-contact-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
   margin-left: 8px;
-  padding: 2px 6px;
-  border: 1px solid #a7f3d0;
-  border-radius: 4px;
-  background: #ecfdf5;
-  color: #047857;
+  padding: 2px 8px;
+  border: none;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #ea580c;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -2081,14 +2062,14 @@ watch(inputMsg, (newVal) => {
 
 .chat-date-pill {
   pointer-events: auto;
-  padding: 3px 10px;
-  background: rgba(255, 255, 255, 0.94);
-  color: #64748b;
-  border-radius: 5px;
+  padding: 3px 12px;
+  background: #f8fafc;
+  color: #94a3b8;
+  border-radius: 6px;
   font-size: 11px;
-  font-weight: 600;
-  border: 1px solid #e0e3e7;
-  transition: all 0.15s ease;
+  font-weight: 500;
+  border: 1px solid #f1f5f9;
+  box-shadow: none;
 }
 
 /* Botão Flutuante Rolar para o Final */

@@ -6,7 +6,7 @@ import { ref } from 'vue'
 
 export const useSidebarStore = defineStore('sidebar', () => {
   const mobileOpen = ref(false)
-  const isExpanded = ref(localStorage.getItem('brisoft_sidebar_expanded') === 'true')
+  const isExpanded = ref(localStorage.getItem('brisoft_sidebar_expanded') !== 'false')
 
   function open()   { mobileOpen.value = true  }
   function close()  { mobileOpen.value = false }

@@ -514,12 +514,12 @@ function formatPhone(phone) {
 
 /* ─── Bolha Circular do WhatsApp ─────────────────────────────────────────── */
 .floating-wa-bubble {
-  width: 46px;
-  height: 46px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
-  border: 2px solid #ffffff;
-  box-shadow: 0 6px 20px rgba(37, 211, 102, 0.35), 0 3px 10px rgba(0, 0, 0, 0.12);
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 4px 12px rgba(37, 211, 102, 0.35), 0 2px 6px rgba(0, 0, 0, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -533,7 +533,7 @@ function formatPhone(phone) {
 
 .floating-wa-bubble:hover {
   transform: scale(1.08);
-  box-shadow: 0 8px 24px rgba(37, 211, 102, 0.45), 0 5px 14px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 6px 16px rgba(37, 211, 102, 0.45), 0 3px 10px rgba(0, 0, 0, 0.18);
 }
 
 .floating-wa-bubble:active {
@@ -541,7 +541,7 @@ function formatPhone(phone) {
 }
 
 .wa-icon {
-  font-size: 24px;
+  font-size: 17px;
   color: #ffffff;
   position: relative;
   z-index: 2;
@@ -549,7 +549,7 @@ function formatPhone(phone) {
 
 .wa-icon-glow {
   position: absolute;
-  inset: -3px;
+  inset: -2px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(239, 68, 68, 0.35) 0%, rgba(239, 68, 68, 0) 70%);
   animation: pulse-ring 2s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
@@ -565,20 +565,20 @@ function formatPhone(phone) {
 /* Badge de Alerta na Bolha */
 .wa-alert-badge {
   position: absolute;
-  top: -3px;
-  right: -3px;
-  width: 17px;
-  height: 17px;
+  top: -2px;
+  right: -2px;
+  width: 13px;
+  height: 13px;
   border-radius: 50%;
   background: #ef4444;
   color: #ffffff;
-  font-size: 9.5px;
+  font-size: 7.5px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1.5px solid #ffffff;
-  box-shadow: 0 2px 5px rgba(239, 68, 68, 0.4);
+  border: 1px solid #ffffff;
+  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.4);
   z-index: 3;
 }
 
