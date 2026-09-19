@@ -74,11 +74,31 @@ let liveSyncRunning        = false
 
 function onTicketSelected() {
   mobilePanel.value = 'chat'
+  if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+    if (!window.history.state?.mobileChat) {
+      window.history.pushState({ mobileChat: true }, '')
+    }
+  }
 }
 
 function onGoBack() {
-  mobilePanel.value = 'queue'
-  ticketStore.minimizeActiveTicket()
+  if (typeof window !== 'undefined' && window.history.state?.mobileChat) {
+    window.history.back()
+  } else {
+    mobilePanel.value = 'queue'
+    ticketStore.minimizeActiveTicket()
+  }
+}
+
+function handlePopState() {
+  if (isDetailsOpen.value) {
+    isDetailsOpen.value = false
+    return
+  }
+  if (mobilePanel.value === 'chat') {
+    mobilePanel.value = 'queue'
+    ticketStore.minimizeActiveTicket()
+  }
 }
 
 function minimizeActiveChat(event) {
@@ -130,11 +150,20 @@ watch(() => ticketStore.activeTicket, (ticket) => {
   if (!ticket) mobilePanel.value = 'queue'
 })
 
+watch(isDetailsOpen, (open) => {
+  if (open && typeof window !== 'undefined' && window.innerWidth <= 768) {
+    if (!window.history.state?.mobileDetails) {
+      window.history.pushState({ mobileDetails: true }, '')
+    }
+  }
+})
+
 onMounted(async () => {
   await Promise.all([ticketStore.fetchQueue(), fetchPerformance()])
   refreshTimer = setInterval(syncLiveData, 30000)
   document.addEventListener('visibilitychange', syncLiveData)
   document.addEventListener('keydown', minimizeActiveChat)
+  window.addEventListener('popstate', handlePopState)
 })
 
 onBeforeUnmount(() => {
@@ -142,6 +171,7 @@ onBeforeUnmount(() => {
   clearTimeout(queueRefreshTimer)
   document.removeEventListener('visibilitychange', syncLiveData)
   document.removeEventListener('keydown', minimizeActiveChat)
+  window.removeEventListener('popstate', handlePopState)
 })
 </script>
 

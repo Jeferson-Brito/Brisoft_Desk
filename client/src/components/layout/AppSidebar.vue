@@ -172,7 +172,27 @@ function toggleExpanded() {
   sidebar.toggleExpanded()
 }
 
-function closeMobile() { sidebar.close() }
+function closeMobile() {
+  if (typeof window !== 'undefined' && window.history.state?.mobileSidebar) {
+    window.history.back()
+  } else {
+    sidebar.close()
+  }
+}
+
+watch(() => sidebar.mobileOpen, (open) => {
+  if (open && typeof window !== 'undefined' && window.innerWidth <= 768) {
+    if (!window.history.state?.mobileSidebar) {
+      window.history.pushState({ mobileSidebar: true }, '')
+    }
+  }
+})
+
+function handleSidebarPopState() {
+  if (sidebar.mobileOpen) {
+    sidebar.close()
+  }
+}
 
 watch(() => route.path, () => {
   sidebar.close()
@@ -196,8 +216,14 @@ const departmentLabel = computed(() => auth.departmentName || (auth.isAdmin ? 'T
 
 function goTo(path) { showUserDropdown.value = false; router.push(path) }
 function closeOnOutside(event) { if (showUserDropdown.value && !userMenuRef.value?.contains(event.target)) showUserDropdown.value = false }
-onMounted(() => document.addEventListener('click', closeOnOutside))
-onUnmounted(() => document.removeEventListener('click', closeOnOutside))
+onMounted(() => {
+  document.addEventListener('click', closeOnOutside)
+  window.addEventListener('popstate', handleSidebarPopState)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', closeOnOutside)
+  window.removeEventListener('popstate', handleSidebarPopState)
+})
 
 async function handleLogout() {
   await auth.logout()

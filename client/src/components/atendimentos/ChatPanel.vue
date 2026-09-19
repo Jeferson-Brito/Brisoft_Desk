@@ -791,8 +791,11 @@ const messageGroups = computed(() => {
   return groups
 })
 
-// Foco automático imediato no campo de texto
+// Foco automático imediato no campo de texto (somente em computadores/desktop para não abrir o teclado do celular)
 function focusInput() {
+  if (typeof window !== 'undefined' && (window.innerWidth <= 768 || 'ontouchstart' in window)) {
+    return
+  }
   nextTick(() => {
     setTimeout(() => {
       if (chatInputRef.value) {
@@ -2001,21 +2004,23 @@ watch(inputMsg, (newVal) => {
   height: 34px !important;
   min-width: 34px !important;
   padding: 0 !important;
-  border-radius: 6px !important;
+  border-radius: 8px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   flex-shrink: 0 !important;
-  background: var(--brand-primary, #2563eb) !important;
+  background: #059669 !important;
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.25) !important;
   border: none !important;
   color: #ffffff !important;
   cursor: pointer;
-  font-size: 13px !important;
-  transition: background 0.15s ease;
+  font-size: 14px !important;
+  transition: all 0.15s ease;
 }
 
 .composer-send-btn:hover {
-  background: var(--brand-primary-hover, #1d4ed8) !important;
+  background: #047857 !important;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.35) !important;
 }
 
 .recording-status {
