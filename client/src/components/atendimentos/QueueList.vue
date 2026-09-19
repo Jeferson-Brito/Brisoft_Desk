@@ -10,11 +10,91 @@
         <button
           type="button"
           class="queue-filter-btn"
+          :class="{ 'has-filter': hasActiveFilters, 'is-open': showFilterPopover }"
           title="Filtros e ordenação"
-          @click="refreshQueue"
+          @click.stop="toggleFilterPopover"
         >
-          <span class="queue-icon-box"><i class="ri-equalizer-line" :class="{ 'ri-spin': isRefreshing }"></i></span>
+          <span class="queue-icon-box"><i class="ri-equalizer-line"></i></span>
+          <span v-if="hasActiveFilters" class="filter-badge-dot" title="Filtros ativos"></span>
         </button>
+
+        <!-- Popover de Filtros da Fila -->
+        <Transition name="filter-fade-slide">
+          <div v-if="showFilterPopover" ref="filterPopoverRef" class="queue-filter-popover" @click.stop>
+            <div class="filter-popover-header">
+              <div class="filter-header-title">
+                <span class="filter-title-icon"><i class="ri-filter-3-line"></i></span>
+                <span>Filtros da Fila</span>
+              </div>
+              <button type="button" class="filter-close-btn" @click="showFilterPopover = false" title="Fechar filtros">
+                <i class="ri-close-line"></i>
+              </button>
+            </div>
+
+            <div class="filter-popover-body">
+              <!-- Departamento -->
+              <div class="filter-group">
+                <label class="filter-label">Departamento</label>
+                <div class="filter-select-wrapper">
+                  <select v-model="selectedDepartment" class="filter-select">
+                    <option value="">Todos os departamentos</option>
+                    <option v-for="dept in departmentsList" :key="dept.id" :value="dept.name">
+                      {{ dept.name }}
+                    </option>
+                  </select>
+                  <span class="select-chevron"><i class="ri-arrow-down-s-line"></i></span>
+                </div>
+              </div>
+
+              <!-- Ordenação -->
+              <div class="filter-group">
+                <label class="filter-label">Ordenar por</label>
+                <div class="filter-select-wrapper">
+                  <select v-model="sortOrder" class="filter-select">
+                    <option value="recent">Mais recentes primeiro</option>
+                    <option value="oldest">Mais antigos primeiro</option>
+                    <option value="unread">Com mensagens não lidas</option>
+                    <option value="name">Nome do cliente (A-Z)</option>
+                  </select>
+                  <span class="select-chevron"><i class="ri-arrow-down-s-line"></i></span>
+                </div>
+              </div>
+
+              <!-- Marcadores / Checkboxes -->
+              <div class="filter-group">
+                <label class="filter-label">Marcadores</label>
+                <div class="filter-checkbox-list">
+                  <label class="filter-checkbox-label">
+                    <input type="checkbox" v-model="filterOnlyAlarm" />
+                    <span>Apenas com alarme ativado</span>
+                  </label>
+                  <label class="filter-checkbox-label">
+                    <input type="checkbox" v-model="filterOnlyEmployee" />
+                    <span>Apenas funcionários</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="filter-popover-footer">
+              <button
+                v-if="hasActiveFilters"
+                type="button"
+                class="filter-reset-btn"
+                @click="resetFilters"
+              >
+                Limpar
+              </button>
+              <button
+                type="button"
+                class="filter-apply-btn"
+                @click="showFilterPopover = false"
+              >
+                Concluir
+              </button>
+            </div>
+          </div>
+        </Transition>
       </div>
     </div>
 
@@ -96,7 +176,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useTicketStore } from '@/stores/tickets.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -116,6 +196,45 @@ const searchTerm = ref('')
 const isRefreshing = ref(false)
 const localShowNewConversation = ref(false)
 
+// Estados de Filtros e Ordenação
+const showFilterPopover = ref(false)
+const filterPopoverRef = ref(null)
+const selectedDepartment = ref('')
+const sortOrder = ref('recent')
+const filterOnlyAlarm = ref(false)
+const filterOnlyEmployee = ref(false)
+
+const departmentsList = computed(() => {
+  return settingsStore.departments || []
+})
+
+const hasActiveFilters = computed(() => {
+  return !!selectedDepartment.value || sortOrder.value !== 'recent' || filterOnlyAlarm.value || filterOnlyEmployee.value
+})
+
+function toggleFilterPopover() {
+  showFilterPopover.value = !showFilterPopover.value
+}
+
+function resetFilters() {
+  selectedDepartment.value = ''
+  sortOrder.value = 'recent'
+  filterOnlyAlarm.value = false
+  filterOnlyEmployee.value = false
+}
+
+function onDocumentClick(e) {
+  if (showFilterPopover.value && filterPopoverRef.value && !filterPopoverRef.value.contains(e.target)) {
+    showFilterPopover.value = false
+  }
+}
+
+function onDocumentKeydown(e) {
+  if (e.key === 'Escape' && showFilterPopover.value) {
+    showFilterPopover.value = false
+  }
+}
+
 const isNewConversationOpen = computed(() => {
   return ui.isModalOpen('new_conversation') || localShowNewConversation.value
 })
@@ -129,6 +248,13 @@ onMounted(() => {
   if (settingsStore.departments.length === 0) {
     settingsStore.fetchDepartments()
   }
+  document.addEventListener('click', onDocumentClick)
+  document.addEventListener('keydown', onDocumentKeydown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocumentClick)
+  document.removeEventListener('keydown', onDocumentKeydown)
 })
 
 async function refreshQueue() {
@@ -170,6 +296,7 @@ function parseTicketTime(ticket) {
 const filteredTickets = computed(() => {
   let list = (ticketStore.visibleTickets || []).filter(t => t.status !== 'finalizado')
 
+  // Aba selecionada
   if (currentTab.value === 'aguardando') {
     list = list.filter(t => !t.is_group && (t.status === 'aguardando' || !t.assumed))
   } else if (currentTab.value === 'em_atendimento') {
@@ -178,6 +305,7 @@ const filteredTickets = computed(() => {
     list = list.filter(t => t.status === 'grupo' || t.is_group)
   }
 
+  // Busca textual
   if (searchTerm.value.trim()) {
     const term = searchTerm.value.trim().toLowerCase()
     list = list.filter(t => {
@@ -188,8 +316,45 @@ const filteredTickets = computed(() => {
     })
   }
 
-  // Ordenação: mais recentes primeiro
+  // Filtro por departamento
+  if (selectedDepartment.value) {
+    const depTerm = selectedDepartment.value.toLowerCase().trim()
+    list = list.filter(t => {
+      const ticketDept = (t.department || t.departments?.name || t.department_name || t.deptInitial || '').toLowerCase()
+      return ticketDept.includes(depTerm)
+    })
+  }
+
+  // Marcador: Alarme
+  if (filterOnlyAlarm.value) {
+    list = list.filter(t => t.has_alarm || (t.department && t.department.toLowerCase().includes('alarme')))
+  }
+
+  // Marcador: Funcionário
+  if (filterOnlyEmployee.value) {
+    list = list.filter(t => !!t.is_employee)
+  }
+
+  // Ordenação
   list = [...list].sort((a, b) => {
+    if (sortOrder.value === 'unread') {
+      const unreadA = (a.unreadCount || a.unread_count || 0) > 0 ? 1 : 0
+      const unreadB = (b.unreadCount || b.unread_count || 0) > 0 ? 1 : 0
+      if (unreadA !== unreadB) return unreadB - unreadA
+      return parseTicketTime(b) - parseTicketTime(a)
+    }
+
+    if (sortOrder.value === 'oldest') {
+      return parseTicketTime(a) - parseTicketTime(b)
+    }
+
+    if (sortOrder.value === 'name') {
+      const nameA = (a.clientName || a.client_name || '').toLowerCase()
+      const nameB = (b.clientName || b.client_name || '').toLowerCase()
+      return nameA.localeCompare(nameB)
+    }
+
+    // Padrão: 'recent' (mais recentes primeiro, com não lidas priorizadas)
     const unreadA = (a.unreadCount || a.unread_count || 0) > 0 ? 1 : 0
     const unreadB = (b.unreadCount || b.unread_count || 0) > 0 ? 1 : 0
     if (unreadA !== unreadB) return unreadB - unreadA
@@ -206,9 +371,9 @@ const filteredTickets = computed(() => {
 <style scoped>
 /* ─── Coluna da Fila (Estilo da Imagem de Referência) ─────────────────────── */
 .queue-column {
-  width: 290px;
-  min-width: 290px;
-  max-width: 290px;
+  width: 330px;
+  min-width: 330px;
+  max-width: 330px;
   flex-shrink: 0;
   background-color: #ffffff;
   border-right: 1px solid #f1f5f9;
@@ -259,9 +424,11 @@ const filteredTickets = computed(() => {
 .queue-header-right {
   display: flex;
   align-items: center;
+  position: relative;
 }
 
 .queue-filter-btn {
+  position: relative;
   width: 32px;
   height: 32px;
   border-radius: 8px;
@@ -279,6 +446,217 @@ const filteredTickets = computed(() => {
 .queue-filter-btn:hover {
   background: #f8fafc;
   color: #0f172a;
+}
+
+.queue-filter-btn.is-open,
+.queue-filter-btn.has-filter {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.filter-badge-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #10b981;
+  border: 1.5px solid #ffffff;
+}
+
+/* Popover de Filtros */
+.queue-filter-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 290px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: filterPop 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.filter-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fafafa;
+}
+
+.filter-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.filter-title-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #059669;
+  font-size: 14px;
+}
+
+.filter-close-btn {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.filter-close-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.filter-popover-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.filter-select-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.filter-select {
+  width: 100%;
+  height: 34px;
+  padding: 0 28px 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 12px;
+  color: #1e293b;
+  appearance: none;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.filter-select:focus {
+  border-color: #059669;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.1);
+}
+
+.select-chevron {
+  position: absolute;
+  right: 8px;
+  pointer-events: none;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+}
+
+.filter-checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f8fafc;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.filter-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #334155;
+  cursor: pointer;
+  user-select: none;
+}
+
+.filter-checkbox-label input[type="checkbox"] {
+  accent-color: #059669;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.filter-popover-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid #f1f5f9;
+  background: #fafafa;
+}
+
+.filter-reset-btn {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: #ef4444;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.filter-reset-btn:hover {
+  background: #fee2e2;
+}
+
+.filter-apply-btn {
+  border: none;
+  background: #059669;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.filter-apply-btn:hover {
+  background: #047857;
+}
+
+/* Transição do popover */
+.filter-fade-slide-enter-active,
+.filter-fade-slide-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.filter-fade-slide-enter-from,
+.filter-fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 /* 2. Trilho de Abas em Cápsula (Aguardando 30  Grupos 17  Em atend. 1) */

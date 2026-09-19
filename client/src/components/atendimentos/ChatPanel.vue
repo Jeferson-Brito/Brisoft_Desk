@@ -374,21 +374,6 @@
           <span class="composer-icon-box"><i class="ri-send-plane-2-line"></i></span>
         </button>
       </div>
-
-      <!-- Indicadores toggle embaixo do input à direita (estilo Screenshot) -->
-      <div class="chat-footer-bottom-bar">
-        <button
-          type="button"
-          class="chat-metrics-bottom-btn"
-          :class="{ active: metricsExpanded }"
-          title="Alternar indicadores do atendente"
-          @click="toggleMetrics"
-        >
-          <span class="metrics-icon-box"><i class="ri-line-chart-line"></i></span>
-          <span>Indicadores</span>
-          <span class="metrics-chevron-box"><i :class="metricsExpanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'"></i></span>
-        </button>
-      </div>
     </div>
 
     <!-- Barra de Indicadores KPIs no rodapé do ChatPanel (sempre visível quando metricsExpanded) -->
