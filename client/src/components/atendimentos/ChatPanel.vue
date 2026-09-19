@@ -200,6 +200,8 @@
               :avatar-color="ticket.avatarColor"
               :avatar-url="ticket.avatar_url"
               :current-user-id="authStore.user?.id"
+              :current-user-name="authStore.user?.name"
+              :client-name="ticket?.clientName || ticket?.client_name"
               :is-group="Boolean(ticket.is_group)"
               :allow-device-message-mutations="ticket.departments?.allow_device_message_mutations === true"
               @reply="startReply"
@@ -2167,13 +2169,13 @@ watch(inputMsg, (newVal) => {
 
 .chat-date-pill {
   pointer-events: auto;
-  padding: 3px 12px;
-  background: #f8fafc;
-  color: #94a3b8;
-  border-radius: 6px;
+  padding: 3px 14px;
+  background: #f1f5f9;
+  color: #64748b;
+  border-radius: 999px;
   font-size: 11px;
   font-weight: 500;
-  border: 1px solid #f1f5f9;
+  border: none;
   box-shadow: none;
 }
 

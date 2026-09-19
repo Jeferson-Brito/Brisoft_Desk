@@ -22,7 +22,12 @@
         <i class="ri-arrow-down-s-line"></i>
       </button>
     <div class="chat-bubble incoming">
-      <div v-if="isGroup && msg.sender_name" class="group-message-sender">{{ msg.sender_name }}</div>
+      <!-- Identificação de quem enviou (Cliente / Participante do Grupo) -->
+      <div v-if="incomingSenderInfo" class="message-author-chip incoming">
+        <i :class="incomingSenderInfo.icon" class="author-icon"></i>
+        <span class="author-name">{{ incomingSenderInfo.name }}</span>
+        <span v-if="incomingSenderInfo.badge" class="author-badge incoming">{{ incomingSenderInfo.badge }}</span>
+      </div>
       <div v-if="replyPreview" class="message-reply-preview">
         <strong>{{ replySender || 'Mensagem respondida' }}</strong>
         <span>{{ replyPreview }}</span>
@@ -163,8 +168,13 @@
         <i class="ri-arrow-down-s-line"></i>
       </button>
     <div class="chat-bubble outgoing">
-      <div v-if="isGroup && agentName && !isAudio && !isDirectWhatsapp" style="font-weight:700;font-size:11px;color:rgba(255,255,255,0.95);margin-bottom:3px;">
-        {{ agentName }}
+      <!-- Identificação de quem enviou (Atendente, Bot, WhatsApp direto) -->
+      <div v-if="!isDeleted && outgoingSenderInfo" class="message-author-chip outgoing">
+        <i :class="outgoingSenderInfo.icon" class="author-icon"></i>
+        <span class="author-name">{{ outgoingSenderInfo.name }}</span>
+        <span v-if="outgoingSenderInfo.badge" class="author-badge" :class="outgoingSenderInfo.type">
+          {{ outgoingSenderInfo.badge }}
+        </span>
       </div>
 
       <div v-if="replyPreview" class="message-reply-preview">
@@ -393,6 +403,14 @@ const props = defineProps({
   allowDeviceMessageMutations: {
     type: Boolean,
     default: false
+  },
+  currentUserName: {
+    type: String,
+    default: ''
+  },
+  clientName: {
+    type: String,
+    default: ''
   }
 })
 
@@ -630,6 +648,78 @@ const isDirectWhatsapp = computed(() => props.msg?.sender_type === 'whatsapp_dev
   || String(props.msg?.sender_name || '').startsWith('WhatsApp (')
   || String(agentName.value || '').startsWith('WhatsApp ('))
 
+// Identificação completa de quem enviou mensagem de saída (lado direito: Atendente / Bot / WhatsApp)
+const outgoingSenderInfo = computed(() => {
+  const text = String(props.msg?.text || '')
+
+  // 1. Bot / Assistente Virtual
+  if (
+    props.msg?.sender_type === 'bot' ||
+    props.msg?.message_context === 'bot' ||
+    props.msg?.sender_name === 'Bot' ||
+    props.msg?.is_bot ||
+    text.startsWith('[Chatbot]')
+  ) {
+    return {
+      type: 'bot',
+      name: 'Assistente Virtual',
+      badge: 'Bot',
+      icon: 'ri-robot-line'
+    }
+  }
+
+  // 2. WhatsApp conectado diretamente (Aparelho ou WhatsApp Web)
+  if (
+    props.msg?.sender_type === 'whatsapp_device' ||
+    String(props.msg?.sender_name || '').startsWith('WhatsApp (') ||
+    String(agentName.value || '').startsWith('WhatsApp (') ||
+    isDirectWhatsapp.value
+  ) {
+    const rawName = props.msg?.sender_name || agentName.value || 'WhatsApp'
+    return {
+      type: 'whatsapp',
+      name: rawName.includes('(') ? rawName : 'WhatsApp (Aparelho)',
+      badge: 'Aparelho',
+      icon: 'ri-whatsapp-line'
+    }
+  }
+
+  // 3. Atendente Humano
+  let name = agentName.value || props.msg?.sender_name || props.msg?.agent_name
+  if (!name || name.toLowerCase() === 'agent' || name.toLowerCase() === 'atendente') {
+    if (props.msg?.user_id && String(props.msg.user_id) === String(props.currentUserId) && props.currentUserName) {
+      name = props.currentUserName
+    } else {
+      name = 'Atendente'
+    }
+  }
+
+  return {
+    type: 'agent',
+    name: name,
+    badge: null,
+    icon: 'ri-user-line'
+  }
+})
+
+// Identificação completa de quem enviou mensagem de entrada (lado esquerdo: Cliente / Membro do Grupo)
+const incomingSenderInfo = computed(() => {
+  if (props.isGroup) {
+    return {
+      name: props.msg?.sender_name || 'Participante',
+      icon: 'ri-group-line',
+      badge: null
+    }
+  }
+
+  const name = props.msg?.sender_name || props.clientName || 'Cliente'
+  return {
+    name: name,
+    icon: 'ri-user-line',
+    badge: null
+  }
+})
+
 const canManageOutgoingMessage = computed(() => props.msg?.sender === 'agent'
   && Boolean(props.msg?.id)
   && (isDirectWhatsapp.value
@@ -646,6 +736,9 @@ const displayText = computed(() => {
   if (isDeleted.value) return ''
   if (isReaction.value) return ''
   let raw = agentMatch.value ? agentMatch.value[2] : props.msg?.text || ''
+  if (raw.startsWith('[Chatbot]')) {
+    raw = raw.replace(/^\[Chatbot\]\s*/, '')
+  }
   return cleanMediaDisplayText(raw, Boolean(mediaSrc.value))
 })
 const canCopyMessage = computed(() => Boolean(displayText.value))
@@ -863,7 +956,64 @@ onUnmounted(() => {
 .message-reply-preview span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .deleted-message { display: flex; align-items: center; gap: 6px; color: #64748b; font-style: italic; }
 .edited-label { margin-left: 5px; color: #64748b; font-size: 9px; }
-.group-message-sender { margin-bottom: 4px; color: #2563eb; font-size: 10.5px; font-weight: 700; }
+/* ─── Identificação do Autor da Mensagem ─────────────────────────────────── */
+.message-author-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+
+.message-author-chip.outgoing {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.message-author-chip.incoming {
+  color: #059669;
+}
+
+.author-icon {
+  font-size: 11.5px;
+  opacity: 0.9;
+  display: inline-flex;
+  align-items: center;
+}
+
+.author-name {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.author-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.author-badge.bot {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.author-badge.whatsapp {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.author-badge.incoming {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.group-message-sender { margin-bottom: 4px; color: #059669; font-size: 10.5px; font-weight: 700; }
 
 @media (hover: none) {
   .message-actions-trigger { opacity: .72; }
@@ -941,7 +1091,7 @@ onUnmounted(() => {
 .chat-divider-row {
   display: flex;
   justify-content: center;
-  margin: 6px 0;
+  margin: 8px 0;
   width: 100%;
 }
 
@@ -950,12 +1100,13 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   text-align: center;
-  background: transparent;
+  background: #f1f5f9;
   border: none;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 11px;
   font-weight: 500;
-  padding: 2px 8px;
+  padding: 3px 14px;
+  border-radius: 999px;
   max-width: 90%;
   line-height: 1.4;
   box-shadow: none;

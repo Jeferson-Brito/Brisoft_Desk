@@ -60,16 +60,24 @@
                 </div>
               </div>
 
-              <!-- Marcadores / Checkboxes -->
+              <!-- Tipo de Contato / Checkboxes -->
               <div class="filter-group">
-                <label class="filter-label">Marcadores</label>
+                <label class="filter-label">Tipo de Contato</label>
                 <div class="filter-checkbox-list">
                   <label class="filter-checkbox-label">
-                    <input type="checkbox" v-model="filterOnlyAlarm" />
-                    <span>Apenas com alarme ativado</span>
+                    <input
+                      type="checkbox"
+                      v-model="filterOnlyClients"
+                      @change="onToggleClientsFilter"
+                    />
+                    <span>Apenas clientes</span>
                   </label>
                   <label class="filter-checkbox-label">
-                    <input type="checkbox" v-model="filterOnlyEmployee" />
+                    <input
+                      type="checkbox"
+                      v-model="filterOnlyEmployee"
+                      @change="onToggleEmployeeFilter"
+                    />
                     <span>Apenas funcionários</span>
                   </label>
                 </div>
@@ -201,7 +209,7 @@ const showFilterPopover = ref(false)
 const filterPopoverRef = ref(null)
 const selectedDepartment = ref('')
 const sortOrder = ref('recent')
-const filterOnlyAlarm = ref(false)
+const filterOnlyClients = ref(false)
 const filterOnlyEmployee = ref(false)
 
 const departmentsList = computed(() => {
@@ -209,17 +217,29 @@ const departmentsList = computed(() => {
 })
 
 const hasActiveFilters = computed(() => {
-  return !!selectedDepartment.value || sortOrder.value !== 'recent' || filterOnlyAlarm.value || filterOnlyEmployee.value
+  return !!selectedDepartment.value || sortOrder.value !== 'recent' || filterOnlyClients.value || filterOnlyEmployee.value
 })
 
 function toggleFilterPopover() {
   showFilterPopover.value = !showFilterPopover.value
 }
 
+function onToggleClientsFilter() {
+  if (filterOnlyClients.value) {
+    filterOnlyEmployee.value = false
+  }
+}
+
+function onToggleEmployeeFilter() {
+  if (filterOnlyEmployee.value) {
+    filterOnlyClients.value = false
+  }
+}
+
 function resetFilters() {
   selectedDepartment.value = ''
   sortOrder.value = 'recent'
-  filterOnlyAlarm.value = false
+  filterOnlyClients.value = false
   filterOnlyEmployee.value = false
 }
 
@@ -325,12 +345,11 @@ const filteredTickets = computed(() => {
     })
   }
 
-  // Marcador: Alarme
-  if (filterOnlyAlarm.value) {
-    list = list.filter(t => t.has_alarm || (t.department && t.department.toLowerCase().includes('alarme')))
+  // Tipo de Contato
+  if (filterOnlyClients.value) {
+    list = list.filter(t => !t.is_employee)
   }
 
-  // Marcador: Funcionário
   if (filterOnlyEmployee.value) {
     list = list.filter(t => !!t.is_employee)
   }
@@ -403,9 +422,9 @@ const filteredTickets = computed(() => {
 }
 
 .queue-title-bold {
-  font-size: 16px;
-  font-weight: 700;
-  color: #0f172a;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
   margin: 0;
   letter-spacing: -0.01em;
 }
