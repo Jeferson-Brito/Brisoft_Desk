@@ -52,12 +52,19 @@ export const useUiStore = defineStore('ui', () => {
     isNavigating.value = Boolean(val)
   }
 
-  // Subaba do Módulo de Atendimentos ('fila' | 'conversas')
-  const atendimentosSubTab = ref(sessionStorage.getItem('atendimentosSubTab') || 'fila')
+  // Estado do Painel/Gaveta do Chat Interno da Equipe
+  const isInternalChatOpen = ref(false)
 
-  function setAtendimentosSubTab(tab) {
-    atendimentosSubTab.value = tab
-    try { sessionStorage.setItem('atendimentosSubTab', tab) } catch {}
+  function toggleInternalChat() {
+    isInternalChatOpen.value = !isInternalChatOpen.value
+  }
+
+  function openInternalChat() {
+    isInternalChatOpen.value = true
+  }
+
+  function closeInternalChat() {
+    isInternalChatOpen.value = false
   }
 
   return {
@@ -65,6 +72,7 @@ export const useUiStore = defineStore('ui', () => {
     onlineUsersCount, onlineUsersList, isMobileChatOpen, setMobileChatOpen,
     isNavigating, setNavigating,
     atendimentosSubTab, setAtendimentosSubTab,
+    isInternalChatOpen, toggleInternalChat, openInternalChat, closeInternalChat,
     switchView, showToast, openModal, closeModal, isModalOpen
   }
 })

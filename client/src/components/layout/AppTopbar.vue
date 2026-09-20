@@ -19,10 +19,8 @@
     <div v-if="currentModule === 'atendimentos'" class="topbar-tabs-track" aria-label="Navegação do módulo">
       <!-- Aba Ativa: Fila de Atendimento com Badge de Contagem -->
       <div
-        class="topbar-nav-pill"
-        :class="{ active: ui.atendimentosSubTab !== 'conversas' }"
+        class="topbar-nav-pill active"
         title="Fila de Atendimento do WhatsApp"
-        @click="ui.setAtendimentosSubTab('fila')"
       >
         <span class="pill-icon-box"><i class="ri-folder-line"></i></span>
         <span class="pill-label">Fila de Atendimento</span>
@@ -37,9 +35,9 @@
 
       <div
         class="topbar-nav-pill"
-        :class="{ active: ui.atendimentosSubTab === 'conversas' }"
-        title="Chat Interno da Empresa (Equipe)"
-        @click="ui.setAtendimentosSubTab('conversas')"
+        :class="{ active: ui.isInternalChatOpen }"
+        title="Chat Interno da Equipe (Conversas)"
+        @click="ui.toggleInternalChat()"
       >
         <span class="pill-icon-box"><i class="ri-chat-3-line"></i></span>
         <span>Conversas</span>
