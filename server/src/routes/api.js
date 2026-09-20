@@ -18,6 +18,7 @@ const contactsController = require('../controllers/contacts.controller');
 const quickMessageController = require('../controllers/quick-message.controller');
 const notesController = require('../controllers/notes.controller');
 const wallboardController = require('../controllers/wallboard.controller');
+const internalChatController = require('../controllers/internal-chat.controller');
 const cloudStorage = require('../services/cloud-storage.service');
 const fs = require('fs');
 const { requireAuth, requireAdmin, requireSupervisorOrAdmin, loginRateLimit } = require('../middleware/auth.middleware');
@@ -145,5 +146,15 @@ router.put('/whatsapp/accounts/:id', requireAuth, requireSupervisorOrAdmin, (req
 router.post('/whatsapp/accounts/:id/connect', requireAuth, requireSupervisorOrAdmin, (req, res) => whatsappController.connectAccount(req, res));
 router.post('/whatsapp/accounts/:id/disconnect', requireAuth, requireSupervisorOrAdmin, (req, res) => whatsappController.disconnectAccount(req, res));
 router.delete('/whatsapp/accounts/:id', requireAuth, requireSupervisorOrAdmin, (req, res) => whatsappController.removeAccount(req, res));
+
+// ==========================================================================
+// CHAT INTERNO DA EMPRESA (100% independente do WhatsApp)
+// ==========================================================================
+router.get('/internal-chat/conversations', requireAuth, (req, res) => internalChatController.listConversations(req, res));
+router.get('/internal-chat/members', requireAuth, (req, res) => internalChatController.listTeamMembers(req, res));
+router.get('/internal-chat/conversations/:id/messages', requireAuth, (req, res) => internalChatController.getMessages(req, res));
+router.post('/internal-chat/conversations/:id/messages', requireAuth, (req, res) => internalChatController.sendMessage(req, res));
+router.post('/internal-chat/direct/:targetUserId', requireAuth, (req, res) => internalChatController.startDirectChat(req, res));
+router.post('/internal-chat/conversations/:id/read', requireAuth, (req, res) => internalChatController.markAsRead(req, res));
 
 module.exports = router;

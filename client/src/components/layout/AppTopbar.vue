@@ -18,24 +18,37 @@
     <!-- Trilho de Navegação de Abas (Exibido exclusivamente no módulo de Atendimentos) -->
     <div v-if="currentModule === 'atendimentos'" class="topbar-tabs-track" aria-label="Navegação do módulo">
       <!-- Aba Ativa: Fila de Atendimento com Badge de Contagem -->
-      <div class="topbar-nav-pill active" title="Fila de Atendimento">
+      <div
+        class="topbar-nav-pill"
+        :class="{ active: ui.atendimentosSubTab !== 'conversas' }"
+        title="Fila de Atendimento do WhatsApp"
+        @click="ui.setAtendimentosSubTab('fila')"
+      >
         <span class="pill-icon-box"><i class="ri-folder-line"></i></span>
         <span class="pill-label">Fila de Atendimento</span>
-        <span class="pill-count-badge">{{ waitingCount || totalTicketsCount || 30 }}</span>
+        <span class="pill-count-badge">{{ waitingCount || totalTicketsCount || 0 }}</span>
       </div>
 
       <!-- Abas Secundárias (Chatbot, Conversas, Campanhas) -->
-      <div class="topbar-nav-pill" title="Assistente Virtual / Chatbot">
+      <div class="topbar-nav-pill disabled-pill" title="Assistente Virtual / Chatbot">
         <span class="pill-icon-box"><i class="ri-robot-line"></i></span>
         <span>Chatbot</span>
       </div>
 
-      <div class="topbar-nav-pill" title="Histórico de Conversas">
+      <div
+        class="topbar-nav-pill"
+        :class="{ active: ui.atendimentosSubTab === 'conversas' }"
+        title="Chat Interno da Empresa (Equipe)"
+        @click="ui.setAtendimentosSubTab('conversas')"
+      >
         <span class="pill-icon-box"><i class="ri-chat-3-line"></i></span>
         <span>Conversas</span>
+        <span v-if="internalChat.totalUnreadCount > 0" class="pill-count-badge unread-internal-badge">
+          {{ internalChat.totalUnreadCount }}
+        </span>
       </div>
 
-      <div class="topbar-nav-pill" title="Campanhas e Disparos">
+      <div class="topbar-nav-pill disabled-pill" title="Campanhas e Disparos">
         <span class="pill-icon-box"><i class="ri-megaphone-line"></i></span>
         <span>Campanhas</span>
       </div>
@@ -226,6 +239,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useSidebarStore } from '@/stores/sidebar.store'
 import { useTicketStore } from '@/stores/tickets.store'
+import { useInternalChatStore } from '@/stores/internal-chat.store'
 import { prefetchRoute } from '@/router'
 import logoUrl from '@/assets/img/logo_tema_claro.png'
 
@@ -235,6 +249,7 @@ const auth = useAuthStore()
 const ui = useUiStore()
 const sidebar = useSidebarStore()
 const ticketStore = useTicketStore()
+const internalChat = useInternalChatStore()
 
 const topbarRef = ref(null)
 const onlineUsersDropdownRef = ref(null)
@@ -479,6 +494,22 @@ onUnmounted(() => {
   padding: 1px 7px;
   border-radius: 10px;
   margin-left: 2px;
+}
+
+.unread-internal-badge {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  animation: pulse-badge 2s infinite ease-in-out;
+}
+
+@keyframes pulse-badge {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.disabled-pill {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .pill-icon-box {

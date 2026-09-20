@@ -52,10 +52,19 @@ export const useUiStore = defineStore('ui', () => {
     isNavigating.value = Boolean(val)
   }
 
+  // Subaba do Módulo de Atendimentos ('fila' | 'conversas')
+  const atendimentosSubTab = ref(sessionStorage.getItem('atendimentosSubTab') || 'fila')
+
+  function setAtendimentosSubTab(tab) {
+    atendimentosSubTab.value = tab
+    try { sessionStorage.setItem('atendimentosSubTab', tab) } catch {}
+  }
+
   return {
     activeView, toasts, openModals, whatsappStatus, whatsappQrCode, whatsappAccounts, serverOnline,
     onlineUsersCount, onlineUsersList, isMobileChatOpen, setMobileChatOpen,
     isNavigating, setNavigating,
+    atendimentosSubTab, setAtendimentosSubTab,
     switchView, showToast, openModal, closeModal, isModalOpen
   }
 })

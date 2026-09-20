@@ -15,6 +15,7 @@ installConsoleCapture();
 
 const apiRoutes = require('./routes/api');
 const whatsappService = require('./services/whatsapp.service');
+const internalChatService = require('./services/internal-chat.service');
 const ticketService = require('./services/ticket.service');
 const { initTempAdmin } = require('./controllers/auth.controller');
 const { resolveAuthenticatedUser } = require('./middleware/auth.middleware');
@@ -102,6 +103,7 @@ app.use(express.static(clientDistPath));
 // Guarda instância do Socket.io no app Express
 app.set('io', io);
 whatsappService.setIO(io);
+internalChatService.setIO(io);
 
 // Rotas da API
 app.use('/api', apiRoutes);
@@ -197,9 +199,21 @@ io.on('connection', (socket) => {
   console.log(`🔌 Cliente conectado via WebSocket: ${socket.id}`);
 
   socket.join(`user:${socket.user.id}`);
+  socket.join('company:general');
   const socketDepartments = [...new Set([...(socket.user.department_ids || []), socket.user.department_id].filter(Boolean))];
   socketDepartments.forEach(departmentId => socket.join(`department:${departmentId}`));
   if (socket.user.role === 'Administrador') socket.join('admins');
+
+  // Indicador de digitação no chat interno
+  socket.on('internal_typing', (data) => {
+    if (!data?.conversationId) return;
+    socket.broadcast.emit('internal_user_typing', {
+      conversationId: data.conversationId,
+      userId: socket.user.id,
+      userName: socket.user.name,
+      isTyping: Boolean(data.isTyping)
+    });
+  });
 
   // Envia status atual do WhatsApp assim que o cliente conecta
   socket.emit('whatsapp_status', whatsappService.getStatusForUser(socket.user));

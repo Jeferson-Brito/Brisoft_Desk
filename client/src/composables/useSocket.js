@@ -2,6 +2,7 @@ import { io } from 'socket.io-client'
 import { useAuthStore }   from '@/stores/auth.store'
 import { useTicketStore } from '@/stores/tickets.store'
 import { useUiStore }     from '@/stores/ui.store'
+import { useInternalChatStore } from '@/stores/internal-chat.store'
 
 let socket = null
 const incomingCallTimers = new Map()
@@ -183,6 +184,17 @@ export function useSocket() {
 
     socket.on('kpis_updated', () => {
       tickets.notifyKpisUpdated()
+    })
+
+    // Eventos do Chat Interno da Equipe (100% independente do WhatsApp)
+    socket.on('internal_message', (message) => {
+      const internalChat = useInternalChatStore()
+      internalChat.handleIncomingInternalMessage(message)
+    })
+
+    socket.on('internal_user_typing', (data) => {
+      const internalChat = useInternalChatStore()
+      internalChat.handleUserTyping(data)
     })
   }
 

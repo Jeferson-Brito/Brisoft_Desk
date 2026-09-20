@@ -1,6 +1,11 @@
 <template>
   <div class="atendimentos-view-layout">
+    <!-- Subaba Conversas: Chat Interno da Empresa (100% independente do WhatsApp) -->
+    <InternalChatView v-if="ui.atendimentosSubTab === 'conversas'" />
+
+    <!-- Subaba Fila: Fila de Atendimentos WhatsApp -->
     <div
+      v-else
       class="atendimentos-main-grid"
       :class="{
         'details-open': isDetailsOpen && !!ticketStore.activeTicket,
@@ -55,6 +60,7 @@ import ChatPanel          from '@/components/atendimentos/ChatPanel.vue'
 import ContactDrawer      from '@/components/atendimentos/ContactDrawer.vue'
 import ModalEncerrar      from '@/components/modals/ModalEncerrar.vue'
 import NewConversationModal from '@/components/atendimentos/NewConversationModal.vue'
+import InternalChatView   from '@/components/chat-interno/InternalChatView.vue'
 
 import { useNotepadStore } from '@/stores/notepad.store'
 
