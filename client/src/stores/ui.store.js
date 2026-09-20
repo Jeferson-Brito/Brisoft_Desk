@@ -45,9 +45,17 @@ export const useUiStore = defineStore('ui', () => {
     isMobileChatOpen.value = Boolean(val)
   }
 
+  // Estado de navegação de rotas/abas (para feedback visual imediato)
+  const isNavigating = ref(false)
+
+  function setNavigating(val) {
+    isNavigating.value = Boolean(val)
+  }
+
   return {
     activeView, toasts, openModals, whatsappStatus, whatsappQrCode, whatsappAccounts, serverOnline,
     onlineUsersCount, onlineUsersList, isMobileChatOpen, setMobileChatOpen,
+    isNavigating, setNavigating,
     switchView, showToast, openModal, closeModal, isModalOpen
   }
 })

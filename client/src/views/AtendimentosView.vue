@@ -76,7 +76,7 @@ function onTicketSelected() {
   mobilePanel.value = 'chat'
   if (typeof window !== 'undefined' && window.innerWidth <= 768) {
     if (!window.history.state?.mobileChat) {
-      window.history.pushState({ mobileChat: true }, '')
+      window.history.pushState({ ...window.history.state, mobileChat: true }, '')
     }
   }
 }
@@ -157,7 +157,7 @@ watch(() => ticketStore.activeTicket, (ticket) => {
 watch(isDetailsOpen, (open) => {
   if (open && typeof window !== 'undefined' && window.innerWidth <= 768) {
     if (!window.history.state?.mobileDetails) {
-      window.history.pushState({ mobileDetails: true }, '')
+      window.history.pushState({ ...window.history.state, mobileDetails: true }, '')
     }
   }
 })

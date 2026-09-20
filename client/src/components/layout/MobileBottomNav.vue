@@ -7,6 +7,8 @@
         :to="tab.path"
         class="mobile-nav-tab"
         :class="{ active: isTabActive(tab) }"
+        @mouseenter="prefetchRoute(tab.path)"
+        @touchstart="prefetchRoute(tab.path)"
       >
         <div class="nav-tab-icon-box">
           <i :class="tab.icon"></i>
@@ -26,6 +28,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 import { useTicketStore } from '@/stores/tickets.store'
 import { useUiStore } from '@/stores/ui.store'
+import { prefetchRoute } from '@/router'
 
 const auth = useAuthStore()
 const tickets = useTicketStore()

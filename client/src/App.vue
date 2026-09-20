@@ -24,6 +24,7 @@
 import { ref, onMounted } from 'vue'
 import { useAuthStore }  from '@/stores/auth.store'
 import { useSocket }     from '@/composables/useSocket'
+import { prefetchCoreViews } from '@/router'
 import AppToast          from '@/components/common/AppToast.vue'
 import FloatingWhatsAppAlert from '@/components/common/FloatingWhatsAppAlert.vue'
 import UnclaimedWhatsAppBanner from '@/components/common/UnclaimedWhatsAppBanner.vue'
@@ -36,6 +37,7 @@ onMounted(async () => {
   await auth.initAuth()
   if (auth.isAuthenticated) {
     socket.connect()
+    prefetchCoreViews()
   }
   ready.value = true
 })

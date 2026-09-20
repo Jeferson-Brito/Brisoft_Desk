@@ -1,6 +1,9 @@
 <template>
   <!-- Layout padrão para todas as rotas autenticadas -->
   <div class="app-container">
+    <!-- Indicador de transição de rota/aba em tempo real -->
+    <div v-if="ui.isNavigating" class="route-nav-progress" aria-hidden="true"></div>
+
     <AppSidebar />
     <main class="main-wrapper">
       <AppTopbar />
@@ -62,6 +65,35 @@ const ui = useUiStore()
   }
   .views-container.with-mobile-nav {
     height: calc(100dvh - 48px - env(safe-area-inset-top, 0px) - 54px - env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ─── Indicador visual instantâneo de transição de rota ──────────────────── */
+.route-nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2.5px;
+  background: linear-gradient(90deg, #059669, #10b981, #34d399, #059669);
+  background-size: 200% 100%;
+  z-index: 999999;
+  pointer-events: none;
+  animation: navProgressPulse 0.85s ease-in-out infinite;
+}
+
+@keyframes navProgressPulse {
+  0% {
+    background-position: 100% 0;
+    opacity: 0.85;
+  }
+  50% {
+    background-position: 0% 0;
+    opacity: 1;
+  }
+  100% {
+    background-position: -100% 0;
+    opacity: 0.85;
   }
 }
 </style>

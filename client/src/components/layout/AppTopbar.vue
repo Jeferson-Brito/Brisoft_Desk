@@ -182,12 +182,25 @@
 
             <!-- Opções do Menu -->
             <div class="user-popover-menu">
-              <button type="button" class="user-popover-item" @click="goTo('/perfil')">
+              <button
+                type="button"
+                class="user-popover-item"
+                @click="goTo('/perfil')"
+                @mouseenter="prefetchRoute('/perfil')"
+                @focus="prefetchRoute('/perfil')"
+              >
                 <i class="ri-user-settings-line"></i>
                 <span>Meu Perfil & Senha</span>
               </button>
 
-              <button v-if="auth.isAdmin" type="button" class="user-popover-item" @click="goTo('/configuracoes')">
+              <button
+                v-if="auth.isAdmin"
+                type="button"
+                class="user-popover-item"
+                @click="goTo('/configuracoes')"
+                @mouseenter="prefetchRoute('/configuracoes')"
+                @focus="prefetchRoute('/configuracoes')"
+              >
                 <i class="ri-settings-3-line"></i>
                 <span>Configurações</span>
               </button>
@@ -213,6 +226,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useSidebarStore } from '@/stores/sidebar.store'
 import { useTicketStore } from '@/stores/tickets.store'
+import { prefetchRoute } from '@/router'
 import logoUrl from '@/assets/img/logo_tema_claro.png'
 
 const route = useRoute()

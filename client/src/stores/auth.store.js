@@ -76,25 +76,36 @@ export const useAuthStore = defineStore('auth', () => {
     clearSession()
   }
 
-  // Valida sessão existente ao carregar o app
+  let initAuthPromise = null
+
+  // Valida sessão existente ao carregar o app (com deduplicação de promise)
   async function initAuth() {
-    if (!token.value) {
+    if (initialized.value) return isAuthenticated.value
+    if (initAuthPromise) return initAuthPromise
+
+    initAuthPromise = (async () => {
+      if (!token.value) {
+        initialized.value = true
+        return false
+      }
+      try {
+        const { data } = await authApi.me()
+        if (data.success && data.user) {
+          user.value = data.user
+          initialized.value = true
+          return true
+        }
+      } catch {
+        // Token inválido ou servidor offline
+      }
+      clearSession()
       initialized.value = true
       return false
-    }
-    try {
-      const { data } = await authApi.me()
-      if (data.success && data.user) {
-        user.value = data.user
-        initialized.value = true
-        return true
-      }
-    } catch {
-      // Token inválido ou servidor offline
-    }
-    clearSession()
-    initialized.value = true
-    return false
+    })().finally(() => {
+      initAuthPromise = null
+    })
+
+    return initAuthPromise
   }
 
   async function refreshUser() {

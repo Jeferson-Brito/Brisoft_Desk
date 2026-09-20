@@ -33,13 +33,22 @@
         to="/dashboard"
         exact-active-class="active"
         title="Dashboard"
+        @mouseenter="prefetchRoute('/dashboard')"
+        @focus="prefetchRoute('/dashboard')"
       >
         <span class="nav-icon-box"><i class="ri-pie-chart-2-line"></i></span>
         <span class="nav-label">Dashboard</span>
       </RouterLink>
 
       <!-- Atendimentos (Inbox/Caixa) -->
-      <RouterLink class="nav-item nav-item-atendimentos" to="/atendimentos" active-class="active" title="Atendimentos">
+      <RouterLink
+        class="nav-item nav-item-atendimentos"
+        to="/atendimentos"
+        active-class="active"
+        title="Atendimentos"
+        @mouseenter="prefetchRoute('/atendimentos')"
+        @focus="prefetchRoute('/atendimentos')"
+      >
         <span class="nav-icon-box"><i class="ri-inbox-archive-line"></i></span>
         <span class="nav-label">Atendimentos</span>
         <span v-if="waitingCount > 0" class="nav-badge" :title="`${waitingCount} aguardando`">
@@ -48,25 +57,53 @@
       </RouterLink>
 
       <!-- Conversas -->
-      <RouterLink class="nav-item" to="/historico" active-class="active" title="Conversas e Histórico">
+      <RouterLink
+        class="nav-item"
+        to="/historico"
+        active-class="active"
+        title="Conversas e Histórico"
+        @mouseenter="prefetchRoute('/historico')"
+        @focus="prefetchRoute('/historico')"
+      >
         <span class="nav-icon-box"><i class="ri-chat-3-line"></i></span>
         <span class="nav-label">Conversas</span>
       </RouterLink>
 
       <!-- Contatos -->
-      <RouterLink class="nav-item" to="/clientes" active-class="active" title="Contatos e Clientes">
+      <RouterLink
+        class="nav-item"
+        to="/clientes"
+        active-class="active"
+        title="Contatos e Clientes"
+        @mouseenter="prefetchRoute('/clientes')"
+        @focus="prefetchRoute('/clientes')"
+      >
         <span class="nav-icon-box"><i class="ri-contacts-book-line"></i></span>
         <span class="nav-label">Contatos</span>
       </RouterLink>
 
       <!-- Mensagens Rápidas -->
-      <RouterLink class="nav-item" to="/mensagens-rapidas" active-class="active" title="Respostas Prontas">
+      <RouterLink
+        class="nav-item"
+        to="/mensagens-rapidas"
+        active-class="active"
+        title="Respostas Prontas"
+        @mouseenter="prefetchRoute('/mensagens-rapidas')"
+        @focus="prefetchRoute('/mensagens-rapidas')"
+      >
         <span class="nav-icon-box"><i class="ri-flashlight-line"></i></span>
         <span class="nav-label">Mensagens Rápidas</span>
       </RouterLink>
 
       <!-- Desempenho -->
-      <RouterLink class="nav-item" to="/desempenho" active-class="active" title="Desempenho e Indicadores">
+      <RouterLink
+        class="nav-item"
+        to="/desempenho"
+        active-class="active"
+        title="Desempenho e Indicadores"
+        @mouseenter="prefetchRoute('/desempenho')"
+        @focus="prefetchRoute('/desempenho')"
+      >
         <span class="nav-icon-box"><i class="ri-line-chart-line"></i></span>
         <span class="nav-label">Desempenho</span>
       </RouterLink>
@@ -75,13 +112,29 @@
     <!-- Seção Inferior: Painel TV e Configurações -->
     <div class="sidebar-nav-footer">
       <!-- Painel TV -->
-      <RouterLink class="nav-item" to="/painel-tv" active-class="active" title="Painel TV">
+      <RouterLink
+        class="nav-item"
+        to="/painel-tv"
+        active-class="active"
+        title="Painel TV"
+        @mouseenter="prefetchRoute('/painel-tv')"
+        @focus="prefetchRoute('/painel-tv')"
+      >
         <span class="nav-icon-box"><i class="ri-tv-line"></i></span>
         <span class="nav-label">Painel TV</span>
       </RouterLink>
 
       <!-- Configurações -->
-      <RouterLink v-if="auth.canManageTeam" class="nav-item" to="/configuracoes" active-class="active" id="settingsNavUsuarios" :title="auth.isAdmin ? 'Configurações' : 'Equipe'">
+      <RouterLink
+        v-if="auth.canManageTeam"
+        class="nav-item"
+        to="/configuracoes"
+        active-class="active"
+        id="settingsNavUsuarios"
+        :title="auth.isAdmin ? 'Configurações' : 'Equipe'"
+        @mouseenter="prefetchRoute('/configuracoes')"
+        @focus="prefetchRoute('/configuracoes')"
+      >
         <span class="nav-icon-box"><i class="ri-settings-3-line"></i></span>
         <span class="nav-label">Configurações</span>
       </RouterLink>
@@ -113,14 +166,34 @@
 
         <!-- Dropdown Popup -->
         <div v-if="showUserDropdown" class="user-popup-menu" :class="{ 'expanded-popup': isExpanded }" @click.stop>
-          <button type="button" class="user-popup-profile" @click="goTo('/perfil')">
+          <button
+            type="button"
+            class="user-popup-profile"
+            @click="goTo('/perfil')"
+            @mouseenter="prefetchRoute('/perfil')"
+            @focus="prefetchRoute('/perfil')"
+          >
             <span class="popup-avatar"><img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="" /><b v-else>{{ userInitials }}</b></span>
             <span class="user-popup-header"><strong>{{ displayUserName }}</strong><small>{{ roleLabel }}</small><span>{{ departmentLabel }}</span></span>
             <i class="ri-arrow-right-s-line"></i>
           </button>
           <div v-if="auth.isAdmin" class="admin-shortcuts">
-            <button type="button" @click="goTo('/usuarios')"><i class="ri-group-line"></i><span>Usuários</span></button>
-            <button type="button" @click="goTo('/configuracao-ia')"><i class="ri-robot-line"></i><span>Config. IA</span></button>
+            <button
+              type="button"
+              @click="goTo('/usuarios')"
+              @mouseenter="prefetchRoute('/usuarios')"
+              @focus="prefetchRoute('/usuarios')"
+            >
+              <i class="ri-group-line"></i><span>Usuários</span>
+            </button>
+            <button
+              type="button"
+              @click="goTo('/configuracao-ia')"
+              @mouseenter="prefetchRoute('/configuracao-ia')"
+              @focus="prefetchRoute('/configuracao-ia')"
+            >
+              <i class="ri-robot-line"></i><span>Config. IA</span>
+            </button>
           </div>
           <div class="appearance-row"><i class="ri-moon-line"></i><span>Aparência: <strong>Claro</strong></span><i class="ri-computer-line"></i></div>
           <div class="user-popup-divider"></div>
@@ -159,6 +232,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore }      from '@/stores/auth.store'
 import { useTicketStore }    from '@/stores/tickets.store'
 import { useSidebarStore }   from '@/stores/sidebar.store'
+import { prefetchRoute }     from '@/router'
 import iconUrl from '@/assets/img/icon.png'
 import logoUrl from '@/assets/img/logo_tema_claro.png'
 import { normalizePersonName } from '@/utils/person-display'
@@ -189,7 +263,7 @@ function closeMobile() {
 watch(() => sidebar.mobileOpen, (open) => {
   if (open && typeof window !== 'undefined' && window.innerWidth <= 768) {
     if (!window.history.state?.mobileSidebar) {
-      window.history.pushState({ mobileSidebar: true }, '')
+      window.history.pushState({ ...window.history.state, mobileSidebar: true }, '')
     }
   }
 })
@@ -373,6 +447,12 @@ async function handleLogout() {
 .nav-item:hover {
   background-color: #f8fafc;
   color: #0f172a;
+}
+
+.nav-item:active {
+  transform: scale(0.94);
+  transition: transform 0.08s ease;
+  background-color: #f1f5f9;
 }
 
 /* Item Ativo (Cápsula Verde Suave + Indicador Vertical na Margem Esquerda) */
