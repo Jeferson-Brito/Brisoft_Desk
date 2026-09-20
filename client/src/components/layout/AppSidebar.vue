@@ -26,8 +26,9 @@
 
     <!-- Navigation Links -->
     <nav class="sidebar-nav">
-      <!-- Dashboard (Relógio/Pie) -->
+      <!-- Dashboard (Visível apenas para Administradores) -->
       <RouterLink
+        v-if="auth.isAdmin"
         class="nav-item"
         to="/dashboard"
         exact-active-class="active"

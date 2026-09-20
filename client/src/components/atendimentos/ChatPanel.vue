@@ -34,8 +34,14 @@
             </div>
             <div class="chat-contact-subtitle">
               <span v-if="headerPerson.role">{{ headerPerson.role }}</span>
-              <span v-else-if="ticket?.department"><span class="subtitle-icon-box"><i class="ri-map-pin-line"></i></span>{{ ticket.department }}</span>
-              <span v-else><span class="subtitle-icon-box"><i class="ri-map-pin-line"></i></span>Monitorando 24h</span>
+              <span v-else-if="ticket?.department" class="chat-department-line">
+                <i class="ri-map-pin-line"></i>
+                <span>{{ ticket.department }}</span>
+              </span>
+              <span v-else class="chat-department-line">
+                <i class="ri-map-pin-line"></i>
+                <span>Monitorando 24h</span>
+              </span>
             </div>
           </div>
         </div>
