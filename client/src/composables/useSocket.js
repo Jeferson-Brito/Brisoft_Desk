@@ -3,6 +3,7 @@ import { useAuthStore }   from '@/stores/auth.store'
 import { useTicketStore } from '@/stores/tickets.store'
 import { useUiStore }     from '@/stores/ui.store'
 import { useInternalChatStore } from '@/stores/internal-chat.store'
+import { sendNativeNotification, requestNotificationPermission } from '@/utils/native-notifications'
 
 let socket = null
 const incomingCallTimers = new Map()
@@ -18,6 +19,7 @@ export function useSocket() {
   function connect() {
     const auth = useAuthStore()
     if (!auth.token) return
+    requestNotificationPermission()
     if (socket?.connected) return
 
     if (socket) {
@@ -142,6 +144,7 @@ export function useSocket() {
           const preview  = (message?.text || '').substring(0, 40)
           ui.showToast(`💬 ${name}: "${preview}"`)
           _playMessageSound()
+          sendNativeNotification(`💬 ${name}`, preview, { tag: `ticket-${ticketId}` })
         }
       }
     })
@@ -190,6 +193,13 @@ export function useSocket() {
     socket.on('internal_message', (message) => {
       const internalChat = useInternalChatStore()
       internalChat.handleIncomingInternalMessage(message)
+
+      const auth = useAuthStore()
+      if (message && message.sender_id !== auth.user?.id) {
+        const senderName = message.sender?.name || 'Colega de equipe'
+        const preview = (message.text || 'Enviou um arquivo').slice(0, 50)
+        sendNativeNotification(`💬 ${senderName} (Chat Interno)`, preview, { tag: `internal-${message.conversation_id}` })
+      }
     })
 
     socket.on('internal_user_typing', (data) => {

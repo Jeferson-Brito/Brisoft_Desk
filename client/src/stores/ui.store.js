@@ -52,6 +52,13 @@ export const useUiStore = defineStore('ui', () => {
     isNavigating.value = Boolean(val)
   }
 
+  // Subaba do Módulo de Atendimentos ('fila' | 'conversas')
+  const atendimentosSubTab = ref('fila')
+
+  function setAtendimentosSubTab(val) {
+    atendimentosSubTab.value = val
+  }
+
   // Estado do Painel/Gaveta do Chat Interno da Equipe
   const isInternalChatOpen = ref(false)
 
