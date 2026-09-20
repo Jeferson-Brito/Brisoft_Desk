@@ -1,0 +1,13 @@
+{
+  "name": "brisoft-desk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Brisoft Desk - WhatsApp & Desk Management",
+  "scripts": {
+    "build": "npm ci --include=dev --prefix client && npm run build --prefix client && npm ci --omit=dev --prefix server",
+    "start": "npm start --prefix server"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
