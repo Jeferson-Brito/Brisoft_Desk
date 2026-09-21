@@ -3,7 +3,15 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
-const ffmpegPath = require('ffmpeg-static');
+let ffmpegPath = 'ffmpeg';
+try {
+  const staticPath = require('ffmpeg-static');
+  if (staticPath && fs.existsSync(staticPath)) {
+    ffmpegPath = staticPath;
+  }
+} catch {
+  ffmpegPath = 'ffmpeg';
+}
 
 const MAX_CONCURRENT_TRANSCODES = 2;
 const MAX_PENDING_TRANSCODES = 50;

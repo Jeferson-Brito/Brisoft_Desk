@@ -4,7 +4,7 @@
   "private": true,
   "description": "Brisoft Desk - WhatsApp & Desk Management",
   "scripts": {
-    "build": "npm ci --include=dev --prefix client && npm run build --prefix client && npm ci --omit=dev --prefix server",
+    "build": "npm ci --include=dev --prefix client && npm run build --prefix client && (npm ci --omit=dev --prefix server || (sleep 3 && npm ci --omit=dev --prefix server) || npm ci --omit=dev --prefix server --ignore-scripts)",
     "start": "npm start --prefix server"
   },
   "engines": {

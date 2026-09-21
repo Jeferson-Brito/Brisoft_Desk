@@ -5,7 +5,7 @@ services:
     plan: free
     autoDeployTrigger: commit
     healthCheckPath: /api/health
-    buildCommand: npm ci --include=dev --prefix client && npm run build --prefix client && npm ci --omit=dev --prefix server
+    buildCommand: npm ci --include=dev --prefix client && npm run build --prefix client && (npm ci --omit=dev --prefix server || (sleep 3 && npm ci --omit=dev --prefix server) || npm ci --omit=dev --prefix server --ignore-scripts)
     startCommand: npm start --prefix server
     envVars:
       - key: NODE_VERSION
