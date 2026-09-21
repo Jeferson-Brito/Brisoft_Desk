@@ -13,7 +13,18 @@ const { supabase, isSupabaseConfigured } = require('../config/supabase');
 const { enrichUserAccess } = require('../services/access-control.service');
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_EXPIRES = '8h';
+const JWT_EXPIRES = '24h';
+
+function sanitizePhone(val) {
+  if (!val || typeof val !== 'string') return null;
+  if (val.includes('@')) return null;
+  const digits = val.replace(/\D/g, '');
+  if (digits.length < 10) return null;
+  if (digits.length === 11 && digits[2] === '9') {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+  }
+  return null;
+}
 
 // ==========================================================================
 // ADMIN TEMPORÁRIO EM MEMÓRIA (runtime only — sem rastro em disco)
@@ -101,7 +112,7 @@ class AuthController {
 
       const { data: users, error } = await supabase
         .from('users')
-        .select('id, name, email, role, department_id, avatar_url, password_hash, is_active, is_temporary, departments!users_department_id_fkey(id, name, color)')
+        .select('id, name, email, role, department_id, avatar_url, password_hash, is_active, is_temporary, phone, departments!users_department_id_fkey(id, name, color)')
         .eq('email', email.toLowerCase())
         .eq('is_active', true)
         .limit(1);
@@ -125,6 +136,8 @@ class AuthController {
       const department_name = user.departments ? user.departments.name : null;
       const department_color = user.departments ? user.departments.color : null;
 
+      user.phone = sanitizePhone(user.phone);
+
       const userWithAccess = await enrichUserAccess({ ...user, department_name, department_color });
       const token = jwt.sign(
         { id: user.id, email: user.email, name: user.name, role: user.role, is_temporary: !!user.is_temporary, department_id: user.department_id, department_name },
@@ -134,7 +147,7 @@ class AuthController {
 
       // Retorna os dados do usuário sem o hash da senha
       const { password_hash, ...userPublic } = user;
-      Object.assign(userPublic, userWithAccess, { department_name, department_color });
+      Object.assign(userPublic, userWithAccess, { department_name, department_color, phone: user.phone });
       const { clearLoginAttempts } = require('../middleware/auth.middleware');
       clearLoginAttempts(req);
       return res.json({ success: true, token, user: userPublic });
@@ -165,6 +178,7 @@ class AuthController {
           avatar_url: null,
           department_id: null,
           department_name: null,
+          phone: null,
         }
       });
     }
@@ -183,6 +197,17 @@ class AuthController {
         data.department_name = data.departments.name;
         data.department_color = data.departments.color;
       }
+      if (data.phone) {
+        if (data.phone.includes('@')) {
+          // Se havia um e-mail salvo indevidamente como telefone, limpa no banco e no retorno
+          supabase.from('users').update({ phone: null }).eq('id', id).catch(() => {});
+          data.phone = null;
+        } else {
+          data.phone = sanitizePhone(data.phone);
+        }
+      } else {
+        data.phone = null;
+      }
       return res.json({ success: true, user: await enrichUserAccess(data) });
     } catch (err) {
       console.error('Erro ao buscar usuário:', err.message);
@@ -199,7 +224,16 @@ class AuthController {
     if (!isSupabaseConfigured()) return res.status(503).json({ success: false, error: 'Banco de dados indisponível.' });
 
     const name = String(req.body?.name || '').trim().replace(/\s+/g, ' ');
-    const phone = String(req.body?.phone || '').trim().slice(0, 30) || null;
+    const rawPhone = String(req.body?.phone || '').trim();
+    let phone = null;
+    if (rawPhone && !rawPhone.includes('@')) {
+      const digits = rawPhone.replace(/\D/g, '');
+      if (digits.length === 11 && digits[2] === '9') {
+        phone = `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+      } else if (digits.length > 0) {
+        return res.status(400).json({ success: false, error: 'O telefone deve estar no formato (00) 90000-0000 com o 9 obrigatório.' });
+      }
+    }
     const avatar = req.body?.avatar_url;
     const currentPassword = String(req.body?.current_password || '');
     const newPassword = String(req.body?.new_password || '');
@@ -238,6 +272,7 @@ class AuthController {
       if (readError || !refreshed) throw readError || new Error('Usuário não encontrado.');
       refreshed.department_name = refreshed.departments?.name || null;
       refreshed.department_color = refreshed.departments?.color || null;
+      refreshed.phone = sanitizePhone(refreshed.phone);
       const publicUser = await enrichUserAccess(refreshed);
       const token = jwt.sign(
         { id: publicUser.id, email: publicUser.email, name: publicUser.name, role: publicUser.role, avatar_url: publicUser.avatar_url || null, is_temporary: false, department_id: publicUser.department_id, department_name: publicUser.department_name },

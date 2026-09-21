@@ -7,7 +7,7 @@
           <span v-else>{{ initials }}</span>
         </div>
         <div>
-          <h2>Meu perfil</h2>
+          <h2>{{ form.name || auth.user?.name || 'Perfil' }}</h2>
           <p>Atualize seus dados pessoais e sua foto.</p>
           <div class="photo-actions">
             <label class="btn-secondary">Escolher foto<input type="file" accept="image/jpeg,image/png,image/webp" hidden @change="choosePhoto" /></label>
@@ -18,9 +18,29 @@
 
       <div class="grid">
         <label>Nome e sobrenome<input v-model="form.name" class="form-control" required /></label>
-        <label>E-mail de login<input :value="auth.user?.email" class="form-control locked" disabled /><small>O e-mail de acesso não pode ser alterado.</small></label>
-        <label>Telefone<input v-model="form.phone" class="form-control" placeholder="(00) 00000-0000" /></label>
-        <label>Departamento<input :value="auth.departmentName || 'Geral'" class="form-control locked" disabled /></label>
+        <label>E-mail de login<input :value="auth.user?.email || ''" class="form-control locked" disabled /><small>O e-mail de acesso não pode ser alterado.</small></label>
+        <label>
+          Telefone
+          <input
+            v-model="form.phone"
+            type="tel"
+            class="form-control"
+            placeholder="(00) 90000-0000"
+            maxlength="15"
+            autocomplete="tel"
+            @input="onPhoneInput"
+            @keypress="onlyAllowDigits"
+          />
+        </label>
+        <label>
+          Departamento
+          <input
+            :value="auth.departmentName || auth.user?.department_name || ''"
+            class="form-control locked"
+            disabled
+            placeholder="Não informado"
+          />
+        </label>
       </div>
 
       <div class="password-box">
@@ -101,7 +121,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { authApi } from '@/api/auth.api'
@@ -115,8 +135,70 @@ const showCurrentPassword = ref(false)
 const showNewPassword = ref(false)
 const showConfirmPassword = ref(false)
 
-const form = reactive({ name: auth.user?.name || '', phone: auth.user?.phone || '', avatar_url: auth.user?.avatar_url || null, current_password: '', new_password: '' })
-const initials = computed(() => (form.name || 'U').split(' ').slice(0, 2).map(v => v[0]).join('').toUpperCase())
+function sanitizeInitialPhone(raw) {
+  if (!raw || typeof raw !== 'string') return ''
+  if (raw.includes('@')) return ''
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length < 10) return ''
+  return formatPhoneInput(digits)
+}
+
+function onlyAllowDigits(e) {
+  if (!/\d/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+    e.preventDefault()
+  }
+}
+
+function formatPhoneInput(val) {
+  if (!val) return ''
+  if (typeof val === 'string' && val.includes('@')) return ''
+  let digits = String(val).replace(/\D/g, '')
+
+  if (digits.startsWith('55') && digits.length === 13) {
+    digits = digits.slice(2)
+  }
+  digits = digits.slice(0, 11)
+
+  // O 9 na frente após o DDD (posição 2, 3º dígito) é obrigatório
+  if (digits.length >= 3) {
+    if (digits[2] !== '9') {
+      if (digits.length === 10) {
+        // Injeta o 9 caso venha 10 dígitos (DDD + 8 dígitos)
+        digits = digits.slice(0, 2) + '9' + digits.slice(2)
+      } else {
+        // Se usuário digitou número diferente de 9 no 3º dígito, rejeita esse dígito
+        digits = digits.slice(0, 2)
+      }
+    }
+  }
+
+  if (!digits) return ''
+  if (digits.length <= 2) return `(${digits}`
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`
+}
+
+function onPhoneInput(e) {
+  form.phone = formatPhoneInput(e.target.value)
+}
+
+const form = reactive({
+  name: auth.user?.name || '',
+  phone: sanitizeInitialPhone(auth.user?.phone),
+  avatar_url: auth.user?.avatar_url || null,
+  current_password: '',
+  new_password: ''
+})
+
+watch(() => auth.user, (u) => {
+  if (u) {
+    if (!form.name) form.name = u.name || ''
+    if (!form.phone && u.phone) form.phone = sanitizeInitialPhone(u.phone)
+    if (form.avatar_url === null && u.avatar_url) form.avatar_url = u.avatar_url
+  }
+}, { deep: true })
+
+const initials = computed(() => (form.name || auth.user?.name || 'U').split(' ').slice(0, 2).map(v => v[0]).join('').toUpperCase())
 
 async function choosePhoto(event) {
   const file = event.target.files?.[0]
@@ -126,12 +208,23 @@ async function choosePhoto(event) {
 }
 
 async function save() {
+  if (form.phone) {
+    const digits = form.phone.replace(/\D/g, '')
+    if (digits.length !== 11 || digits[2] !== '9') {
+      return ui.showToast('Informe o telefone completo no formato (00) 90000-0000 com o 9 na frente.', 'error')
+    }
+  }
   if (form.new_password !== confirmPassword.value) return ui.showToast('A confirmação da nova senha não confere.', 'error')
   saving.value = true
   try {
-    const { data } = await authApi.updateProfile({ ...form })
+    const payload = {
+      ...form,
+      phone: form.phone ? form.phone.trim() : null
+    }
+    const { data } = await authApi.updateProfile(payload)
     if (!data.success) throw new Error(data.error)
     auth.setSession(data.token, data.user)
+    form.phone = sanitizeInitialPhone(data.user?.phone)
     form.current_password = ''
     form.new_password = ''
     confirmPassword.value = ''

@@ -7,11 +7,12 @@ const http = axios.create({
   headers: { 'Content-Type': 'application/json' }
 })
 
-// Interceptor de request: injeta JWT em toda chamada à API
+// Interceptor de request: injeta JWT em toda chamada à API e registra atividade
 http.interceptors.request.use((config) => {
   const auth = useAuthStore()
   if (auth.token) {
     config.headers.Authorization = `Bearer ${auth.token}`
+    auth.recordActivity?.()
   }
   return config
 })

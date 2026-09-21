@@ -80,6 +80,12 @@
         <h2 class="auth-card-title">Bem-vindo de volta</h2>
         <p class="auth-card-subtitle">Acesse sua conta para continuar no painel de atendimento.</p>
 
+        <!-- Alerta de Sessão Encerrada por Inatividade -->
+        <div v-if="isInactivityLogout" class="auth-inactivity-banner" role="status">
+          <i class="ri-shield-user-line"></i>
+          <span>Sua sessão foi encerrada após 12h de inatividade por segurança. Faça login novamente para continuar.</span>
+        </div>
+
         <!-- Formulário de Login -->
         <form class="auth-form" id="loginForm" @submit.prevent="handleSubmit">
           <!-- Campo E-mail -->
@@ -185,7 +191,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 import { useSocket }    from '@/composables/useSocket'
@@ -204,6 +210,8 @@ const showPassword = ref(false)
 const loading      = ref(false)
 const errorMsg     = ref('')
 const currentYear  = new Date().getFullYear()
+
+const isInactivityLogout = computed(() => route.query.reason === 'inactivity')
 
 onMounted(() => {
   try {

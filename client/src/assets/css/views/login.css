@@ -444,6 +444,27 @@
   transform: translateY(-6px);
 }
 
+/* Banner de Inatividade */
+.auth-inactivity-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #166534;
+  font-size: 12.5px;
+  line-height: 1.4;
+  margin-bottom: 16px;
+}
+
+.auth-inactivity-banner i {
+  font-size: 18px;
+  color: #059669;
+  flex-shrink: 0;
+}
+
 /* Botão Entrar */
 .btn-login-submit {
   width: 100%;

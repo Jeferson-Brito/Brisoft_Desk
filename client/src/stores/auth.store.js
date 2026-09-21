@@ -3,6 +3,13 @@ import { ref, computed } from 'vue'
 import { authApi } from '@/api/auth.api'
 
 const TOKEN_KEY = 'brifdesk_token'
+const LAST_ACTIVITY_KEY = 'brisoft_last_activity'
+const INACTIVITY_TIMEOUT_MS = 12 * 60 * 60 * 1000 // 12 horas de inatividade sem qualquer interação
+const ACTIVITY_THROTTLE_MS = 30 * 1000 // Grava no localStorage no máximo a cada 30 segundos
+
+let inactivityTimer = null
+let lastRecordedTime = 0
+let listenersAttached = false
 
 function loadStoredToken() {
   const sharedToken = localStorage.getItem(TOKEN_KEY)
@@ -17,6 +24,63 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref(loadStoredToken())
   const user  = ref(null)
   const initialized = ref(false)
+
+  // ─── Inatividade Inteligente (12h) ──────────────────────────────────────────
+  function recordActivity() {
+    const now = Date.now()
+    if (now - lastRecordedTime < ACTIVITY_THROTTLE_MS) return
+    lastRecordedTime = now
+    try {
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(now))
+    } catch {}
+  }
+
+  function checkInactivity() {
+    if (!token.value) return
+    const last = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || 0)
+    if (last && Date.now() - last > INACTIVITY_TIMEOUT_MS) {
+      handleInactivityLogout()
+    }
+  }
+
+  function handleInactivityLogout() {
+    clearSession()
+    import('@/composables/useSocket').then(({ useSocket }) => useSocket().disconnect()).catch(() => {})
+    if (window.location.pathname !== '/login') {
+      const destination = `${window.location.pathname}${window.location.search}${window.location.hash}`
+      window.location.assign(`/login?reason=inactivity&redirect=${encodeURIComponent(destination)}`)
+    }
+  }
+
+  const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart']
+
+  function startInactivityTracker() {
+    if (typeof window === 'undefined') return
+    recordActivity()
+
+    if (!listenersAttached) {
+      listenersAttached = true
+      activityEvents.forEach((evt) => {
+        window.addEventListener(evt, recordActivity, { passive: true })
+      })
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          checkInactivity()
+        }
+      })
+    }
+
+    if (!inactivityTimer) {
+      inactivityTimer = setInterval(checkInactivity, 30 * 1000)
+    }
+  }
+
+  function stopInactivityTracker() {
+    if (inactivityTimer) {
+      clearInterval(inactivityTimer)
+      inactivityTimer = null
+    }
+  }
 
   // ─── Getters ─────────────────────────────────────────────────────────────────
   const isAuthenticated = computed(() => !!token.value)
@@ -40,6 +104,9 @@ export const useAuthStore = defineStore('auth', () => {
     user.value  = newUser
     localStorage.setItem(TOKEN_KEY, newToken)
     sessionStorage.removeItem(TOKEN_KEY)
+    localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
+    lastRecordedTime = Date.now()
+    startInactivityTracker()
   }
 
   function clearSession() {
@@ -47,6 +114,8 @@ export const useAuthStore = defineStore('auth', () => {
     user.value  = null
     localStorage.removeItem(TOKEN_KEY)
     sessionStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(LAST_ACTIVITY_KEY)
+    stopInactivityTracker()
   }
 
   async function login(email, password) {
@@ -88,11 +157,21 @@ export const useAuthStore = defineStore('auth', () => {
         initialized.value = true
         return false
       }
+
+      // Se passou mais de 12h de inatividade absoluta desde a última ação:
+      const last = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || 0)
+      if (last && Date.now() - last > INACTIVITY_TIMEOUT_MS) {
+        handleInactivityLogout()
+        initialized.value = true
+        return false
+      }
+
       try {
         const { data } = await authApi.me()
         if (data.success && data.user) {
           user.value = data.user
           initialized.value = true
+          startInactivityTracker()
           return true
         }
       } catch {
@@ -120,6 +199,6 @@ export const useAuthStore = defineStore('auth', () => {
     // getters
     isAuthenticated, isAdmin, isSupervisor, canManageTeam, isTemporary, departmentId, departmentName, departmentIds, userName, userEmail,
     // actions
-    login, logout, initAuth, refreshUser, setSession, clearSession
+    login, logout, initAuth, refreshUser, setSession, clearSession, recordActivity
   }
 })
