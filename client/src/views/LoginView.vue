@@ -8,19 +8,13 @@
       <div class="brand-particles-overlay"></div>
 
       <div class="brand-panel-content">
-        <!-- Logo Oficial BriSoft -->
+        <!-- Logo Oficial Brisoft -->
         <div class="brand-header-box">
-          <img :src="logoDarkUrl" alt="BriSoft Desk" class="brand-logo-img" />
+          <img :src="logoDarkUrl" alt="Brisoft Desk" class="brand-logo-img" />
         </div>
 
         <!-- Área Central de Conteúdo e Valor Comercial -->
         <div class="brand-hero-section">
-          <!-- Pílula de Status Operacional -->
-          <div class="brand-status-pill">
-            <span class="status-pulse-dot"></span>
-            <span class="status-pill-text">Central de Atendimento Corporativa</span>
-          </div>
-
           <!-- Título Principal de Alto Impacto -->
           <h1 class="brand-headline">
             O WhatsApp da sua empresa.<br />
@@ -39,8 +33,8 @@
                 <i class="ri-whatsapp-line"></i>
               </div>
               <div class="feature-copy">
-                <strong class="feature-title">Múltiplos analistas em 1 só WhatsApp</strong>
-                <span class="feature-subtitle">Fim do celular de mão em mão. Toda a equipe atendendo no mesmo número oficial com distribuição automática.</span>
+                <strong class="feature-title">Múltiplos atendentes em 1 WhatsApp</strong>
+                <span class="feature-subtitle">Toda a sua equipe atendendo no mesmo número oficial com distribuição automática.</span>
               </div>
             </div>
 
@@ -49,8 +43,8 @@
                 <i class="ri-tv-2-line"></i>
               </div>
               <div class="feature-copy">
-                <strong class="feature-title">Gestão à vista com Painel TV ao vivo</strong>
-                <span class="feature-subtitle">Supervisão total da operação em telão: fila de espera, tempo de atendimento (TMA) e alertas sonoros instantâneos.</span>
+                <strong class="feature-title">Painel TV e Gestão ao Vivo</strong>
+                <span class="feature-subtitle">Monitore filas, tempo de atendimento (TMA) e alertas sonoros em tempo real no telão.</span>
               </div>
             </div>
 
@@ -59,8 +53,8 @@
                 <i class="ri-flashlight-line"></i>
               </div>
               <div class="feature-copy">
-                <strong class="feature-title">Triagem inteligente & Zero espera (24/7)</strong>
-                <span class="feature-subtitle">Chatbot que qualifica o cliente na hora e mensagens rápidas em 1 clique para fechar negócios com agilidade máxima.</span>
+                <strong class="feature-title">Triagem com Chatbot & Respostas Rápidas</strong>
+                <span class="feature-subtitle">Atendimento imediato 24/7 e respostas em 1 clique para acelerar vendas e suporte.</span>
               </div>
             </div>
           </div>
@@ -68,19 +62,19 @@
 
         <!-- Rodapé do Painel Esquerdo -->
         <div class="brand-panel-footer">
-          <span>© {{ currentYear }} BriSoft · Todos os direitos reservados</span>
+          <span>© {{ currentYear }} Brisoft · Todos os direitos reservados</span>
         </div>
       </div>
     </div>
 
     <!-- ─── 2. Coluna da Direita: Formulário de Autenticação ────────────────── -->
     <div class="login-auth-panel">
-      <!-- Logo Compacta visível apenas no Mobile -->
-      <div class="mobile-brand-header">
-        <img :src="logoLightUrl" alt="BriSoft Desk" class="mobile-logo-img" />
-      </div>
-
       <div class="auth-form-card">
+        <!-- Logo visível apenas no Mobile -->
+        <div class="mobile-brand-header">
+          <img :src="logoLightUrl" alt="Brisoft Desk" class="mobile-logo-img" />
+        </div>
+
         <h2 class="auth-card-title">Bem-vindo de volta</h2>
         <p class="auth-card-subtitle">Acesse sua conta para continuar no painel de atendimento.</p>
 
@@ -257,12 +251,12 @@ async function handleSubmit() {
 }
 
 function handleForgotPassword() {
-  alert('Para redefinir sua senha, solicite ao administrador do sistema ou entre em contato com o suporte da BriSoft.')
+  alert('Para redefinir sua senha, solicite ao administrador do sistema ou entre em contato com o suporte da Brisoft.')
 }
 
 function handleSupport() {
-  const supportText = encodeURIComponent('Olá, preciso de suporte para acessar minha conta no BriSoft Desk.')
-  window.open(`https://wa.me/?text=${supportText}`, '_blank')
+  const supportText = encodeURIComponent('Olá, preciso de suporte para acessar minha conta no Brisoft Desk.')
+  window.open(`https://wa.me/5583981131352?text=${supportText}`, '_blank')
 }
 </script>
 
