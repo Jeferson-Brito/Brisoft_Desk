@@ -391,6 +391,7 @@ class WhatsAppService {
     this.mediaCleanupTimer = null;
     this.externalTicketCleanupTimer = null;
     this.externalTicketCleanupRunning = false;
+    ticketService.setWhatsAppService(this);
   }
 
   setIO(ioInstance) {
@@ -707,6 +708,15 @@ class WhatsAppService {
       }
       if (changed) saveLidMap(account);
     });
+    account.sock.ev.on('messaging-history.set', ({ chats, contacts, messages, syncType }) => {
+      console.log(`[WhatsApp:${account.name}] histórico sincronizado (${chats?.length || 0} conversas, ${messages?.length || 0} msgs, tipo: ${syncType || 'n/d'}).`);
+      if (Array.isArray(contacts) && contacts.length) updateContacts(contacts);
+      if (Array.isArray(chats) && chats.length) updateChats(chats);
+      this.syncAccountGroups(account).catch(() => {});
+      if (this.io) {
+        this.io.emit('tickets_updated');
+      }
+    });
   }
 
   bindConnection(account, DisconnectReason) {
@@ -737,8 +747,8 @@ class WhatsAppService {
         scheduleSessionBackup(account, 500);
         await this.saveConfigs();
         this.emitAccounts();
-        this.syncAccountGroups(account).catch(error => console.warn(`[WhatsApp:${account.name}] falha ao sincronizar grupos: ${error.message}`));
         ticketService.handleAccountReconnected(account.id, this.io).catch(error => console.warn(`[WhatsApp:${account.name}] falha ao restaurar atendimentos: ${error.message}`));
+        this.syncAccountGroups(account).catch(error => console.warn(`[WhatsApp:${account.name}] falha ao sincronizar grupos: ${error.message}`));
       }
 
       if (connection === 'close') {
@@ -815,7 +825,12 @@ class WhatsAppService {
       for (const msg of event.messages || []) {
         if (!msg.message) continue;
         if (msg.key?.id) cacheRetryMessage(account, msg.key, msg.message);
-        if (event.type !== 'notify' && !msg.key.fromMe) continue;
+        if (event.type !== 'notify' && event.type !== 'append' && !msg.key.fromMe) continue;
+        if (event.type === 'append' && !msg.key.fromMe) {
+          const ts = typeof msg.messageTimestamp === 'object' && msg.messageTimestamp?.low ? msg.messageTimestamp.low : Number(msg.messageTimestamp);
+          const ms = ts > 1e11 ? ts : ts * 1000;
+          if (ms && Date.now() - ms > 24 * 60 * 60 * 1000) continue;
+        }
         const rawJid = msg.key.remoteJid;
         if (!rawJid || rawJid.includes('@newsletter') || rawJid.includes('status@broadcast')) continue;
         const messageKey = `${account.id}:${msg.key.id || `${rawJid}:${msg.messageTimestamp}`}`;

@@ -273,6 +273,8 @@ function bindSocket() {
   socket.on('ticket_created', scheduleSocketRefresh)
   socket.on('ticket_updated', scheduleSocketRefresh)
   socket.on('queue_updated', scheduleSocketRefresh)
+  socket.on('tickets_updated', scheduleSocketRefresh)
+  socket.on('whatsapp_account_reconnected', scheduleSocketRefresh)
   socket.on('rating_received', scheduleSocketRefresh)
   socket.on('kpis_updated', scheduleSocketRefresh)
 }
@@ -282,6 +284,8 @@ function unbindSocket() {
   socket.off('ticket_created', scheduleSocketRefresh)
   socket.off('ticket_updated', scheduleSocketRefresh)
   socket.off('queue_updated', scheduleSocketRefresh)
+  socket.off('tickets_updated', scheduleSocketRefresh)
+  socket.off('whatsapp_account_reconnected', scheduleSocketRefresh)
   socket.off('rating_received', scheduleSocketRefresh)
   socket.off('kpis_updated', scheduleSocketRefresh)
 }

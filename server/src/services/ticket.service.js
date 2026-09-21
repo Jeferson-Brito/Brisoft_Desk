@@ -161,10 +161,13 @@ async function getDisconnectRules() {
   }
 }
 
+let globalWhatsAppService = null;
+
 async function getKnownWhatsAppAccounts(whatsappService = null) {
-  if (whatsappService?.getAccounts) {
+  const ws = whatsappService || globalWhatsAppService;
+  if (ws?.getAccounts) {
     try {
-      const accs = whatsappService.getAccounts(false);
+      const accs = ws.getAccounts(false);
       if (accs && accs.length) return accs;
     } catch (_) {}
   }
@@ -680,6 +683,10 @@ async function fetchRatingsForTicketIds(ticketIds = []) {
 }
 
 class TicketService {
+  setWhatsAppService(service) {
+    globalWhatsAppService = service;
+  }
+
   invalidateDepartmentCache() {
     departmentCache = null;
     departmentCacheExpiresAt = 0;
@@ -2400,18 +2407,25 @@ ${rendered}`,
       || null;
   }
 
-  async ensureWhatsAppGroupTicket(account, group, io = null) {
+  async ensureWhatsAppGroupTicket(account, group, io = null, options = {}) {
     if (!isSupabaseConfigured() || !account?.id || !group?.jid) return null;
     const channel = `whatsapp:${account.id}`;
-    const department = await this.resolveWhatsAppGroupDepartment(account);
+    const department = options?.department || await this.resolveWhatsAppGroupDepartment(account);
     const name = Array.from(String(group.subject || 'Grupo do WhatsApp').trim()).slice(0, 100).join('') || 'Grupo do WhatsApp';
     const now = new Date().toISOString();
-    const { data: existing, error: findError } = await supabase.from('tickets')
-      .select('*')
-      .eq('channel', channel)
-      .eq('group_jid', group.jid)
-      .maybeSingle();
-    if (findError) throw findError;
+
+    let existing = null;
+    if (options?.existingRecord !== undefined) {
+      existing = options.existingRecord;
+    } else {
+      const { data: found, error: findError } = await supabase.from('tickets')
+        .select('*')
+        .eq('channel', channel)
+        .eq('group_jid', group.jid)
+        .maybeSingle();
+      if (findError) throw findError;
+      existing = found;
+    }
 
     const payload = {
       client_name: name,
@@ -2452,35 +2466,56 @@ ${rendered}`,
     }
 
     if (options?.light) {
-      if (io && ticket) emitTicketEvent(io, created ? 'ticket_created' : 'ticket_updated', { ticket }, ticket);
+      if (io && ticket && !options?.suppressEvent) emitTicketEvent(io, created ? 'ticket_created' : 'ticket_updated', { ticket }, ticket);
       return ticket;
     }
 
     const fullTicket = await this.getFullTicket(ticket.id);
-    if (io && fullTicket) emitTicketEvent(io, created ? 'ticket_created' : 'ticket_updated', { ticket: fullTicket }, fullTicket);
+    if (io && fullTicket && !options?.suppressEvent) emitTicketEvent(io, created ? 'ticket_created' : 'ticket_updated', { ticket: fullTicket }, fullTicket);
     return fullTicket || ticket;
   }
 
   async syncWhatsAppGroups(account, groups = [], io = null) {
     if (!isSupabaseConfigured() || !account?.id) return [];
     const currentJids = groups.map(group => group?.jid).filter(Boolean);
+    const currentSet = new Set(currentJids);
+
+    const department = await this.resolveWhatsAppGroupDepartment(account);
+
+    // Pré-busca todos os grupos existentes deste canal em consulta única
+    const { data: existingRecords } = await supabase.from('tickets')
+      .select('id, group_jid, client_name, avatar_url, updated_at, status')
+      .eq('channel', `whatsapp:${account.id}`)
+      .eq('is_group', true);
+    const existingMap = new Map((existingRecords || []).map(r => [r.group_jid, r]));
+
     const synced = [];
     for (const group of groups) {
       try {
-        const ticket = await this.ensureWhatsAppGroupTicket(account, group, io, { light: true });
+        const existingRecord = existingMap.get(group.jid);
+        const ticket = await this.ensureWhatsAppGroupTicket(account, group, io, {
+          light: true,
+          department,
+          existingRecord,
+          suppressEvent: true
+        });
         if (ticket) synced.push(ticket);
       } catch (error) {
         console.warn(`Falha ao sincronizar grupo ${group?.subject || group?.jid}: ${error.message}`);
       }
     }
-    const existingResult = await supabase.from('tickets').select('id, group_jid')
-      .eq('channel', `whatsapp:${account.id}`)
-      .eq('is_group', true);
-    const currentSet = new Set(currentJids);
-    const inactiveIds = (existingResult.data || []).filter(item => !currentSet.has(item.group_jid)).map(item => item.id);
+
+    const inactiveIds = (existingRecords || []).filter(item => !currentSet.has(item.group_jid)).map(item => item.id);
     if (inactiveIds.length) {
       await supabase.from('tickets').update({ status: 'grupo_inativo', updated_at: new Date().toISOString() }).in('id', inactiveIds);
     }
+
+    // Emite evento em lote para o frontend atualizar a fila imediatamente
+    if (io) {
+      io.emit('tickets_updated');
+      scheduleKpiUpdate(io);
+    }
+
     return synced;
   }
 
@@ -4057,13 +4092,26 @@ ${rendered}`,
     if (disconnectedAccountsMap.has(key)) {
       disconnectedAccountsMap.delete(key);
       await persistDisconnectedAccounts();
-      console.log(`[WhatsApp:${accountId}] Conta reconectada com sucesso. Fila e atendimentos restaurados.`);
+    }
+    knownWhatsAppAccountsCache = null;
 
-      if (io) {
-        io.emit('whatsapp_account_reconnected', { accountId });
-        io.emit('tickets_updated');
-        scheduleKpiUpdate(io);
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('tickets')
+          .update({ status: 'grupo', updated_at: new Date().toISOString() })
+          .eq('channel', `whatsapp:${accountId}`)
+          .eq('status', 'grupo_inativo');
+      } catch (e) {
+        console.warn(`[WhatsApp:${accountId}] erro ao reativar grupos inativos:`, e.message);
       }
+    }
+
+    console.log(`[WhatsApp:${accountId}] Conta reconectada com sucesso. Fila e atendimentos restaurados.`);
+
+    if (io) {
+      io.emit('whatsapp_account_reconnected', { accountId });
+      io.emit('tickets_updated');
+      scheduleKpiUpdate(io);
     }
   }
 

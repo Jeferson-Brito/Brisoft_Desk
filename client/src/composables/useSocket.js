@@ -126,6 +126,16 @@ export function useSocket() {
       }
     })
 
+    socket.on('tickets_updated', () => {
+      tickets.fetchQueue({ silent: true })
+      tickets.notifyKpisUpdated()
+    })
+
+    socket.on('whatsapp_account_reconnected', () => {
+      tickets.fetchQueue({ silent: true })
+      tickets.notifyKpisUpdated()
+    })
+
     socket.on('new_message', (data) => {
       const { ticketId, message, ticket, contact } = data
 

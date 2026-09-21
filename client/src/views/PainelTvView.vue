@@ -327,12 +327,14 @@ function bindSocket() {
   socket.on('connect', onConnect); socket.on('disconnect', onDisconnect)
   socket.on('ticket_created', onTicketCreated)
   socket.on('ticket_updated', onTicketChanged); socket.on('queue_updated', onTicketChanged)
+  socket.on('tickets_updated', onTicketChanged); socket.on('whatsapp_account_reconnected', onTicketChanged)
   socket.on('kpis_updated', onKpisUpdated); socket.on('whatsapp_status', onWhatsappStatus)
 }
 function unbindSocket() {
   const socket = getSocket(); if (!socket) return
   socket.off('connect', onConnect); socket.off('disconnect', onDisconnect)
   socket.off('ticket_created', onTicketCreated); socket.off('ticket_updated', onTicketChanged); socket.off('queue_updated', onTicketChanged)
+  socket.off('tickets_updated', onTicketChanged); socket.off('whatsapp_account_reconnected', onTicketChanged)
   socket.off('kpis_updated', onKpisUpdated); socket.off('whatsapp_status', onWhatsappStatus)
 }
 function onConnect() { serverConnected.value = true; scheduleRefresh(true) }
