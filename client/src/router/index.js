@@ -166,7 +166,11 @@ router.beforeEach(async (to, from) => {
     if (from.name === 'atendimentos' || to.name === 'atendimentos') {
       try {
         const ticketStore = useTicketStore()
-        ticketStore.minimizeActiveTicket()
+        if (ticketStore.activeTicket) {
+          const tab = ticketStore.getTicketQueueTab(ticketStore.activeTicket)
+          if (tab) ticketStore.setQueueTab(tab)
+        }
+        ticketStore.minimizeActiveTicket({ clearPersisted: true })
       } catch (_) {}
     }
   }

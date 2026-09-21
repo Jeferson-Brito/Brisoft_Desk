@@ -91,11 +91,15 @@ function onTicketSelected() {
 }
 
 function onGoBack() {
+  if (ticketStore.activeTicket) {
+    const tab = ticketStore.getTicketQueueTab(ticketStore.activeTicket)
+    if (tab) ticketStore.setQueueTab(tab)
+  }
   if (typeof window !== 'undefined' && window.history.state?.mobileChat) {
     window.history.back()
   } else {
     mobilePanel.value = 'queue'
-    ticketStore.minimizeActiveTicket()
+    ticketStore.minimizeActiveTicket({ clearPersisted: true })
   }
 }
 
@@ -105,8 +109,12 @@ function handlePopState() {
     return
   }
   if (mobilePanel.value === 'chat') {
+    if (ticketStore.activeTicket) {
+      const tab = ticketStore.getTicketQueueTab(ticketStore.activeTicket)
+      if (tab) ticketStore.setQueueTab(tab)
+    }
     mobilePanel.value = 'queue'
-    ticketStore.minimizeActiveTicket()
+    ticketStore.minimizeActiveTicket({ clearPersisted: true })
   }
 }
 
@@ -115,7 +123,9 @@ function minimizeActiveChat(event) {
   if (event.defaultPrevented) return
   if (notepadStore.isOpen) return
   if (document.querySelector('.modal-overlay.active')) return
-  ticketStore.minimizeActiveTicket()
+  const tab = ticketStore.getTicketQueueTab(ticketStore.activeTicket)
+  if (tab) ticketStore.setQueueTab(tab)
+  ticketStore.minimizeActiveTicket({ clearPersisted: true })
   isDetailsOpen.value = false
   mobilePanel.value = 'queue'
 }
@@ -172,23 +182,48 @@ watch(isDetailsOpen, (open) => {
 })
 
 onBeforeRouteLeave(() => {
-  ticketStore.minimizeActiveTicket()
+  // Se havia um chat aberto, sincroniza a aba da fila com a categoria desse chat
+  if (ticketStore.activeTicket) {
+    const tab = ticketStore.getTicketQueueTab(ticketStore.activeTicket)
+    if (tab) ticketStore.setQueueTab(tab)
+  }
+  // Minimiza o chat e limpa do sessionStorage para que ao voltar o chat esteja minimizado
+  ticketStore.minimizeActiveTicket({ clearPersisted: true })
   isDetailsOpen.value = false
   mobilePanel.value = 'queue'
 })
 
 onMounted(async () => {
-  // Ao entrar ou retornar à aba de atendimentos, o chat inicia minimizado
-  // a menos que um ticket específico tenha sido explicitamente solicitado via query param (ex: banner)
-  if (route.query?.ticketId) {
-    await ticketStore.selectTicket(Number(route.query.ticketId) || route.query.ticketId)
+  // Lê ticket que estava aberto antes de uma atualização da página (F5) ou passado por query param
+  const persistedTicketId = typeof sessionStorage !== 'undefined'
+    ? (sessionStorage.getItem('brifdesk_open_ticket_id') || null)
+    : null
+
+  const targetTicketId = route.query?.ticketId || persistedTicketId
+
+  // Carrega fila e indicadores
+  await Promise.all([ticketStore.fetchQueue(), fetchPerformance()])
+
+  // Se for apenas atualização da página (F5) ou link direto, restaura o chat aberto
+  if (targetTicketId) {
+    const numericId = Number(targetTicketId) || targetTicketId
+    const exists = ticketStore.visibleTickets.some(t => String(t.id) === String(numericId))
+    if (exists) {
+      await ticketStore.selectTicket(numericId)
+      if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+        mobilePanel.value = 'chat'
+      }
+    } else {
+      ticketStore.minimizeActiveTicket({ clearPersisted: true })
+      isDetailsOpen.value = false
+      mobilePanel.value = 'queue'
+    }
   } else {
-    ticketStore.minimizeActiveTicket()
+    ticketStore.minimizeActiveTicket({ clearPersisted: true })
     isDetailsOpen.value = false
     mobilePanel.value = 'queue'
   }
 
-  await Promise.all([ticketStore.fetchQueue(), fetchPerformance()])
   refreshTimer = setInterval(syncLiveData, 30000)
   document.addEventListener('visibilitychange', syncLiveData)
   document.addEventListener('keydown', minimizeActiveChat)
@@ -196,7 +231,11 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  ticketStore.minimizeActiveTicket()
+  if (ticketStore.activeTicket) {
+    const tab = ticketStore.getTicketQueueTab(ticketStore.activeTicket)
+    if (tab) ticketStore.setQueueTab(tab)
+  }
+  ticketStore.minimizeActiveTicket({ clearPersisted: true })
   isDetailsOpen.value = false
   mobilePanel.value = 'queue'
   clearInterval(refreshTimer)

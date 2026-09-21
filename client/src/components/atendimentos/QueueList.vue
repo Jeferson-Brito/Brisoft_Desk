@@ -198,8 +198,10 @@ const ticketStore = useTicketStore()
 const settingsStore = useSettingsStore()
 const authStore = useAuthStore()
 const ui = useUiStore()
-
-const currentTab = ref('aguardando')
+const currentTab = computed({
+  get: () => ticketStore.activeQueueTab,
+  set: (val) => ticketStore.setQueueTab(val)
+})
 const searchTerm = ref('')
 const isRefreshing = ref(false)
 const localShowNewConversation = ref(false)

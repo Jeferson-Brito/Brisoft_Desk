@@ -294,7 +294,11 @@ onUnmounted(() => {
 })
 
 function onAtendimentosClick() {
-  tickets.minimizeActiveTicket()
+  if (tickets.activeTicket) {
+    const tab = tickets.getTicketQueueTab(tickets.activeTicket)
+    if (tab) tickets.setQueueTab(tab)
+  }
+  tickets.minimizeActiveTicket({ clearPersisted: true })
 }
 
 async function handleLogout() {

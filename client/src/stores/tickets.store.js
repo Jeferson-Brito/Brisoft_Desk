@@ -12,6 +12,25 @@ export const useTicketStore = defineStore('tickets', () => {
   const kpiRevision    = ref(0)
   const assumeRequests = new Map()
   let requireExplicitSelection = true
+  const initialQueueTab = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('brifdesk_queue_tab')) || 'aguardando'
+  const activeQueueTab = ref(['aguardando', 'em_atendimento', 'grupos'].includes(initialQueueTab) ? initialQueueTab : 'aguardando')
+
+  function getTicketQueueTab(ticket) {
+    if (!ticket) return null
+    if (ticket.is_group || ticket.status === 'grupo') return 'grupos'
+    if (ticket.assumed || ticket.status === 'em_atendimento' || ticket.status === 'chatbot') return 'em_atendimento'
+    if (ticket.status === 'aguardando' || !ticket.assumed) return 'aguardando'
+    return 'aguardando'
+  }
+
+  function setQueueTab(tab) {
+    if (tab && ['aguardando', 'em_atendimento', 'grupos'].includes(tab)) {
+      activeQueueTab.value = tab
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('brifdesk_queue_tab', tab)
+      }
+    }
+  }
 
   // ─── Getters ─────────────────────────────────────────────────────────────────
 
@@ -213,8 +232,7 @@ export const useTicketStore = defineStore('tickets', () => {
     const idx = queue.value.findIndex(t => t.id === ticketId)
     if (idx !== -1) queue.value.splice(idx, 1)
     if (activeTicketId.value === ticketId) {
-      activeTicketId.value = null
-      requireExplicitSelection = true
+      minimizeActiveTicket({ clearPersisted: true })
     }
   }
 
@@ -224,8 +242,7 @@ export const useTicketStore = defineStore('tickets', () => {
     const idSet = new Set(ticketIds.map(String))
     queue.value = queue.value.filter(t => !idSet.has(String(t.id)))
     if (activeTicketId.value && idSet.has(String(activeTicketId.value))) {
-      activeTicketId.value = null
-      requireExplicitSelection = true
+      minimizeActiveTicket({ clearPersisted: true })
     }
   }
 
@@ -238,9 +255,14 @@ export const useTicketStore = defineStore('tickets', () => {
   async function selectTicket(ticketId) {
     requireExplicitSelection = false
     activeTicketId.value = ticketId
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem('brifdesk_open_ticket_id', String(ticketId))
+    }
     // Marca como lido imediatamente local e no servidor
-    const ticket = queue.value.find(t => t.id === ticketId)
+    const ticket = queue.value.find(t => String(t.id) === String(ticketId))
     if (ticket) {
+      const tab = getTicketQueueTab(ticket)
+      if (tab) setQueueTab(tab)
       ticket.unreadCount = 0
       ticket.unread_count = 0
       ticketsApi.markAsRead(ticketId).catch(() => {})
@@ -248,9 +270,12 @@ export const useTicketStore = defineStore('tickets', () => {
     }
   }
 
-  function minimizeActiveTicket() {
+  function minimizeActiveTicket({ clearPersisted = true } = {}) {
     activeTicketId.value = null
     requireExplicitSelection = true
+    if (clearPersisted && typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem('brifdesk_open_ticket_id')
+    }
   }
 
   async function assume(ticketId) {
@@ -279,6 +304,7 @@ export const useTicketStore = defineStore('tickets', () => {
     ticket.assumed = true
     ticket.status  = 'em_atendimento'
     ticket.messages.push({ type: 'divider', text: `Atendimento assumido por ${auth.user?.name}` })
+    setQueueTab('em_atendimento')
 
     try {
       const { data } = await ticketsApi.assume(ticketId)
@@ -305,8 +331,7 @@ export const useTicketStore = defineStore('tickets', () => {
     // Remoção otimista
     queue.value.splice(ticketIdx, 1)
     if (wasActive) {
-      activeTicketId.value = null
-      requireExplicitSelection = true
+      minimizeActiveTicket({ clearPersisted: true })
     }
 
     try {
@@ -327,11 +352,11 @@ export const useTicketStore = defineStore('tickets', () => {
 
   return {
     // state
-    queue, activeTicketId, loading, loadingMessageIds, kpiRevision,
+    queue, activeTicketId, loading, loadingMessageIds, kpiRevision, activeQueueTab,
     // getters
     visibleTickets, waitingTickets, inProgressTickets, chatbotTickets, groupTickets, activeTicket,
     // actions
     fetchQueue, fetchTickets: fetchQueue, receiveTicket, appendMessage, patchMessage, removeTicket, removeTickets, patchTicket, notifyKpisUpdated, isLoadingMessages, loadTicketMessages,
-    selectTicket, minimizeActiveTicket, assume, close
+    selectTicket, minimizeActiveTicket, assume, close, setQueueTab, getTicketQueueTab
   }
 })
