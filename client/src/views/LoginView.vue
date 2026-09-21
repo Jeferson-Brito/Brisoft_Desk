@@ -33,8 +33,8 @@
                 <i class="ri-whatsapp-line"></i>
               </div>
               <div class="feature-copy">
-                <strong class="feature-title">Múltiplos atendentes em 1 WhatsApp</strong>
-                <span class="feature-subtitle">Toda a sua equipe atendendo no mesmo número oficial com distribuição automática.</span>
+                <strong class="feature-title">Múltiplos analistas em 1 só WhatsApp</strong>
+                <span class="feature-subtitle">Fim do celular de mão em mão. Toda a equipe atendendo no mesmo número oficial com distribuição automática.</span>
               </div>
             </div>
 
@@ -43,8 +43,8 @@
                 <i class="ri-tv-2-line"></i>
               </div>
               <div class="feature-copy">
-                <strong class="feature-title">Painel TV e Gestão ao Vivo</strong>
-                <span class="feature-subtitle">Monitore filas, tempo de atendimento (TMA) e alertas sonoros em tempo real no telão.</span>
+                <strong class="feature-title">Gestão à vista com Painel TV ao vivo</strong>
+                <span class="feature-subtitle">Supervisão total da operação em telão: fila de espera, indicadores de atendimento e alertas sonoros instantâneos.</span>
               </div>
             </div>
 
@@ -53,8 +53,8 @@
                 <i class="ri-flashlight-line"></i>
               </div>
               <div class="feature-copy">
-                <strong class="feature-title">Triagem com Chatbot & Respostas Rápidas</strong>
-                <span class="feature-subtitle">Atendimento imediato 24/7 e respostas em 1 clique para acelerar vendas e suporte.</span>
+                <strong class="feature-title">Triagem inteligente & Zero espera (24/7)</strong>
+                <span class="feature-subtitle">Chatbot que qualifica o cliente na hora e mensagens rápidas em 1 clique para fechar negócios com agilidade máxima.</span>
               </div>
             </div>
           </div>
