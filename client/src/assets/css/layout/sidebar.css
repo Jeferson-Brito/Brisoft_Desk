@@ -6,8 +6,8 @@
   width: 64px;
   min-width: 64px;
   max-width: 64px;
-  background-color: #ffffff;
-  border-right: 1px solid #e5e7eb;
+  background-color: #f0f2f5;
+  border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -34,7 +34,7 @@
   justify-content: center;
   width: 100%;
   padding-bottom: 12px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .brand-logo-container {
@@ -75,7 +75,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  color: #64748b;
+  color: #54656f;
   text-decoration: none;
   position: relative;
   transition: all 0.15s ease;
@@ -92,18 +92,18 @@
 }
 
 .nav-item:hover {
-  background-color: #e5e7eb;
+  background-color: #e2e8f0;
   color: #1e293b;
 }
 
 .nav-item.active {
-  background-color: #ffffff;
-  color: #1f62d0;
+  background-color: #dcfce7;
+  color: #059669;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .nav-item.active i {
-  color: #1f62d0;
+  color: #059669;
 }
 
 .nav-badge {
@@ -122,7 +122,7 @@
   align-items: center;
   justify-content: center;
   line-height: 1;
-  box-shadow: 0 0 0 2px #f3f4f6;
+  box-shadow: 0 0 0 2px #f0f2f5;
 }
 
 .sidebar-bottom {
@@ -132,7 +132,7 @@
   gap: 12px;
   width: 100%;
   padding-top: 12px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid #e2e8f0;
 }
 
 .user-avatar-btn {

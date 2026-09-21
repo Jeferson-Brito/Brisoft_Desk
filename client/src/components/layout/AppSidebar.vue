@@ -315,7 +315,7 @@ async function handleLogout() {
   width: 64px;
   min-width: 64px;
   max-width: 64px;
-  background-color: #ffffff;
+  background-color: #f0f2f5;
   border-right: 1px solid #e2e8f0;
   box-shadow: 1px 0 4px rgba(15, 23, 42, 0.03);
   display: flex;
@@ -349,7 +349,7 @@ async function handleLogout() {
   min-height: 62px;
   max-height: 62px;
   padding: 10px 14px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
   box-sizing: border-box;
 }
 
@@ -415,7 +415,7 @@ async function handleLogout() {
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  color: #475569;
+  color: #54656f;
   text-decoration: none;
   position: relative;
   transition: all 0.15s ease;
@@ -456,14 +456,14 @@ async function handleLogout() {
 }
 
 .nav-item:hover {
-  background-color: #f8fafc;
+  background-color: #e2e8f0;
   color: #0f172a;
 }
 
 .nav-item:active {
   transform: scale(0.94);
   transition: transform 0.08s ease;
-  background-color: #f1f5f9;
+  background-color: #cbd5e1;
 }
 
 /* Item Ativo (Cápsula Verde Suave + Indicador Vertical na Margem Esquerda) */
@@ -517,7 +517,7 @@ async function handleLogout() {
   align-items: center;
   justify-content: center;
   line-height: 1;
-  border: 2px solid #ffffff;
+  border: 2px solid #f0f2f5;
 }
 
 .sidebar.is-expanded .nav-badge {
@@ -539,7 +539,7 @@ async function handleLogout() {
   width: 100%;
   padding: 10px 10px 0;
   margin-top: auto;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid #e2e8f0;
   box-sizing: border-box;
 }
 
@@ -557,7 +557,7 @@ async function handleLogout() {
   gap: 6px;
   width: 100%;
   padding: 10px 10px 12px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid #e2e8f0;
   box-sizing: border-box;
 }
 
@@ -583,7 +583,7 @@ async function handleLogout() {
 }
 
 .user-avatar-btn:hover {
-  background: #f8fafc;
+  background: #e2e8f0;
 }
 
 .user-avatar-circle {
@@ -616,7 +616,7 @@ async function handleLogout() {
   height: 9px;
   border-radius: 50%;
   background: #10b981;
-  border: 2px solid #ffffff;
+  border: 2px solid #f0f2f5;
 }
 
 /* Quando expandido */
@@ -699,6 +699,7 @@ async function handleLogout() {
 }
 
 .sidebar-collapse-btn:hover {
+  background: #e2e8f0;
   color: #0f172a;
 }
 
