@@ -326,52 +326,45 @@ async function handleLogout() {
   max-width: 220px !important;
 }
 
-/* ─── 1. Header com Logo e Botão de Alternar (Recolher / Expandir) ────────── */
+/* ─── 1. Header com Logo 100% Centralizada e Botão Circular na Linha ──────── */
 .sidebar-header {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   width: 100%;
   height: 48px;
   min-height: 48px;
   max-height: 48px;
-  padding: 4px 10px 4px 12px;
+  padding: 4px 14px;
   border-bottom: 1px solid #f1f5f9;
   box-sizing: border-box;
-}
-
-.sidebar:not(.is-expanded) .sidebar-header {
-  padding: 4px 6px 4px 8px;
-  justify-content: space-between;
 }
 
 .brand-logo-container {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  text-decoration: none;
-  min-width: 0;
-  height: 100%;
-}
-
-.sidebar:not(.is-expanded) .brand-logo-container {
   justify-content: center;
+  text-decoration: none;
+  width: 100%;
+  height: 100%;
+  margin: 0 auto;
 }
 
 .brand-logo-full {
   display: none;
-  height: 32px;
-  max-width: 135px;
+  height: 34px;
+  max-width: 155px;
   object-fit: contain;
-  margin: 0;
+  margin: 0 auto;
 }
 
 .brand-logo-symbol {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
-  margin: 0;
+  margin: 0 auto;
 }
 
 .sidebar.is-expanded .brand-logo-full,
@@ -384,47 +377,41 @@ async function handleLogout() {
   display: none;
 }
 
-/* Botão de Alternar no Topo ao lado da Logo e sobre a Linha */
+/* Botão Circular de Alternar Posicionado Exatamente sobre a Linha da Borda */
 .sidebar-toggle-btn {
+  position: absolute;
+  right: -12px;
+  top: 50%;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
-  border-radius: 6px;
-  border: 1px solid #e2e8f0;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 50%;
+  border: 1px solid #cbd5e1;
   background: #ffffff;
-  color: #64748b;
+  color: #475569;
   cursor: pointer;
   padding: 0;
-  flex-shrink: 0;
+  z-index: 50;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12), 0 1px 2px rgba(15, 23, 42, 0.06);
   transition: all 0.15s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .sidebar-toggle-btn:hover {
-  background: #f1f5f9;
+  background: #f8fafc;
   color: #059669;
-  border-color: #cbd5e1;
-  transform: scale(1.05);
+  border-color: #059669;
+  transform: translateY(-50%) scale(1.12);
+  box-shadow: 0 3px 8px rgba(5, 150, 105, 0.22);
 }
 
 .sidebar-toggle-btn i {
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1;
   color: inherit;
-}
-
-.sidebar:not(.is-expanded) .sidebar-toggle-btn {
-  width: 22px;
-  height: 22px;
-  min-width: 22px;
-  border-radius: 5px;
-}
-
-.sidebar:not(.is-expanded) .sidebar-toggle-btn i {
-  font-size: 14px;
 }
 
 /* ─── 2. Navegação Principal ─────────────────────────────────────────────── */
