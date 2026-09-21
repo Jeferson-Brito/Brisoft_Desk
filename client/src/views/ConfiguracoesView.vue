@@ -620,15 +620,25 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.bot-subnav-item { min-width:0;padding:10px;border:1px solid transparent;border-radius:9px;display:flex;align-items:center;gap:9px;background:transparent;color:#64748b;text-align:left;cursor:pointer;transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease; }
+.bot-subnav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 22px;
+  padding: 6px;
+  background: #f8fafc;
+  border: 1px solid #edf2f7;
+  border-radius: 12px;
+}
+.bot-subnav-item { min-width:0;padding:10px 12px;border:1px solid transparent;border-radius:9px;display:flex;align-items:center;gap:10px;background:transparent;color:#64748b;text-align:left;cursor:pointer;transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease; }
 .bot-subnav-item:hover { border-color:#d1fae5;background:#fff;transform:translateY(-1px); }
 .bot-subnav-item.active { border-color:#a7f3d0;background:#fff;color:#059669;box-shadow:0 4px 14px rgba(5,150,105,.08); }
-.bot-subnav-icon { width:31px;height:31px;border-radius:8px;display:grid;place-items:center;flex:none;background:#e2e8f0;color:#64748b;font-size:12px; }
+.bot-subnav-icon { width:32px;height:32px;border-radius:8px;display:grid;place-items:center;flex:none;background:#e2e8f0;color:#64748b;font-size:12px;transition:background-color .15s ease,color .15s ease; }
 .bot-subnav-item.active .bot-subnav-icon { background:#d1fae5;color:#059669; }
 .bot-subnav-copy { min-width:0;display:flex;flex-direction:column;gap:2px; }
-.bot-subnav-copy strong { overflow:hidden;color:#334155;font-size:11.5px;font-weight:600;text-overflow:ellipsis;white-space:nowrap; }
+.bot-subnav-copy strong { overflow:hidden;color:#334155;font-size:12px;font-weight:600;text-overflow:ellipsis;white-space:nowrap; }
 .bot-subnav-item.active .bot-subnav-copy strong { color:#047857; }
-.bot-subnav-copy small { overflow:hidden;color:#94a3b8;font-size:9.5px;font-weight:400;text-overflow:ellipsis;white-space:nowrap; }
+.bot-subnav-copy small { overflow:hidden;color:#94a3b8;font-size:10px;font-weight:400;text-overflow:ellipsis;white-space:nowrap; }
 .bot-tab-content { gap:0; }
 .bot-tab-panel { display:flex;flex-direction:column;gap:20px;animation:bot-tab-enter .16s ease-out; }
 .bot-panel-heading { padding:2px 0 13px;border-bottom:1px solid #edf1f5;display:flex;align-items:center;gap:10px; }
