@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore }   from '@/stores/ui.store'
+import { useTicketStore } from '@/stores/tickets.store'
 import AppLayout from '@/components/layout/AppLayout.vue'
 
 /**
@@ -156,9 +157,19 @@ const router = createRouter({
 })
 
 // Navigation guard — proteção de rotas por autenticação e papel
-router.beforeEach(async (to) => {
+router.beforeEach(async (to, from) => {
   const ui = useUiStore()
   ui.setNavigating(true)
+
+  // Ao mudar de aba/rota e voltar para atendimentos, o chat deve sempre iniciar minimizado
+  if (from?.name && from.name !== to.name) {
+    if (from.name === 'atendimentos' || to.name === 'atendimentos') {
+      try {
+        const ticketStore = useTicketStore()
+        ticketStore.minimizeActiveTicket()
+      } catch (_) {}
+    }
+  }
 
   const auth = useAuthStore()
 

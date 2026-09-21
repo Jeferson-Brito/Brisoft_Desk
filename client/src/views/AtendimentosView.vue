@@ -52,6 +52,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useRoute, onBeforeRouteLeave } from 'vue-router'
 import { useTicketStore } from '@/stores/tickets.store'
 import { useUiStore }     from '@/stores/ui.store'
 import { useAuthStore }   from '@/stores/auth.store'
@@ -65,6 +66,7 @@ import InternalChatDrawer from '@/components/chat-interno/InternalChatDrawer.vue
 
 import { useNotepadStore } from '@/stores/notepad.store'
 
+const route       = useRoute()
 const ticketStore = useTicketStore()
 const ui          = useUiStore()
 const auth        = useAuthStore()
@@ -169,7 +171,23 @@ watch(isDetailsOpen, (open) => {
   }
 })
 
+onBeforeRouteLeave(() => {
+  ticketStore.minimizeActiveTicket()
+  isDetailsOpen.value = false
+  mobilePanel.value = 'queue'
+})
+
 onMounted(async () => {
+  // Ao entrar ou retornar à aba de atendimentos, o chat inicia minimizado
+  // a menos que um ticket específico tenha sido explicitamente solicitado via query param (ex: banner)
+  if (route.query?.ticketId) {
+    await ticketStore.selectTicket(Number(route.query.ticketId) || route.query.ticketId)
+  } else {
+    ticketStore.minimizeActiveTicket()
+    isDetailsOpen.value = false
+    mobilePanel.value = 'queue'
+  }
+
   await Promise.all([ticketStore.fetchQueue(), fetchPerformance()])
   refreshTimer = setInterval(syncLiveData, 30000)
   document.addEventListener('visibilitychange', syncLiveData)
@@ -178,6 +196,9 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  ticketStore.minimizeActiveTicket()
+  isDetailsOpen.value = false
+  mobilePanel.value = 'queue'
   clearInterval(refreshTimer)
   clearTimeout(queueRefreshTimer)
   document.removeEventListener('visibilitychange', syncLiveData)

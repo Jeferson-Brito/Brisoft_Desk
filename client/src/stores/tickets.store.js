@@ -11,7 +11,7 @@ export const useTicketStore = defineStore('tickets', () => {
   const loadingMessageIds = ref([])
   const kpiRevision    = ref(0)
   const assumeRequests = new Map()
-  let requireExplicitSelection = false
+  let requireExplicitSelection = true
 
   // ─── Getters ─────────────────────────────────────────────────────────────────
 
@@ -88,10 +88,9 @@ export const useTicketStore = defineStore('tickets', () => {
             messages
           }
         })
-        // Seleciona o primeiro ticket relevante dentro dos visíveis
-        if ((!activeTicketId.value || !visibleTickets.value.find(t => t.id === activeTicketId.value)) && !requireExplicitSelection) {
-          const first = inProgressTickets.value[0] ?? waitingTickets.value[0] ?? null
-          activeTicketId.value = first?.id ?? null
+        // Se o ticket ativo atual não estiver mais visível na fila, desseleciona
+        if (activeTicketId.value && !visibleTickets.value.some(t => t.id === activeTicketId.value)) {
+          activeTicketId.value = null
         }
 
         // Libera imediatamente o loading da fila assim que os tickets forem atribuídos
@@ -165,8 +164,7 @@ export const useTicketStore = defineStore('tickets', () => {
 
     // Se o ticket ativo atual não está mais visível para este usuário (ex: foi transferido), desseleciona imediatamente
     if (activeTicketId.value && !visibleTickets.value.some(t => t.id === activeTicketId.value)) {
-      const next = inProgressTickets.value[0] ?? waitingTickets.value[0] ?? null
-      activeTicketId.value = next?.id ?? null
+      activeTicketId.value = null
     }
   }
 

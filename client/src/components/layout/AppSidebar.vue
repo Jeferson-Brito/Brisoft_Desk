@@ -6,7 +6,7 @@
   >
     <!-- Brand Logo Header com Botão de Alternar no Topo -->
     <div class="sidebar-header">
-      <RouterLink to="/atendimentos" class="brand-logo-container" title="Brisoft Desk">
+      <RouterLink to="/atendimentos" class="brand-logo-container" title="Brisoft Desk" @click="onAtendimentosClick">
         <!-- Ambas as logos ficam no DOM para evitar decode e lag ao alternar -->
         <img :src="logoUrl" alt="Brisoft Desk" class="brand-logo-full" />
         <img :src="iconUrl" alt="Brisoft Desk" class="brand-logo-symbol" />
@@ -57,6 +57,7 @@
         to="/atendimentos"
         active-class="active"
         title="Atendimentos"
+        @click="onAtendimentosClick"
         @mouseenter="prefetchRoute('/atendimentos')"
         @focus="prefetchRoute('/atendimentos')"
       >
@@ -291,6 +292,10 @@ onUnmounted(() => {
   document.removeEventListener('click', closeOnOutside)
   window.removeEventListener('popstate', handleSidebarPopState)
 })
+
+function onAtendimentosClick() {
+  tickets.minimizeActiveTicket()
+}
 
 async function handleLogout() {
   await auth.logout()
