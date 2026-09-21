@@ -2,10 +2,12 @@
   <div class="login-split-page">
     <!-- ─── 1. Coluna da Esquerda: Painel de Branding & Marketing ─────────── -->
     <div class="login-brand-panel">
-      <!-- Camadas de fundo com malha e ondas 3D sutis -->
-      <div class="brand-mesh-bg"></div>
-      <div class="brand-curves-bg"></div>
-      <div class="brand-particles-overlay"></div>
+      <!-- Camadas de fundo com malha e ondas 3D sutis (FIXAS) -->
+      <div class="brand-fixed-bg">
+        <div class="brand-mesh-bg"></div>
+        <div class="brand-curves-bg"></div>
+        <div class="brand-particles-overlay"></div>
+      </div>
 
       <div class="brand-panel-content">
         <!-- Logo Oficial Brisoft -->
@@ -33,8 +35,8 @@
                 <i class="ri-whatsapp-line"></i>
               </div>
               <div class="feature-copy">
-                <strong class="feature-title">Múltiplos analistas em 1 só WhatsApp</strong>
-                <span class="feature-subtitle">Fim do celular de mão em mão. Toda a equipe atendendo no mesmo número oficial com distribuição automática.</span>
+                <strong class="feature-title">Múltiplos atendentes em 1 WhatsApp</strong>
+                <span class="feature-subtitle">Toda a sua equipe atendendo no mesmo número oficial com distribuição automática.</span>
               </div>
             </div>
 
