@@ -200,6 +200,25 @@
         </Teleport>
       </div>
 
+      <div class="tool-dock-divider"></div>
+
+      <!-- 4. Balão: Painel TV (Apenas ícone, abre em nova aba) -->
+      <div class="tool-bubble-item">
+        <a
+          :href="painelTvUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="tool-bubble-btn tool-btn-tv"
+          title="Painel TV"
+          aria-label="Painel TV"
+        >
+          <span class="tools-icon-box"><i class="ri-tv-line"></i></span>
+        </a>
+        <div class="tool-bubble-tooltip">
+          <span>Painel TV</span>
+        </div>
+      </div>
+
     </div>
 
     <!-- Drawer do Bloco de Notas já existente -->
@@ -209,8 +228,14 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useNotepadStore } from '@/stores/notepad.store'
 import NotepadDrawer from '@/components/tools/NotepadDrawer.vue'
+
+const router = useRouter()
+const painelTvUrl = computed(() => {
+  return router.resolve('/painel-tv').href
+})
 
 const notepad = useNotepadStore()
 
@@ -488,6 +513,7 @@ onUnmounted(() => {
   position: relative;
   outline: none;
   padding: 0;
+  text-decoration: none;
 }
 
 .tool-bubble-btn:hover {
@@ -557,6 +583,13 @@ onUnmounted(() => {
 }
 
 .tool-btn-calc:hover {
+  border-color: #059669;
+  color: #059669;
+  transform: translateY(-2px) scale(1.08);
+  box-shadow: 0 6px 12px rgba(5, 150, 105, 0.2);
+}
+
+.tool-btn-tv:hover {
   border-color: #059669;
   color: #059669;
   transform: translateY(-2px) scale(1.08);

@@ -4,13 +4,25 @@
     id="mainSidebar"
     :class="{ 'mobile-open': mobileOpen, 'is-expanded': isExpanded }"
   >
-    <!-- Brand Logo Header (Centralizado) -->
+    <!-- Brand Logo Header com Botão de Alternar no Topo -->
     <div class="sidebar-header">
       <RouterLink to="/atendimentos" class="brand-logo-container" title="Brisoft Desk">
         <!-- Ambas as logos ficam no DOM para evitar decode e lag ao alternar -->
         <img :src="logoUrl" alt="Brisoft Desk" class="brand-logo-full" />
         <img :src="iconUrl" alt="Brisoft Desk" class="brand-logo-symbol" />
       </RouterLink>
+
+      <!-- Botão de alternar recolher / expandir no topo ao lado da logo e sobre a linha -->
+      <button
+        type="button"
+        class="sidebar-toggle-btn"
+        :title="isExpanded ? 'Recolher menu' : 'Expandir menu'"
+        :aria-label="isExpanded ? 'Recolher menu' : 'Expandir menu'"
+        @click.stop="toggleExpanded"
+      >
+        <i :class="isExpanded ? 'ri-arrow-left-s-line' : 'ri-arrow-right-s-line'"></i>
+      </button>
+
       <button
         v-if="mobileOpen"
         type="button"
@@ -108,21 +120,8 @@
       </RouterLink>
     </nav>
 
-    <!-- Seção Inferior: Painel TV e Configurações -->
+    <!-- Seção Inferior: Configurações -->
     <div class="sidebar-nav-footer">
-      <!-- Painel TV -->
-      <RouterLink
-        class="nav-item"
-        to="/painel-tv"
-        active-class="active"
-        title="Painel TV"
-        @mouseenter="prefetchRoute('/painel-tv')"
-        @focus="prefetchRoute('/painel-tv')"
-      >
-        <span class="nav-icon-box"><i class="ri-tv-line"></i></span>
-        <span class="nav-label">Painel TV</span>
-      </RouterLink>
-
       <!-- Configurações -->
       <RouterLink
         v-if="auth.canManageTeam"
@@ -202,17 +201,6 @@
           </button>
         </div>
       </div>
-
-      <!-- Botão Recolher Menu (estilo Image 2) -->
-      <button
-        type="button"
-        class="sidebar-collapse-btn"
-        :title="isExpanded ? 'Recolher menu' : 'Expandir menu'"
-        @click="toggleExpanded"
-      >
-        <span class="nav-icon-box"><i :class="isExpanded ? 'ri-arrow-left-s-line' : 'ri-arrow-right-s-line'"></i></span>
-        <span class="collapse-btn-text">Recolher menu</span>
-      </button>
     </div>
   </aside>
 
@@ -338,43 +326,52 @@ async function handleLogout() {
   max-width: 220px !important;
 }
 
-/* ─── 1. Header com Logo 100% Centralizada ──────────────────────────────── */
+/* ─── 1. Header com Logo e Botão de Alternar (Recolher / Expandir) ────────── */
 .sidebar-header {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   width: 100%;
-  height: 62px;
-  min-height: 62px;
-  max-height: 62px;
-  padding: 10px 14px;
+  height: 48px;
+  min-height: 48px;
+  max-height: 48px;
+  padding: 4px 10px 4px 12px;
   border-bottom: 1px solid #f1f5f9;
   box-sizing: border-box;
+}
+
+.sidebar:not(.is-expanded) .sidebar-header {
+  padding: 4px 6px 4px 8px;
+  justify-content: space-between;
 }
 
 .brand-logo-container {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   text-decoration: none;
-  width: 100%;
+  min-width: 0;
   height: 100%;
+}
+
+.sidebar:not(.is-expanded) .brand-logo-container {
+  justify-content: center;
 }
 
 .brand-logo-full {
   display: none;
-  height: 38px;
-  max-width: 155px;
+  height: 32px;
+  max-width: 135px;
   object-fit: contain;
-  margin: 0 auto;
+  margin: 0;
 }
 
 .brand-logo-symbol {
   display: block;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
-  margin: 0 auto;
+  margin: 0;
 }
 
 .sidebar.is-expanded .brand-logo-full,
@@ -385,6 +382,49 @@ async function handleLogout() {
 .sidebar.is-expanded .brand-logo-symbol,
 .sidebar.mobile-open .brand-logo-symbol {
   display: none;
+}
+
+/* Botão de Alternar no Topo ao lado da Logo e sobre a Linha */
+.sidebar-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.sidebar-toggle-btn:hover {
+  background: #f1f5f9;
+  color: #059669;
+  border-color: #cbd5e1;
+  transform: scale(1.05);
+}
+
+.sidebar-toggle-btn i {
+  font-size: 16px;
+  line-height: 1;
+  color: inherit;
+}
+
+.sidebar:not(.is-expanded) .sidebar-toggle-btn {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  border-radius: 5px;
+}
+
+.sidebar:not(.is-expanded) .sidebar-toggle-btn i {
+  font-size: 14px;
 }
 
 /* ─── 2. Navegação Principal ─────────────────────────────────────────────── */
@@ -548,21 +588,20 @@ async function handleLogout() {
   gap: 6px;
 }
 
-/* ─── 4. Card do Usuário & Recolher Menu ─────────────────────────────────── */
+/* ─── 4. Card do Usuário ─────────────────────────────────────────────────── */
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
   width: 100%;
-  padding: 10px 10px 12px;
+  padding: 8px 10px;
   border-top: 1px solid #f1f5f9;
   box-sizing: border-box;
 }
 
 .sidebar.is-expanded .sidebar-bottom {
   align-items: stretch;
-  padding: 10px 14px 12px;
+  padding: 8px 12px;
 }
 
 .user-avatar-btn {
@@ -678,54 +717,6 @@ async function handleLogout() {
   padding-right: 2px;
 }
 
-/* Botão Recolher Menu / Expandir */
-.sidebar-collapse-btn {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  width: 100%;
-  height: 32px;
-  padding: 0 4px;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.sidebar-collapse-btn:hover {
-  background: #f8fafc;
-  color: #0f172a;
-}
-
-.sidebar:not(.is-expanded) .sidebar-collapse-btn {
-  justify-content: center;
-  padding: 0;
-}
-
-.sidebar-collapse-btn i {
-  font-size: 11px;
-  color: inherit;
-}
-
-.sidebar-collapse-btn span {
-  font-size: 12px;
-  color: inherit;
-  font-weight: 500;
-}
-
-.collapse-btn-text {
-  display: none;
-  white-space: nowrap;
-}
-
-.sidebar.is-expanded .collapse-btn-text {
-  display: inline;
-}
 
 .user-popup-menu {
   position: absolute;
@@ -855,6 +846,9 @@ async function handleLogout() {
     cursor: pointer;
     font-size: 18px;
     flex-shrink: 0;
+  }
+  .sidebar-toggle-btn {
+    display: none !important;
   }
   .sidebar-toggle-bubble {
     display: none;
