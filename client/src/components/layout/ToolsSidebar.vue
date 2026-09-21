@@ -1,14 +1,45 @@
 <template>
-  <aside class="tools-sidebar" id="toolsSidebar">
-    <!-- Cabeçalho sutil do Sidebar de Ferramentas -->
-    <div class="tools-header" title="Barra de Ferramentas Rápidas">
-      <div class="tools-header-badge">
-        <span class="tools-icon-box"><i class="ri-tools-line"></i></span>
-      </div>
-    </div>
+  <!-- Aba lateral vertical quando o sidebar está recolhido (clicar ou puxar para reabrir) -->
+  <Teleport to="body">
+    <Transition name="tools-tab-slide">
+      <button
+        v-if="isCollapsed"
+        type="button"
+        class="tools-collapsed-tab"
+        :class="{ 'is-dragging': isDragging }"
+        title="Clique ou puxe para abrir Ferramentas"
+        aria-label="Abrir barra de ferramentas"
+        @click="onTabClick"
+        @mousedown="startDrag"
+        @touchstart.passive="startTouch"
+      >
+        <span class="tab-arrow"><i class="ri-arrow-left-s-line"></i></span>
+        <span class="tab-icon"><i class="ri-tools-line"></i></span>
+        <span class="tab-label">Ferramentas</span>
+      </button>
+    </Transition>
+  </Teleport>
 
+  <aside class="tools-sidebar" id="toolsSidebar" :class="{ 'is-collapsed': isCollapsed }">
     <!-- Dock Container com os Ícones em Formato de Balões Flutuantes -->
-    <div class="tools-dock-track">
+    <div class="tools-dock-track" v-show="!isCollapsed">
+      <!-- 0. Balão: Recolher Sidebar de Ferramentas -->
+      <div class="tool-bubble-item">
+        <button
+          type="button"
+          class="tool-bubble-btn tool-btn-collapse"
+          title="Recolher Ferramentas"
+          aria-label="Recolher Ferramentas"
+          @click="collapseSidebar"
+        >
+          <span class="tools-icon-box"><i class="ri-arrow-right-s-line"></i></span>
+        </button>
+        <div class="tool-bubble-tooltip">
+          <span>Recolher Ferramentas</span>
+        </div>
+      </div>
+
+      <div class="tool-dock-divider"></div>
       <!-- 1. Balão: Bloco de Notas -->
       <div class="tool-bubble-item">
         <button
@@ -231,6 +262,104 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotepadStore } from '@/stores/notepad.store'
 import NotepadDrawer from '@/components/tools/NotepadDrawer.vue'
+
+// ─── 0. CONTROLE DE RECOLHER / EXPANDIR SIDEBAR ──────────────────────────────
+const isCollapsed = ref(localStorage.getItem('brifdesk_tools_collapsed') === 'true')
+const isDragging = ref(false)
+let dragStartX = 0
+let hasMoved = false
+
+function collapseSidebar() {
+  closePopovers()
+  if (notepad.isOpen) {
+    notepad.close()
+  }
+  isCollapsed.value = true
+  try {
+    localStorage.setItem('brifdesk_tools_collapsed', 'true')
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+function expandSidebar() {
+  isCollapsed.value = false
+  try {
+    localStorage.setItem('brifdesk_tools_collapsed', 'false')
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+function onTabClick() {
+  expandSidebar()
+}
+
+function startDrag(e) {
+  if (e.button !== 0) return
+  e.preventDefault()
+  dragStartX = e.clientX
+  hasMoved = false
+  isDragging.value = true
+
+  function onMouseMove(moveEvent) {
+    const deltaX = dragStartX - moveEvent.clientX // > 0 ao puxar para a esquerda (centro da tela)
+    if (Math.abs(deltaX) > 6) {
+      hasMoved = true
+    }
+    if (deltaX > 20) {
+      expandSidebar()
+      stopDrag()
+    }
+  }
+
+  function onMouseUp() {
+    stopDrag()
+  }
+
+  function stopDrag() {
+    isDragging.value = false
+    window.removeEventListener('mousemove', onMouseMove)
+    window.removeEventListener('mouseup', onMouseUp)
+  }
+
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('mouseup', onMouseUp)
+}
+
+function startTouch(e) {
+  if (!e.touches || e.touches.length === 0) return
+  dragStartX = e.touches[0].clientX
+  hasMoved = false
+  isDragging.value = true
+
+  function onTouchMove(moveEvent) {
+    if (!moveEvent.touches || moveEvent.touches.length === 0) return
+    const deltaX = dragStartX - moveEvent.touches[0].clientX
+    if (Math.abs(deltaX) > 6) {
+      hasMoved = true
+    }
+    if (deltaX > 20) {
+      expandSidebar()
+      stopTouch()
+    }
+  }
+
+  function onTouchEnd() {
+    stopTouch()
+  }
+
+  function stopTouch() {
+    isDragging.value = false
+    window.removeEventListener('touchmove', onTouchMove)
+    window.removeEventListener('touchend', onTouchEnd)
+    window.removeEventListener('touchcancel', stopTouch)
+  }
+
+  window.addEventListener('touchmove', onTouchMove, { passive: true })
+  window.addEventListener('touchend', onTouchEnd)
+  window.addEventListener('touchcancel', stopTouch)
+}
 
 const router = useRouter()
 const painelTvUrl = computed(() => {
@@ -466,9 +595,24 @@ onUnmounted(() => {
   z-index: 3005; /* Acima do backdrop para manter os botões interativos */
   user-select: none;
   position: relative;
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+              min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+              max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Oculta cabeçalho para manter minimalista */
+.tools-sidebar.is-collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  padding: 0 !important;
+  border-left: none !important;
+  overflow: hidden !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Oculta cabeçalho legado */
 .tools-header {
   display: none;
 }
@@ -1204,8 +1348,109 @@ onUnmounted(() => {
   }
 }
 
+.tool-btn-collapse {
+  color: #64748b;
+}
+
+.tool-btn-collapse:hover {
+  background: #f1f5f9;
+  color: #059669;
+  border-color: #cbd5e1;
+  transform: translateX(2px) scale(1.08);
+}
+
+/* ─── ABA LATERAL VERTICAL QUANDO RECOLHIDO ("Ferramentas" em pé) ─────────── */
+.tools-collapsed-tab {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3010;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-right: none;
+  border-radius: 9px 0 0 9px;
+  box-shadow: -2px 0 10px rgba(15, 23, 42, 0.08);
+  padding: 14px 7px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: pan-y;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              background 0.18s ease,
+              border-color 0.18s ease,
+              color 0.18s ease,
+              box-shadow 0.18s ease;
+  outline: none;
+  color: #475569;
+}
+
+.tools-collapsed-tab:hover {
+  background: #f8fafc;
+  color: #059669;
+  border-color: #059669;
+  transform: translateY(-50%) translateX(-4px);
+  box-shadow: -4px 0 14px rgba(5, 150, 105, 0.2);
+}
+
+.tools-collapsed-tab.is-dragging {
+  cursor: grabbing;
+  background: #f0fdf4;
+  color: #059669;
+  border-color: #059669;
+  transform: translateY(-50%) translateX(-6px);
+}
+
+.tab-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.tools-collapsed-tab:hover .tab-arrow {
+  transform: translateX(-3px);
+  color: #059669;
+}
+
+.tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.tab-label {
+  writing-mode: vertical-rl;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: inherit;
+  line-height: 1;
+}
+
+.tools-tab-slide-enter-active,
+.tools-tab-slide-leave-active {
+  transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.24s ease;
+}
+
+.tools-tab-slide-enter-from,
+.tools-tab-slide-leave-to {
+  transform: translateY(-50%) translateX(100%);
+  opacity: 0;
+}
+
 @media (max-width: 768px) {
-  .tools-sidebar {
+  .tools-sidebar,
+  .tools-collapsed-tab {
     display: none !important;
   }
 }
