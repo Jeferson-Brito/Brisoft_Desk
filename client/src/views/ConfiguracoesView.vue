@@ -141,35 +141,38 @@
       </div>
 
       <!-- ABA 3: CHATBOT -->
-      <div v-else-if="activeTab === 'bot'" class="settings-section-card">
-        <div class="settings-section-header">
-          <div>
-            <span class="settings-section-heading">Chatbot do WhatsApp</span>
-            <div class="settings-section-description">Organize o funcionamento do bot por assunto e altere somente o que precisa.</div>
+      <div v-else-if="activeTab === 'bot'" class="settings-section-card bot-section-card">
+        <!-- Cabeçalho e subnav fixos no topo ao rolar a página -->
+        <div class="bot-sticky-header">
+          <div class="settings-section-header">
+            <div>
+              <span class="settings-section-heading">Chatbot do WhatsApp</span>
+              <div class="settings-section-description">Organize o funcionamento do bot por assunto e altere somente o que precisa.</div>
+            </div>
+            <button class="btn-primary" :disabled="savingBot" @click="saveBotSettings">
+              <i class="fa-solid fa-floppy-disk"></i> {{ savingBot ? 'Salvando...' : 'Salvar configurações' }}
+            </button>
           </div>
-          <button class="btn-primary" :disabled="savingBot" @click="saveBotSettings">
-            <i class="fa-solid fa-floppy-disk"></i> {{ savingBot ? 'Salvando...' : 'Salvar configurações' }}
-          </button>
-        </div>
 
-        <nav class="bot-subnav" role="tablist" aria-label="Seções da configuração da IA">
-          <button
-            v-for="section in botSections"
-            :key="section.id"
-            class="bot-subnav-item"
-            :class="{ active: botSection === section.id }"
-            type="button"
-            role="tab"
-            :aria-selected="botSection === section.id"
-            @click="botSection = section.id"
-          >
-            <span class="bot-subnav-icon"><i :class="section.icon"></i></span>
-            <span class="bot-subnav-copy">
-              <strong>{{ section.label }}</strong>
-              <small>{{ section.description }}</small>
-            </span>
-          </button>
-        </nav>
+          <nav class="bot-subnav" role="tablist" aria-label="Seções da configuração da IA">
+            <button
+              v-for="section in botSections"
+              :key="section.id"
+              class="bot-subnav-item"
+              :class="{ active: botSection === section.id }"
+              type="button"
+              role="tab"
+              :aria-selected="botSection === section.id"
+              @click="botSection = section.id"
+            >
+              <span class="bot-subnav-icon"><i :class="section.icon"></i></span>
+              <span class="bot-subnav-copy">
+                <strong>{{ section.label }}</strong>
+                <small>{{ section.description }}</small>
+              </span>
+            </button>
+          </nav>
+        </div>
 
         <div class="settings-content-stack bot-tab-content">
           <section v-if="botSection === 'overview'" class="bot-tab-panel" role="tabpanel">
@@ -620,11 +623,29 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.bot-section-card {
+  position: relative;
+}
+.bot-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  background: #ffffff;
+  margin: -22px -22px 0 -22px;
+  padding: 20px 22px 14px 22px;
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-bottom: 1px solid #edf1f5;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+}
 .bot-subnav {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
-  margin-bottom: 22px;
+  margin: 0;
   padding: 6px;
   background: #f8fafc;
   border: 1px solid #edf2f7;
@@ -697,5 +718,7 @@ button:disabled { opacity:.55;cursor:not-allowed; }
 .inactivity-disabled-note { padding:11px 14px;border-top:1px solid #dbeafe;color:#64748b;font-size:10.5px;background:#fff; }
 @media (max-width: 980px) { .bot-subnav { grid-template-columns:repeat(2,minmax(0,1fr)); } .bot-message-list { grid-template-columns:1fr; } }
 @media (max-width: 800px) { .inactivity-settings-body { grid-template-columns:1fr; } .inactivity-result-note { grid-column:auto; } .inactivity-settings-header { align-items:flex-start;flex-wrap:wrap; } .inactivity-toggle { margin-left:44px; } .bot-messages-heading { align-items:flex-start;flex-wrap:wrap; } .bot-messages-heading .btn-secondary { width:100%;justify-content:center; } }
+@media (max-width: 760px) { .bot-sticky-header { margin:-15px -15px 0 -15px;padding:15px 15px 10px 15px;border-top-left-radius:11px;border-top-right-radius:11px;gap:10px; } }
 @media (max-width: 560px) { .bot-subnav { grid-template-columns:1fr 1fr;gap:5px; } .bot-subnav-item { padding:8px; } .bot-subnav-copy small { display:none; } .bot-subnav-icon { width:28px;height:28px; } .bot-panel-heading { align-items:flex-start; } }
+@media (max-width: 480px) { .bot-sticky-header { margin:-13px -13px 0 -13px;padding:13px 13px 8px 13px; } }
 </style>
