@@ -68,17 +68,17 @@
         </span>
       </RouterLink>
 
-      <!-- Conversas -->
+      <!-- Histórico -->
       <RouterLink
         class="nav-item"
         to="/historico"
         active-class="active"
-        title="Conversas e Histórico"
+        title="Histórico de Conversas"
         @mouseenter="prefetchRoute('/historico')"
         @focus="prefetchRoute('/historico')"
       >
         <span class="nav-icon-box"><i class="ri-chat-3-line"></i></span>
-        <span class="nav-label">Conversas</span>
+        <span class="nav-label">Histórico</span>
       </RouterLink>
 
       <!-- Contatos -->

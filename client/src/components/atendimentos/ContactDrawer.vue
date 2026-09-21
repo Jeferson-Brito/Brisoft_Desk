@@ -1,14 +1,17 @@
-<template>
+﻿<template>
   <div class="details-column" id="contactDetailsCol">
-    <!-- Header: Detalhes do Atendimento -->
+    <!-- Header com gradiente verde -->
     <div class="details-header">
-      <div class="details-header-title-box">
-        <span class="details-header-title">Detalhes do Atendimento</span>
+      <div class="details-header-left">
+        <div class="details-header-icon">
+          <i class="fa-solid fa-address-card"></i>
+        </div>
+        <span class="details-header-title">Detalhes</span>
       </div>
       <div class="details-header-actions">
         <button
           type="button"
-          class="details-action-btn"
+          class="details-action-btn edit-btn"
           title="Editar contato"
           @click="showEditModal = true"
         >
@@ -16,7 +19,7 @@
         </button>
         <button
           type="button"
-          class="details-action-btn close"
+          class="details-action-btn close-btn"
           title="Fechar painel"
           @click="$emit('close')"
         >
@@ -26,7 +29,8 @@
     </div>
 
     <div class="details-body">
-      <!-- Card Metadados do Atendimento -->
+
+      <!-- Card: Dados do Chamado -->
       <div class="details-card">
         <div class="card-title-row">
           <span class="card-section-title">
@@ -40,66 +44,72 @@
 
         <div class="meta-grid">
           <div class="meta-item">
-            <span class="meta-label">Departamento</span>
-            <div class="meta-value-box">
-              <span class="dept-badge">
-                <i class="fa-solid fa-tag"></i>
-                {{ ticket?.department || ticket?.deptInitial || 'Geral' }}
-              </span>
+            <div class="meta-icon-label">
+              <span class="meta-icon-box"><i class="fa-solid fa-tag"></i></span>
+              <span class="meta-label">Departamento</span>
             </div>
-          </div>
-
-          <div class="meta-item">
-            <span class="meta-label">Canal / Conexão</span>
-            <div class="meta-value-box">
-              <span class="channel-badge">
-                <i class="fa-brands fa-whatsapp"></i>
-                {{ whatsappAccountLabel }}
-              </span>
-            </div>
-          </div>
-
-          <div class="meta-item">
-            <span class="meta-label">
-              {{ ticket?.status === 'em_atendimento' ? 'Tempo de Atendimento' : 'Tempo em Espera' }}
-            </span>
-            <span class="meta-value text-highlight">
-              <i class="fa-regular fa-clock" style="font-size:11px; margin-right:3px;"></i>
-              {{ durationStr }}
+            <span class="dept-badge">
+              {{ ticket?.department || ticket?.deptInitial || 'Geral' }}
             </span>
           </div>
 
           <div class="meta-item">
-            <span class="meta-label">Protocolo / ID</span>
+            <div class="meta-icon-label">
+              <span class="meta-icon-box"><i class="fa-regular fa-clock"></i></span>
+              <span class="meta-label">{{ ticket?.status === 'em_atendimento' ? 'Tempo de Atendimento' : 'Tempo em Espera' }}</span>
+            </div>
+            <span class="duration-badge">{{ durationStr }}</span>
+          </div>
+
+          <div class="meta-item">
+            <div class="meta-icon-label">
+              <span class="meta-icon-box"><i class="fa-solid fa-hashtag"></i></span>
+              <span class="meta-label">Protocolo</span>
+            </div>
             <div class="id-copy-box" @click="copyTicketId" title="Clique para copiar ID">
-              <code>#{{ ticket?.id ? ticket.id.substring(0, 8) : '—' }}</code>
+              <code>#{{ ticket?.id ? ticket.id.substring(0, 8) : 'â€”' }}</code>
               <i class="fa-regular" :class="copiedId ? 'fa-circle-check text-success' : 'fa-copy'"></i>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Card do Contato Relacionado -->
-      <div class="details-card">
-        <div class="card-title-row">
-          <span class="card-section-title">
-            <i class="fa-solid fa-user-circle"></i> Contato Relacionado
-          </span>
-          <button
-            v-if="!contactSaved"
-            type="button"
-            class="btn-card-action save-contact"
-            :disabled="savingContact"
-            @click="saveContact(ticket?.is_employee)"
+      <!-- Card: Contato Relacionado -->
+      <div class="details-card contact-card">
+        <!-- Banner do perfil -->
+        <div class="contact-hero">
+          <div
+            class="contact-avatar-hero"
+            :style="{ backgroundColor: ticket?.avatarColor || '#059669' }"
           >
-            <i class="fa-solid" :class="savingContact ? 'fa-spinner fa-spin' : 'fa-user-plus'"></i>
-            Salvar contato
-          </button>
-          <button v-else type="button" class="btn-card-action" @click="showEditModal = true">
-            <i class="fa-solid fa-pen-to-square"></i> Editar
-          </button>
+            <img v-if="ticket?.avatar_url" :src="ticket.avatar_url" alt="Foto do cliente" referrerpolicy="no-referrer" />
+            <span v-else>{{ ticket?.initials || 'CL' }}</span>
+          </div>
+          <div class="contact-hero-text">
+            <strong class="contact-hero-name" :title="ticket?.clientName || ticket?.client_name">
+              {{ normalizePersonName(ticket?.clientName || ticket?.client_name || 'Cliente') }}
+            </strong>
+            <span class="contact-hero-phone">{{ displayPhone }}</span>
+            <div class="contact-role-tag" :class="{ employee: ticket?.is_employee }">
+              <i class="fa-solid" :class="ticket?.is_employee ? 'fa-id-badge' : 'fa-user'"></i>
+              {{ ticket?.is_employee ? 'FuncionÃ¡rio' : 'Cliente' }}
+            </div>
+          </div>
+          <div class="contact-hero-actions">
+            <button
+              v-if="!contactSaved"
+              type="button"
+              class="btn-hero-save"
+              :disabled="savingContact"
+              @click="saveContact(ticket?.is_employee)"
+              title="Salvar contato"
+            >
+              <i class="fa-solid" :class="savingContact ? 'fa-spinner fa-spin' : 'fa-user-plus'"></i>
+            </button>
+          </div>
         </div>
 
+        <!-- Tipo de Contato -->
         <div class="contact-type-control">
           <span class="contact-type-label">Tipo de contato</span>
           <div class="contact-type-options" role="group" aria-label="Tipo de contato">
@@ -117,107 +127,49 @@
               :disabled="savingContact"
               @click="saveContact(true)"
             >
-              <i class="fa-solid fa-id-badge"></i> Funcionário
+              <i class="fa-solid fa-id-badge"></i> FuncionÃ¡rio
             </button>
           </div>
-          <small>{{ contactSaved ? 'Alterações são salvas imediatamente.' : 'Ao escolher, o contato também será salvo.' }}</small>
+          <small>{{ contactSaved ? 'AlteraÃ§Ãµes sÃ£o salvas imediatamente.' : 'Ao escolher, o contato tambÃ©m serÃ¡ salvo.' }}</small>
         </div>
 
-        <!-- Banner de Perfil do Contato -->
-        <div class="contact-profile-box">
-          <div
-            class="contact-avatar-lg"
-            :style="{ backgroundColor: ticket?.avatarColor || '#2563eb' }"
-          >
-            <img v-if="ticket?.avatar_url" :src="ticket.avatar_url" alt="Foto do cliente" referrerpolicy="no-referrer" />
-            <span v-else>{{ ticket?.initials || 'CL' }}</span>
-          </div>
-          <div class="contact-profile-text">
-            <strong class="contact-profile-name" :title="ticket?.clientName || ticket?.client_name">
-              {{ normalizePersonName(ticket?.clientName || ticket?.client_name || 'Cliente') }}
-            </strong>
-            <span class="contact-profile-phone">{{ displayPhone }}</span>
-            <div class="contact-role-tag" :class="{ employee: ticket?.is_employee }">
-              <i class="fa-solid" :class="ticket?.is_employee ? 'fa-id-badge' : 'fa-user'"></i>
-              {{ ticket?.is_employee ? 'Funcionário' : 'Cliente' }}
-            </div>
-          </div>
-        </div>
-
-        <!-- Lista de Atributos do Contato -->
+        <!-- Atributos do contato -->
         <div class="contact-attributes-list">
           <div class="attribute-row">
-            <div class="attribute-icon"><i class="fa-solid fa-earth-americas"></i></div>
-            <div class="attribute-content">
-              <span class="attribute-label">País / Fuso</span>
-              <span class="attribute-val">Brasil (GMT-3)</span>
-            </div>
-          </div>
-
-          <div class="attribute-row">
-            <div class="attribute-icon"><i class="fa-regular fa-envelope"></i></div>
+            <span class="attribute-icon"><i class="fa-regular fa-envelope"></i></span>
             <div class="attribute-content">
               <span class="attribute-label">E-mail</span>
               <span class="attribute-val" :class="{ 'text-muted': !contact.email }">
-                {{ contact.email || 'Não informado' }}
+                {{ contact.email || 'NÃ£o informado' }}
               </span>
             </div>
           </div>
 
           <div class="attribute-row">
-            <div class="attribute-icon"><i class="fa-regular fa-id-card"></i></div>
+            <span class="attribute-icon"><i class="fa-regular fa-id-card"></i></span>
             <div class="attribute-content">
               <span class="attribute-label">CPF / CNPJ</span>
               <span class="attribute-val" :class="{ 'text-muted': !contact.cnpj }">
-                {{ contact.cnpj ? formatCnpjCpf(contact.cnpj) : 'Não informado' }}
+                {{ contact.cnpj ? formatCnpjCpf(contact.cnpj) : 'NÃ£o informado' }}
               </span>
             </div>
           </div>
 
           <div class="attribute-row">
-            <div class="attribute-icon"><i class="fa-regular fa-building"></i></div>
+            <span class="attribute-icon"><i class="fa-regular fa-building"></i></span>
             <div class="attribute-content">
               <span class="attribute-label">Empresa</span>
               <span class="attribute-val" :class="{ 'text-muted': !contact.company }">
-                {{ contact.company || 'Não informada' }}
+                {{ contact.company || 'NÃ£o informada' }}
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Card: Histórico de Conversas Anteriores -->
-      <div class="details-card">
-        <div class="card-title-row">
-          <span class="card-section-title">
-            <i class="fa-solid fa-clock-rotate-left"></i> Histórico
-          </span>
-          <RouterLink to="/historico" class="btn-card-action">
-            Ver todas <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:10px;"></i>
-          </RouterLink>
-        </div>
-
-        <div class="history-list">
-          <div v-if="contact.history && contact.history.length > 0">
-            <div v-for="(h, idx) in contact.history" :key="idx" class="history-card-item">
-              <div class="history-card-icon">
-                <i class="fa-regular fa-comment-dots"></i>
-              </div>
-              <div class="history-card-info">
-                <span class="history-card-title">{{ h.subject || 'Atendimento via WhatsApp' }}</span>
-                <span class="history-card-date">{{ h.date }}</span>
-              </div>
-            </div>
-          </div>
-          <div v-else class="history-empty-box">
-            <i class="fa-regular fa-comments"></i>
-            <span>Nenhuma conversa anterior registrada para este contato.</span>
-          </div>
-        </div>
-      </div>
     </div>
 
-    <!-- Modal de Edição de Contato -->
+    <!-- Modal de EdiÃ§Ã£o de Contato -->
     <ModalEditarContato
       v-if="showEditModal"
       :ticket="ticket"
@@ -321,12 +273,12 @@ async function saveContact(isEmployee = false) {
       note: notes,
       is_employee: Boolean(isEmployee)
     })
-    if (!data?.success || !data.ticket) throw new Error(data?.error || 'Não foi possível salvar o contato.')
+    if (!data?.success || !data.ticket) throw new Error(data?.error || 'NÃ£o foi possÃ­vel salvar o contato.')
     ticketStore.receiveTicket(data.ticket)
     ticketStore.notifyKpisUpdated()
-    ui.showToast(Boolean(isEmployee) ? 'Contato salvo como funcionário.' : 'Contato salvo como cliente.')
+    ui.showToast(Boolean(isEmployee) ? 'Contato salvo como funcionÃ¡rio.' : 'Contato salvo como cliente.')
   } catch (error) {
-    ui.showToast(error.response?.data?.error || error.message || 'Não foi possível salvar o contato.', 'error')
+    ui.showToast(error.response?.data?.error || error.message || 'NÃ£o foi possÃ­vel salvar o contato.', 'error')
   } finally {
     savingContact.value = false
   }
@@ -334,13 +286,14 @@ async function saveContact(isEmployee = false) {
 </script>
 
 <style scoped>
+/* Layout Principal */
 .details-column {
   width: 300px;
   min-width: 300px;
   max-width: 300px;
   flex-shrink: 0;
-  background-color: #f8fafc;
-  border-left: 1px solid #e2e8f0;
+  background-color: #f0fdf4;
+  border-left: 1px solid #bbf7d0;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -349,28 +302,42 @@ async function saveContact(isEmployee = false) {
   user-select: none;
 }
 
-/* Header */
+/* Header Compacto com Identidade Verde */
 .details-header {
   height: 52px;
   min-height: 52px;
-  padding: 0 16px;
+  padding: 0 12px 0 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  gap: 8px;
 }
 
-.details-header-title-box {
+.details-header-left {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
+.details-header-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
 .details-header-title {
   font-size: 13.5px;
   font-weight: 700;
-  color: #0f172a;
+  color: #ffffff;
   letter-spacing: -0.01em;
 }
 
@@ -381,52 +348,51 @@ async function saveContact(isEmployee = false) {
 }
 
 .details-action-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  color: #64748b;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.12);
+  color: #e0f2f1;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12.5px;
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .details-action-btn:hover {
-  background: #f1f5f9;
-  color: #1e293b;
-  border-color: #cbd5e1;
+  background: rgba(255,255,255,0.22);
+  color: #ffffff;
 }
 
-.details-action-btn.close:hover {
-  background: #fee2e2;
-  color: #ef4444;
-  border-color: #fca5a5;
+.details-action-btn.close-btn:hover {
+  background: rgba(239,68,68,0.35);
+  border-color: rgba(239,68,68,0.5);
+  color: #ffffff;
 }
 
 /* Body */
 .details-body {
   flex: 1;
   overflow-y: auto;
-  padding: 14px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 /* Cards */
 .details-card {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border: 1px solid #d1fae5;
+  border-radius: 12px;
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  box-shadow: 0 1px 4px rgba(5, 150, 105, 0.06);
 }
 
 .card-title-row {
@@ -436,67 +402,31 @@ async function saveContact(isEmployee = false) {
 }
 
 .card-section-title {
-  font-size: 11.5px;
+  font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #64748b;
+  letter-spacing: 0.06em;
+  color: #059669;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .card-section-title i {
-  color: #94a3b8;
+  color: #34d399;
   font-size: 12px;
 }
 
-.btn-card-action {
-  background: none;
-  border: none;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #2563eb;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  text-decoration: none;
-  transition: all 0.12s ease;
-}
-
-.btn-card-action:hover {
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-
-.btn-card-action:disabled {
-  opacity: 0.6;
-  cursor: wait;
-}
-
-.btn-card-action.save-contact {
-  color: #047857;
-  background: #ecfdf5;
-  padding: 4px 7px;
-}
-
-.btn-card-action.save-contact:hover {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-/* Status Pill */
+/* Status Pills */
 .status-pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .status-pill .status-dot {
@@ -508,6 +438,7 @@ async function saveContact(isEmployee = false) {
 .status-pill.em_atendimento {
   background: #ecfdf5;
   color: #059669;
+  border: 1px solid #a7f3d0;
 }
 .status-pill.em_atendimento .status-dot {
   background: #10b981;
@@ -517,166 +448,175 @@ async function saveContact(isEmployee = false) {
 .status-pill.aguardando {
   background: #fffbeb;
   color: #d97706;
+  border: 1px solid #fde68a;
 }
-.status-pill.aguardando .status-dot {
-  background: #f59e0b;
-}
+.status-pill.aguardando .status-dot { background: #f59e0b; }
 
 .status-pill.chatbot {
   background: #f5f3ff;
   color: #7c3aed;
+  border: 1px solid #ddd6fe;
 }
-.status-pill.chatbot .status-dot {
-  background: #8b5cf6;
-}
+.status-pill.chatbot .status-dot { background: #8b5cf6; }
 
 .status-pill.finalizado {
   background: #f1f5f9;
   color: #64748b;
+  border: 1px solid #e2e8f0;
 }
-.status-pill.finalizado .status-dot {
-  background: #94a3b8;
-}
+.status-pill.finalizado .status-dot { background: #94a3b8; }
 
-/* Meta Grid */
+/* Meta Grid (dados do chamado) */
 .meta-grid {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
 }
 
 .meta-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid #f8fafc;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0fdf4;
+  gap: 6px;
 }
 
-.meta-item:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+.meta-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+.meta-icon-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.meta-icon-box {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #f0fdf4;
+  border: 1px solid #d1fae5;
+  color: #059669;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  flex-shrink: 0;
 }
 
 .meta-label {
   color: #64748b;
   font-size: 11.5px;
-}
-
-.meta-value {
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.text-highlight {
-  color: #2563eb;
-  font-family: monospace;
-  font-weight: 700;
-  font-size: 12px;
+  white-space: nowrap;
 }
 
 .dept-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 2px 7px;
-  background: #eff6ff;
-  border: 1px solid #dbeafe;
-  color: #1d4ed8;
+  gap: 4px;
+  padding: 2px 8px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
   border-radius: 5px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-.channel-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 7px;
-  background: #f0fdf4;
-  border: 1px solid #dcfce7;
-  color: #15803d;
+.duration-badge {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 2px 8px;
   border-radius: 5px;
-  font-size: 11px;
-  font-weight: 600;
+  white-space: nowrap;
 }
 
 .id-copy-box {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 6px;
-  background: #f1f5f9;
-  border-radius: 4px;
+  gap: 5px;
+  padding: 2px 7px;
+  background: #f0fdf4;
+  border: 1px solid #d1fae5;
+  border-radius: 5px;
   cursor: pointer;
   transition: all 0.12s ease;
 }
 
 .id-copy-box:hover {
-  background: #e2e8f0;
+  background: #dcfce7;
+  border-color: #6ee7b7;
 }
 
 .id-copy-box code {
   font-size: 11px;
   font-family: monospace;
-  color: #334155;
-  font-weight: 600;
+  color: #047857;
+  font-weight: 700;
 }
 
-.id-copy-box i {
-  font-size: 11px;
-  color: #64748b;
-}
+.id-copy-box i { font-size: 10px; color: #059669; }
+.text-success { color: #10b981 !important; }
 
-.text-success {
-  color: #10b981 !important;
-}
+/* Card de Contato (Hero) */
+.contact-card { gap: 14px; }
 
-/* Contact Profile Box */
-.contact-profile-box {
+.contact-hero {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px;
-  background: #f8fafc;
-  border: 1px solid #f1f5f9;
-  border-radius: 8px;
+  padding: 12px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+  border: 1px solid #a7f3d0;
+  border-radius: 10px;
+  position: relative;
 }
 
-.contact-avatar-lg {
-  width: 42px;
-  height: 42px;
+.contact-avatar-hero {
+  width: 46px;
+  height: 46px;
+  min-width: 46px;
   border-radius: 50%;
   color: #ffffff;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+  border: 2px solid rgba(255,255,255,0.8);
 }
 
-.contact-profile-text {
+.contact-avatar-hero img { width: 100%; height: 100%; object-fit: cover; }
+
+.contact-hero-text {
   display: flex;
   flex-direction: column;
   min-width: 0;
   gap: 2px;
+  flex: 1;
 }
 
-.contact-profile-name {
-  font-size: 13px;
-  font-weight: 700;
-  color: #0f172a;
+.contact-hero-name {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #064e3b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.contact-profile-phone {
+.contact-hero-phone {
   font-size: 11.5px;
-  color: #64748b;
+  color: #059669;
+  font-weight: 500;
 }
 
 .contact-role-tag {
@@ -684,22 +624,50 @@ async function saveContact(isEmployee = false) {
   align-items: center;
   gap: 4px;
   align-self: flex-start;
-  padding: 1px 6px;
-  border-radius: 4px;
+  padding: 2px 7px;
+  border-radius: 20px;
   font-size: 10px;
-  font-weight: 600;
-  background: #e0f2fe;
-  color: #0369a1;
+  font-weight: 700;
+  background: #d1fae5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
   margin-top: 2px;
 }
 
 .contact-role-tag.employee {
   background: #fef3c7;
   color: #b45309;
+  border-color: #fde68a;
 }
-.contact-avatar-lg { overflow:hidden; }
-.contact-avatar-lg img { width:100%; height:100%; object-fit:cover; }
 
+.contact-hero-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.btn-hero-save {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #059669;
+  border: none;
+  color: #ffffff;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.3);
+}
+
+.btn-hero-save:hover {
+  background: #047857;
+  transform: scale(1.1);
+}
+
+/* Tipo de Contato */
 .contact-type-control {
   display: flex;
   flex-direction: column;
@@ -707,10 +675,10 @@ async function saveContact(isEmployee = false) {
 }
 
 .contact-type-label {
-  color: #64748b;
+  color: #059669;
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
@@ -719,43 +687,42 @@ async function saveContact(isEmployee = false) {
   grid-template-columns: 1fr 1fr;
   gap: 4px;
   padding: 3px;
-  border: 1px solid #e2e8f0;
-  border-radius: 7px;
-  background: #f8fafc;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  background: #f0fdf4;
 }
 
 .contact-type-options button {
   border: 0;
-  border-radius: 5px;
+  border-radius: 6px;
   padding: 6px 5px;
   background: transparent;
   color: #64748b;
   font-size: 10.5px;
   font-weight: 650;
   cursor: pointer;
+  transition: all 0.12s ease;
 }
 
 .contact-type-options button.active {
-  background: #fff;
-  color: #1d4ed8;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.09);
+  background: #ffffff;
+  color: #059669;
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.15);
+  font-weight: 800;
 }
 
-.contact-type-options button:disabled {
-  cursor: wait;
-}
+.contact-type-options button:disabled { cursor: wait; opacity: 0.7; }
 
 .contact-type-control small {
-  color: #94a3b8;
+  color: #6ee7b7;
   font-size: 9.5px;
 }
 
-/* Contact Attributes List */
+/* Atributos do Contato */
 .contact-attributes-list {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  padding-top: 4px;
+  gap: 0;
 }
 
 .attribute-row {
@@ -763,40 +730,52 @@ async function saveContact(isEmployee = false) {
   align-items: flex-start;
   gap: 10px;
   font-size: 11.5px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0fdf4;
 }
 
+.attribute-row:last-child { border-bottom: none; padding-bottom: 0; }
+
 .attribute-icon {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 6px;
-  background: #f8fafc;
-  border: 1px solid #edf2f7;
-  color: #94a3b8;
+  background: #f0fdf4;
+  border: 1px solid #d1fae5;
+  color: #059669;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 10px;
   flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .attribute-content {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  gap: 1px;
 }
 
 .attribute-label {
-  font-size: 10px;
-  color: #94a3b8;
+  font-size: 9.5px;
+  color: #a7f3d0;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  font-weight: 600;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+/* Override: label mais visÃ­vel dentro de card branco */
+.contact-card .attribute-label {
+  color: #059669;
 }
 
 .attribute-val {
   color: #1e293b;
   font-weight: 500;
   word-break: break-word;
+  font-size: 11.5px;
 }
 
 .text-muted {
@@ -804,80 +783,12 @@ async function saveContact(isEmployee = false) {
   font-style: italic;
 }
 
-/* History List */
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+/* Scrollbar */
+.details-body::-webkit-scrollbar { width: 4px; }
+.details-body::-webkit-scrollbar-track { background: transparent; }
+.details-body::-webkit-scrollbar-thumb {
+  background: #a7f3d0;
+  border-radius: 4px;
 }
-
-.history-card-item {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 8px;
-  background: #f8fafc;
-  border: 1px solid #f1f5f9;
-  border-radius: 6px;
-  transition: all 0.12s ease;
-}
-
-.history-card-item:hover {
-  background: #eff6ff;
-  border-color: #dbeafe;
-}
-
-.history-card-icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  color: #2563eb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  flex-shrink: 0;
-}
-
-.history-card-info {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.history-card-title {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #1e293b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.history-card-date {
-  font-size: 10px;
-  color: #94a3b8;
-}
-
-.history-empty-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 16px 8px;
-  text-align: center;
-  color: #94a3b8;
-  gap: 6px;
-  font-size: 11px;
-  background: #f8fafc;
-  border-radius: 6px;
-  border: 1px dashed #e2e8f0;
-}
-
-.history-empty-box i {
-  font-size: 16px;
-  color: #cbd5e1;
-}
+.details-body::-webkit-scrollbar-thumb:hover { background: #6ee7b7; }
 </style>

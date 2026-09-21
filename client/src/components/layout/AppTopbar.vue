@@ -17,6 +17,20 @@
 
     <!-- Trilho de Navegação de Abas (Exibido exclusivamente no módulo de Atendimentos) -->
     <div v-if="currentModule === 'atendimentos'" class="topbar-tabs-track" aria-label="Navegação do módulo">
+      <!-- Aba: Conversas Internas (Chat da Equipe) -->
+      <div
+        class="topbar-nav-pill"
+        :class="{ active: ui.isInternalChatOpen }"
+        title="Chat Interno da Equipe (Conversas internas)"
+        @click="ui.toggleInternalChat()"
+      >
+        <span class="pill-icon-box"><i class="ri-chat-3-line"></i></span>
+        <span>Conversas internas</span>
+        <span v-if="internalChat.totalUnreadCount > 0" class="pill-count-badge unread-internal-badge">
+          {{ internalChat.totalUnreadCount }}
+        </span>
+      </div>
+
       <!-- Aba Ativa: Fila de Atendimento com Badge de Contagem -->
       <div
         class="topbar-nav-pill active"
@@ -27,25 +41,13 @@
         <span class="pill-count-badge">{{ waitingCount || totalTicketsCount || 0 }}</span>
       </div>
 
-      <!-- Abas Secundárias (Chatbot, Conversas, Campanhas) -->
+      <!-- Aba: Chatbot -->
       <div class="topbar-nav-pill disabled-pill" title="Assistente Virtual / Chatbot">
         <span class="pill-icon-box"><i class="ri-robot-line"></i></span>
         <span>Chatbot</span>
       </div>
 
-      <div
-        class="topbar-nav-pill"
-        :class="{ active: ui.isInternalChatOpen }"
-        title="Chat Interno da Equipe (Conversas)"
-        @click="ui.toggleInternalChat()"
-      >
-        <span class="pill-icon-box"><i class="ri-chat-3-line"></i></span>
-        <span>Conversas</span>
-        <span v-if="internalChat.totalUnreadCount > 0" class="pill-count-badge unread-internal-badge">
-          {{ internalChat.totalUnreadCount }}
-        </span>
-      </div>
-
+      <!-- Aba: Campanhas -->
       <div class="topbar-nav-pill disabled-pill" title="Campanhas e Disparos">
         <span class="pill-icon-box"><i class="ri-megaphone-line"></i></span>
         <span>Campanhas</span>
