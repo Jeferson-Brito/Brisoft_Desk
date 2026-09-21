@@ -231,6 +231,7 @@ io.on('connection', (socket) => {
 // Inicialização do Servidor
 const PORT = process.env.PORT || 3000;
 let businessHoursTimer = null;
+let disconnectCleanupTimer = null;
 async function startServer() {
   await initTempAdmin();
   server.listen(PORT, () => {
@@ -249,6 +250,13 @@ async function startServer() {
   releaseReserved();
   businessHoursTimer = setInterval(releaseReserved, 30 * 1000);
   businessHoursTimer.unref?.();
+
+  // Limpeza periódica de atendimentos expirados por desconexão do WhatsApp
+  const cleanupDisconnected = () => ticketService.cleanupExpiredDisconnectedTickets(io, whatsappService)
+    .catch(err => console.warn(`Falha na limpeza periódica de atendimentos expirados: ${err.message}`));
+  cleanupDisconnected();
+  disconnectCleanupTimer = setInterval(cleanupDisconnected, 60 * 1000);
+  disconnectCleanupTimer.unref?.();
   });
 }
 
@@ -261,6 +269,7 @@ async function gracefulShutdown(signal) {
   console.log(`Encerramento solicitado (${signal}). Salvando sessões...`);
   let backupTimeout;
   if (businessHoursTimer) clearInterval(businessHoursTimer);
+  if (disconnectCleanupTimer) clearInterval(disconnectCleanupTimer);
   try {
     await whatsappService.closeAllSockets(signal);
   } catch (err) {

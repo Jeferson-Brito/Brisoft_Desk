@@ -7,10 +7,9 @@
     <!-- Brand Logo Header (Centralizado) -->
     <div class="sidebar-header">
       <RouterLink to="/atendimentos" class="brand-logo-container" title="Brisoft Desk">
-        <!-- Quando expandido ou mobile: exibe logo horizontal completa com nome Brisoft Desk -->
-        <img v-if="isExpanded || mobileOpen" :src="logoUrl" alt="Brisoft Desk" class="brand-logo-full" />
-        <!-- Quando recolhido no desktop: exibe ícone/símbolo centralizado -->
-        <img v-else :src="iconUrl" alt="Brisoft Desk" class="brand-logo-symbol" />
+        <!-- Ambas as logos ficam no DOM para evitar decode e lag ao alternar -->
+        <img :src="logoUrl" alt="Brisoft Desk" class="brand-logo-full" />
+        <img :src="iconUrl" alt="Brisoft Desk" class="brand-logo-symbol" />
       </RouterLink>
       <button
         v-if="mobileOpen"
@@ -155,11 +154,11 @@
             <span v-else>{{ userInitials }}</span>
             <span class="user-status-dot"></span>
           </div>
-          <div v-if="isExpanded" class="user-info-expanded">
+          <div class="user-info-expanded">
             <span class="user-name-expanded">{{ displayUserName }}</span>
             <span class="user-role-expanded">{{ roleLabel }}</span>
           </div>
-          <span v-if="isExpanded" class="nav-icon-box" style="margin-left: auto;">
+          <span class="user-more-box nav-icon-box" style="margin-left: auto;">
             <i class="ri-more-2-line user-more-icon"></i>
           </span>
         </button>
@@ -212,7 +211,7 @@
         @click="toggleExpanded"
       >
         <span class="nav-icon-box"><i :class="isExpanded ? 'ri-arrow-left-s-line' : 'ri-arrow-right-s-line'"></i></span>
-        <span v-if="isExpanded">Recolher menu</span>
+        <span class="collapse-btn-text">Recolher menu</span>
       </button>
     </div>
   </aside>
@@ -327,9 +326,11 @@ async function handleLogout() {
   z-index: 60;
   user-select: none;
   position: relative;
-  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              min-width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              max-width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width, min-width, max-width;
+  contain: layout paint;
+  transition: width 0.14s cubic-bezier(0.16, 1, 0.3, 1),
+              min-width 0.14s cubic-bezier(0.16, 1, 0.3, 1),
+              max-width 0.14s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .sidebar.is-expanded {
@@ -362,19 +363,29 @@ async function handleLogout() {
 }
 
 .brand-logo-full {
+  display: none;
   height: 38px;
   max-width: 155px;
   object-fit: contain;
   margin: 0 auto;
-  display: block;
 }
 
 .brand-logo-symbol {
+  display: block;
   width: 32px;
   height: 32px;
   object-fit: contain;
   margin: 0 auto;
+}
+
+.sidebar.is-expanded .brand-logo-full,
+.sidebar.mobile-open .brand-logo-full {
   display: block;
+}
+
+.sidebar.is-expanded .brand-logo-symbol,
+.sidebar.mobile-open .brand-logo-symbol {
+  display: none;
 }
 
 /* ─── 2. Navegação Principal ─────────────────────────────────────────────── */
@@ -622,12 +633,24 @@ async function handleLogout() {
 }
 
 .user-info-expanded {
-  display: flex;
+  display: none;
   flex-direction: column;
   text-align: left;
   min-width: 0;
   flex: 1;
   line-height: 1.25;
+}
+
+.sidebar.is-expanded .user-info-expanded {
+  display: flex;
+}
+
+.user-more-box {
+  display: none;
+}
+
+.sidebar.is-expanded .user-more-box {
+  display: flex;
 }
 
 .user-name-expanded {
@@ -693,6 +716,15 @@ async function handleLogout() {
   font-size: 12px;
   color: inherit;
   font-weight: 500;
+}
+
+.collapse-btn-text {
+  display: none;
+  white-space: nowrap;
+}
+
+.sidebar.is-expanded .collapse-btn-text {
+  display: inline;
 }
 
 .user-popup-menu {

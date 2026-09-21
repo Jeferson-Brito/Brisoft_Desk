@@ -3,10 +3,10 @@
    ========================================================================== */
 
 .sidebar {
-  width: 60px;
-  min-width: 60px;
-  max-width: 60px;
-  background-color: #f3f4f6;
+  width: 64px;
+  min-width: 64px;
+  max-width: 64px;
+  background-color: #ffffff;
   border-right: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
@@ -18,7 +18,8 @@
   flex-shrink: 0;
   z-index: 60;
   user-select: none;
-  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width, min-width, max-width;
+  transition: width 0.15s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.15s cubic-bezier(0.16, 1, 0.3, 1), max-width 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .sidebar.is-expanded {

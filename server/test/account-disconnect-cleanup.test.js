@@ -50,3 +50,33 @@ test('makeInitials gera iniciais limpas e não quebra com emojis nem gera surrog
   assert.ok(json.includes('SO'));
 });
 
+test('handleAccountDisconnected preserva o timestamp original de desconexão em chamadas repetidas (evita reset em loops de reconexão)', async () => {
+  const fakeIo = { emit() {}, to() { return this; } };
+  const accountId = 'test-preserve-time-acc';
+
+  await ticketService.handleAccountDisconnected(accountId, 'connection_lost', fakeIo);
+  const info1 = ticketService._test.getChannelDisconnectInfo('whatsapp:' + accountId);
+  assert.ok(info1 && info1.disconnected_at);
+  const originalTime = info1.disconnected_at;
+
+  // Simula retry 100ms depois
+  await new Promise(r => setTimeout(r, 50));
+  await ticketService.handleAccountDisconnected(accountId, 'connection_lost', fakeIo);
+  const info2 = ticketService._test.getChannelDisconnectInfo('whatsapp:' + accountId);
+
+  // O timestamp original DEVE ser preservado
+  assert.equal(info2.disconnected_at, originalTime);
+
+  // Limpa conta de teste
+  await ticketService.handleAccountReconnected(accountId, fakeIo);
+});
+
+test('cleanupExpiredDisconnectedTickets executa sem lançar exceções', async () => {
+  const fakeIo = { emit() {}, to() { return this; } };
+  const fakeWhatsapp = { getAccounts: () => [] };
+  const result = await ticketService.cleanupExpiredDisconnectedTickets(fakeIo, fakeWhatsapp);
+  assert.ok(typeof result.discarded === 'number');
+  assert.ok(typeof result.retained === 'number');
+});
+
+

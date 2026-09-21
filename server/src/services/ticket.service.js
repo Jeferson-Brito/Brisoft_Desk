@@ -82,8 +82,63 @@ let disconnectRulesCacheExpiresAt = 0;
 // Mapa de contas do WhatsApp desconectadas: accountId -> { disconnected_at, reason }
 const DISCONNECTED_ACCOUNTS_KEY = 'whatsapp_disconnected_accounts';
 let disconnectedAccountsMap = new Map();
+let disconnectedAccountsLoaded = false;
+let knownWhatsAppAccountsCache = null;
+let knownWhatsAppAccountsExpiresAt = 0;
+
+async function initDisconnectedAccounts() {
+  if (!isSupabaseConfigured()) return;
+  try {
+    const [savedDisc, savedAccounts] = await Promise.all([
+      supabase.from('system_settings').select('value').eq('key', DISCONNECTED_ACCOUNTS_KEY).maybeSingle(),
+      supabase.from('system_settings').select('value').eq('key', 'whatsapp_accounts').maybeSingle()
+    ]);
+
+    if (savedDisc.data?.value && typeof savedDisc.data.value === 'object') {
+      for (const [accId, info] of Object.entries(savedDisc.data.value)) {
+        if (info && info.disconnected_at) {
+          disconnectedAccountsMap.set(String(accId), {
+            disconnected_at: info.disconnected_at,
+            reason: info.reason || 'connection_lost'
+          });
+        }
+      }
+    }
+
+    // Se a conta está desconectada (sem telefone ou status desconectado),
+    // o timestamp real da desconexão é quando ela se desconectou (last_connected_at).
+    const accounts = Array.isArray(savedAccounts.data?.value) ? savedAccounts.data.value : [];
+    for (const acc of accounts) {
+      const key = String(acc.id);
+      const isDisconnected = !acc.phone || acc.status === 'disconnected';
+      if (isDisconnected) {
+        const discAt = acc.last_connected_at || acc.lastConnectedAt || acc.created_at;
+        const currentInMap = disconnectedAccountsMap.get(key);
+        // Se não estava no mapa ou se o timestamp no mapa for mais recente que last_connected_at
+        // (por causa de resets causados por loops de reconexão antigos), restaura o real:
+        if (!currentInMap || (discAt && new Date(discAt).getTime() < new Date(currentInMap.disconnected_at).getTime())) {
+          disconnectedAccountsMap.set(key, {
+            disconnected_at: discAt || new Date().toISOString(),
+            reason: currentInMap ? currentInMap.reason : 'connection_lost'
+          });
+        }
+      }
+    }
+
+    disconnectedAccountsLoaded = true;
+    await persistDisconnectedAccounts();
+  } catch (e) {
+    console.warn('Falha ao carregar contas desconectadas salvas:', e.message);
+  }
+}
+
+// Inicializa logo na inicialização do módulo
+initDisconnectedAccounts().catch(() => {});
 
 async function getDisconnectRules() {
+  if (!disconnectedAccountsLoaded) {
+    await initDisconnectedAccounts();
+  }
   if (disconnectRulesCache && Date.now() < disconnectRulesCacheExpiresAt) {
     return disconnectRulesCache;
   }
@@ -103,6 +158,32 @@ async function getDisconnectRules() {
     return rules;
   } catch (_) {
     return DEFAULT_DISCONNECT_RULES;
+  }
+}
+
+async function getKnownWhatsAppAccounts(whatsappService = null) {
+  if (whatsappService?.getAccounts) {
+    try {
+      const accs = whatsappService.getAccounts(false);
+      if (accs && accs.length) return accs;
+    } catch (_) {}
+  }
+  if (knownWhatsAppAccountsCache && Date.now() < knownWhatsAppAccountsExpiresAt) {
+    return knownWhatsAppAccountsCache;
+  }
+  if (!isSupabaseConfigured()) return [];
+  try {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'whatsapp_accounts')
+      .maybeSingle();
+    const accounts = Array.isArray(data?.value) ? data.value : [];
+    knownWhatsAppAccountsCache = accounts;
+    knownWhatsAppAccountsExpiresAt = Date.now() + 15000;
+    return accounts;
+  } catch (_) {
+    return [];
   }
 }
 
@@ -130,9 +211,41 @@ function isChannelDisconnected(channel) {
   return disconnectedAccountsMap.has(String(accountId));
 }
 
-function getChannelDisconnectInfo(channel) {
+function getChannelDisconnectInfo(channel, whatsappAccounts = null) {
   const accountId = getChannelAccountId(channel);
-  return disconnectedAccountsMap.get(String(accountId)) || null;
+  const key = String(accountId);
+
+  // 1. Se temos a lista de contas WhatsApp conhecidas:
+  if (Array.isArray(whatsappAccounts)) {
+    const matchedAccount = whatsappAccounts.find(a => String(a.id) === key);
+    if (!matchedAccount) {
+      // Conta órfã/deletada do WhatsApp no passado: considera desconectada há bastante tempo
+      return {
+        disconnected_at: '2026-09-01T00:00:00.000Z',
+        reason: 'account_deleted'
+      };
+    }
+    if (matchedAccount.status === 'disconnected' || !matchedAccount.phone) {
+      const discAt = matchedAccount.last_connected_at || matchedAccount.lastConnectedAt || matchedAccount.created_at;
+      const inMap = disconnectedAccountsMap.get(key);
+      const chosenDiscAt = (discAt && inMap && new Date(discAt).getTime() < new Date(inMap.disconnected_at).getTime())
+        ? discAt
+        : (inMap?.disconnected_at || discAt || new Date().toISOString());
+
+      return {
+        disconnected_at: chosenDiscAt,
+        reason: inMap?.reason || 'connection_lost'
+      };
+    }
+  }
+
+  // 2. Verifica no mapa ativo de contas desconectadas
+  const inMap = disconnectedAccountsMap.get(key);
+  if (inMap && inMap.disconnected_at) {
+    return inMap;
+  }
+
+  return null;
 }
 
 
@@ -2165,7 +2278,10 @@ ${rendered}`,
         });
       }
 
-      const rules = await getDisconnectRules();
+      const [rules, accounts] = await Promise.all([
+        getDisconnectRules(),
+        getKnownWhatsAppAccounts()
+      ]);
       const retentionMs = rules.queue_retention_minutes * 60 * 1000;
       const discardMs = rules.discard_hours * 3600 * 1000;
       const nowMs = Date.now();
@@ -2174,13 +2290,13 @@ ${rendered}`,
       const expiredGroupDiscardIds = [];
 
       tickets = tickets.filter(t => {
-        const disconnectInfo = getChannelDisconnectInfo(t.channel);
+        const disconnectInfo = getChannelDisconnectInfo(t.channel, accounts);
         if (disconnectInfo && disconnectInfo.disconnected_at) {
           const diffMs = nowMs - new Date(disconnectInfo.disconnected_at).getTime();
           t.whatsapp_disconnected = true;
           t.whatsapp_disconnected_at = disconnectInfo.disconnected_at;
 
-          // Se ultrapassou o prazo de descarte definitivo (ex: 24h)
+          // Se ultrapassou o prazo de descarte definitivo (ex: 6h)
           if (diffMs > discardMs) {
             if (t.is_group) expiredGroupDiscardIds.push(t.id);
             else expiredDiscardIds.push(t.id);
@@ -3881,21 +3997,45 @@ ${rendered}`,
   async handleAccountDisconnected(accountId, reason = 'manual_disconnect', io = null) {
     if (!accountId) return { success: false, closedCount: 0, inactivedGroupsCount: 0 };
 
+    if (!disconnectedAccountsLoaded) {
+      await initDisconnectedAccounts();
+    }
+
+    const key = String(accountId);
+    const existing = disconnectedAccountsMap.get(key);
     const now = new Date();
-    disconnectedAccountsMap.set(String(accountId), {
-      disconnected_at: now.toISOString(),
-      reason
+    
+    // CRÍTICO: Se a conta já estiver registrada como desconectada, PRESERVA o horário original!
+    // Caso contrário, a cada retry de reconexão de 5s o cronômetro era zerado para 'now',
+    // fazendo com que a retenção e o descarte nunca disparassem.
+    let disconnectedAtStr;
+    if (existing && existing.disconnected_at) {
+      disconnectedAtStr = existing.disconnected_at;
+    } else {
+      // Se não havia registro em memória, verifica se a conta possui last_connected_at no banco
+      const accounts = await getKnownWhatsAppAccounts();
+      const matched = accounts.find(a => String(a.id) === key);
+      if (matched && matched.last_connected_at && new Date(matched.last_connected_at).getTime() < now.getTime()) {
+        disconnectedAtStr = matched.last_connected_at;
+      } else {
+        disconnectedAtStr = now.toISOString();
+      }
+    }
+
+    disconnectedAccountsMap.set(key, {
+      disconnected_at: disconnectedAtStr,
+      reason: existing ? existing.reason : reason
     });
     await persistDisconnectedAccounts();
 
     const rules = await getDisconnectRules();
-    console.log(`[WhatsApp:${accountId}] Conta desconectada (${reason}). Chats permanecerão na fila por ${rules.queue_retention_minutes}min e serão descartados após ${rules.discard_hours}h se não reconectados.`);
+    console.log(`[WhatsApp:${accountId}] Conta desconectada (${reason}). Chats permanecerão na fila por ${rules.queue_retention_minutes}min e serão descartados após ${rules.discard_hours}h se não reconectados. (Desconectado desde: ${disconnectedAtStr})`);
 
     if (io) {
       io.emit('whatsapp_account_disconnected', {
         accountId,
         reason,
-        disconnected_at: now.toISOString(),
+        disconnected_at: disconnectedAtStr,
         retentionMinutes: rules.queue_retention_minutes,
         discardHours: rules.discard_hours
       });
@@ -3924,6 +4064,70 @@ ${rendered}`,
         io.emit('tickets_updated');
         scheduleKpiUpdate(io);
       }
+    }
+  }
+
+  /**
+   * Rotina central e periódica para descarte automático de atendimentos cuja conexão expirou.
+   * Chamada pelo server.js em background a cada 60s ou sob demanda.
+   */
+  async cleanupExpiredDisconnectedTickets(io = null, whatsappService = null) {
+    if (!isSupabaseConfigured()) return { discarded: 0, retained: 0 };
+    try {
+      if (!disconnectedAccountsLoaded) {
+        await initDisconnectedAccounts();
+      }
+      const [rules, accounts] = await Promise.all([
+        getDisconnectRules(),
+        getKnownWhatsAppAccounts(whatsappService)
+      ]);
+      const retentionMs = rules.queue_retention_minutes * 60 * 1000;
+      const discardMs = rules.discard_hours * 3600 * 1000;
+      const nowMs = Date.now();
+
+      const { data: tickets, error } = await supabase
+        .from('tickets')
+        .select('id, channel, is_group, status, updated_at, created_at')
+        .in('status', ['aguardando', 'em_atendimento', 'chatbot', 'grupo']);
+
+      if (error || !tickets || tickets.length === 0) return { discarded: 0, retained: 0 };
+
+      const expiredDiscardIds = [];
+      const expiredGroupDiscardIds = [];
+      let retainedCount = 0;
+
+      for (const t of tickets) {
+        const disconnectInfo = getChannelDisconnectInfo(t.channel, accounts);
+        if (disconnectInfo && disconnectInfo.disconnected_at) {
+          const diffMs = nowMs - new Date(disconnectInfo.disconnected_at).getTime();
+          if (diffMs > discardMs) {
+            if (t.is_group) expiredGroupDiscardIds.push(t.id);
+            else expiredDiscardIds.push(t.id);
+          } else if (diffMs > retentionMs) {
+            retainedCount++;
+          }
+        }
+      }
+
+      const totalDiscard = expiredDiscardIds.length + expiredGroupDiscardIds.length;
+      if (totalDiscard > 0) {
+        await this.discardExpiredDisconnectedTickets(expiredDiscardIds, expiredGroupDiscardIds);
+        console.log(`🧹 [Cleanup] ${totalDiscard} atendimentos/grupos descartados por desconexão prolongada do WhatsApp (> ${rules.discard_hours}h).`);
+        if (io) {
+          io.emit('tickets_updated');
+          scheduleKpiUpdate(io);
+        }
+      }
+
+      return {
+        discarded: totalDiscard,
+        retained: retainedCount,
+        expiredTickets: expiredDiscardIds.length,
+        expiredGroups: expiredGroupDiscardIds.length
+      };
+    } catch (e) {
+      console.warn('Erro na rotina de limpeza de atendimentos expirados:', e.message);
+      return { discarded: 0, retained: 0 };
     }
   }
 
@@ -3996,7 +4200,8 @@ ticketService._test = {
   mediaSizeCache,
   makeInitials,
   parseRatingInput,
-  isRatingEligibleTicket
+  isRatingEligibleTicket,
+  getChannelDisconnectInfo
 };
 
 module.exports = ticketService;
