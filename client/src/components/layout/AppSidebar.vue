@@ -315,7 +315,7 @@ async function handleLogout() {
   width: 64px;
   min-width: 64px;
   max-width: 64px;
-  background-color: #f0f2f5;
+  background-color: #ffffff;
   border-right: 1px solid #e2e8f0;
   box-shadow: 1px 0 4px rgba(15, 23, 42, 0.03);
   display: flex;
@@ -323,11 +323,10 @@ async function handleLogout() {
   height: 100vh;
   box-sizing: border-box;
   flex-shrink: 0;
-  z-index: 60;
+  z-index: 700;
   user-select: none;
   position: relative;
   will-change: width, min-width, max-width;
-  contain: layout paint;
   transition: width 0.14s cubic-bezier(0.16, 1, 0.3, 1),
               min-width 0.14s cubic-bezier(0.16, 1, 0.3, 1),
               max-width 0.14s cubic-bezier(0.16, 1, 0.3, 1);
@@ -349,7 +348,7 @@ async function handleLogout() {
   min-height: 62px;
   max-height: 62px;
   padding: 10px 14px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #f1f5f9;
   box-sizing: border-box;
 }
 
@@ -456,14 +455,14 @@ async function handleLogout() {
 }
 
 .nav-item:hover {
-  background-color: #e2e8f0;
+  background-color: #f8fafc;
   color: #0f172a;
 }
 
 .nav-item:active {
   transform: scale(0.94);
   transition: transform 0.08s ease;
-  background-color: #cbd5e1;
+  background-color: #f1f5f9;
 }
 
 /* Item Ativo (Cápsula Verde Suave + Indicador Vertical na Margem Esquerda) */
@@ -517,7 +516,7 @@ async function handleLogout() {
   align-items: center;
   justify-content: center;
   line-height: 1;
-  border: 2px solid #f0f2f5;
+  border: 2px solid #ffffff;
 }
 
 .sidebar.is-expanded .nav-badge {
@@ -539,7 +538,7 @@ async function handleLogout() {
   width: 100%;
   padding: 10px 10px 0;
   margin-top: auto;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid #f1f5f9;
   box-sizing: border-box;
 }
 
@@ -557,7 +556,7 @@ async function handleLogout() {
   gap: 6px;
   width: 100%;
   padding: 10px 10px 12px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid #f1f5f9;
   box-sizing: border-box;
 }
 
@@ -583,7 +582,7 @@ async function handleLogout() {
 }
 
 .user-avatar-btn:hover {
-  background: #e2e8f0;
+  background: #f8fafc;
 }
 
 .user-avatar-circle {
@@ -616,7 +615,7 @@ async function handleLogout() {
   height: 9px;
   border-radius: 50%;
   background: #10b981;
-  border: 2px solid #f0f2f5;
+  border: 2px solid #ffffff;
 }
 
 /* Quando expandido */
@@ -699,7 +698,7 @@ async function handleLogout() {
 }
 
 .sidebar-collapse-btn:hover {
-  background: #e2e8f0;
+  background: #f8fafc;
   color: #0f172a;
 }
 
@@ -731,21 +730,22 @@ async function handleLogout() {
 .user-popup-menu {
   position: absolute;
   bottom: 0;
-  left: 48px;
-  width: 292px;
+  left: 54px;
+  width: 270px;
+  max-width: calc(100vw - 32px);
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.05);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px -4px rgba(15, 23, 42, 0.12), 0 4px 10px -2px rgba(15, 23, 42, 0.06);
   padding: 14px;
-  z-index: 100;
+  z-index: 1000;
   display: flex;
   flex-direction: column;
 }
 
 .user-popup-menu.expanded-popup {
   left: 0;
-  bottom: 52px;
+  bottom: calc(100% + 8px);
   width: 260px;
 }
 

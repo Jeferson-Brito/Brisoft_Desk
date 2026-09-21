@@ -390,9 +390,9 @@ const filteredTickets = computed(() => {
 <style scoped>
 /* ─── Coluna da Fila (Estilo da Imagem de Referência) ─────────────────────── */
 .queue-column {
-  width: 330px;
-  min-width: 330px;
-  max-width: 330px;
+  width: 290px;
+  min-width: 270px;
+  max-width: 300px;
   flex-shrink: 0;
   background-color: #ffffff;
   border-right: 1px solid #e2e8f0;
@@ -408,7 +408,7 @@ const filteredTickets = computed(() => {
 .queue-header-row {
   height: 52px;
   min-height: 52px;
-  padding: 16px 14px 10px;
+  padding: 14px 12px 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -685,7 +685,7 @@ const filteredTickets = computed(() => {
   background: #f1f5f9;
   border-radius: 999px;
   padding: 3px;
-  margin: 0 14px 12px;
+  margin: 0 12px 10px;
   gap: 2px;
 }
 
@@ -695,15 +695,15 @@ const filteredTickets = computed(() => {
   border: none;
   background: transparent;
   border-radius: 999px;
-  padding: 0 8px;
-  font-size: 11.5px;
+  padding: 0 6px;
+  font-size: 11px;
   font-weight: 500;
   color: #64748b;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
   transition: all 0.15s ease;
   white-space: nowrap;
 }
@@ -732,7 +732,7 @@ const filteredTickets = computed(() => {
 
 /* 3. Campo de Busca */
 .queue-search-row {
-  padding: 0 14px 12px;
+  padding: 0 12px 10px;
 }
 
 .queue-search-box {
@@ -786,7 +786,7 @@ const filteredTickets = computed(() => {
 .queue-list-container {
   flex: 1;
   overflow-y: auto;
-  padding: 0 10px 14px;
+  padding: 0 8px 14px;
   display: flex;
   flex-direction: column;
   gap: 4px;

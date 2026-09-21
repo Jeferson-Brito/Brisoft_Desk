@@ -427,9 +427,9 @@ onUnmounted(() => {
   width: 46px;
   min-width: 46px;
   max-width: 46px;
-  background: #f0f2f5;
+  background: #ffffff;
   border-left: 1px solid #e2e8f0;
-  box-shadow: -1px 0 4px rgba(15, 23, 42, 0.02);
+  box-shadow: -1px 0 4px rgba(15, 23, 42, 0.03);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -491,7 +491,7 @@ onUnmounted(() => {
 }
 
 .tool-bubble-btn:hover {
-  background: #e2e8f0;
+  background: #f8fafc;
   color: #0f172a;
 }
 
@@ -624,7 +624,7 @@ onUnmounted(() => {
   height: 9px;
   border-radius: 50%;
   background-color: #f59e0b;
-  box-shadow: 0 0 0 2px #f0f2f5;
+  box-shadow: 0 0 0 2px #ffffff;
 }
 
 /* Divisória da Dock */
