@@ -76,7 +76,7 @@ export const useTicketStore = defineStore('tickets', () => {
   const groupTickets       = computed(() => visibleTickets.value.filter(t => t.status === 'grupo'))
 
   const activeTicket = computed(() =>
-    visibleTickets.value.find(t => t.id === activeTicketId.value) ?? null
+    visibleTickets.value.find(t => String(t.id) === String(activeTicketId.value)) ?? null
   )
 
   // ─── Actions ─────────────────────────────────────────────────────────────────
@@ -87,9 +87,9 @@ export const useTicketStore = defineStore('tickets', () => {
       const { data } = await ticketsApi.list()
       if (data.success) {
         queue.value = (data.tickets || []).map(t => {
-          const existing = queue.value.find(current => current.id === t.id)
+          const existing = queue.value.find(current => String(current.id) === String(t.id))
           const incomingMessages = t.messages || []
-          const isCurrentActive = t.id === activeTicketId.value
+          const isCurrentActive = String(t.id) === String(activeTicketId.value)
           const finalUnread = isCurrentActive ? 0 : (t.unread_count ?? existing?.unreadCount ?? 0)
 
           let messages = existing?.messages || []
@@ -108,7 +108,7 @@ export const useTicketStore = defineStore('tickets', () => {
           }
         })
         // Se o ticket ativo atual não estiver mais visível na fila, desseleciona
-        if (activeTicketId.value && !visibleTickets.value.some(t => t.id === activeTicketId.value)) {
+        if (activeTicketId.value && queue.value.length > 0 && !visibleTickets.value.some(t => String(t.id) === String(activeTicketId.value))) {
           activeTicketId.value = null
         }
 
@@ -117,7 +117,7 @@ export const useTicketStore = defineStore('tickets', () => {
 
         // Carrega o histórico do ticket ativo em segundo plano sem bloquear a renderização da fila
         if (activeTicketId.value) {
-          const act = queue.value.find(t => t.id === activeTicketId.value)
+          const act = queue.value.find(t => String(t.id) === String(activeTicketId.value))
           if (act) {
             act.unreadCount = 0
             act.unread_count = 0
@@ -156,10 +156,10 @@ export const useTicketStore = defineStore('tickets', () => {
       removeTicket(ticket.id)
       return
     }
-    const isCurrentActive = ticket.id === activeTicketId.value
+    const isCurrentActive = String(ticket.id) === String(activeTicketId.value)
     const finalUnread = isCurrentActive ? 0 : (ticket.unread_count ?? ticket.unreadCount ?? 0)
 
-    const idx = queue.value.findIndex(t => t.id === ticket.id)
+    const idx = queue.value.findIndex(t => String(t.id) === String(ticket.id))
     if (idx !== -1) {
       const existing = queue.value[idx]
       const incomingMessages = ticket.messages || []
@@ -182,7 +182,7 @@ export const useTicketStore = defineStore('tickets', () => {
     }
 
     // Se o ticket ativo atual não está mais visível para este usuário (ex: foi transferido), desseleciona imediatamente
-    if (activeTicketId.value && !visibleTickets.value.some(t => t.id === activeTicketId.value)) {
+    if (activeTicketId.value && queue.value.length > 0 && !visibleTickets.value.some(t => String(t.id) === String(activeTicketId.value))) {
       activeTicketId.value = null
     }
   }
@@ -215,23 +215,23 @@ export const useTicketStore = defineStore('tickets', () => {
     ticket.time    = message.time  || ticket.time
 
     // Apenas mensagens vindas do cliente incrementam contagem não lida se a conversa não estiver ativa
-    if (message.sender === 'client' && !message.from_me && ticketId !== activeTicketId.value) {
+    if (message.sender === 'client' && !message.from_me && String(ticketId) !== String(activeTicketId.value)) {
       ticket.unreadCount = (ticket.unreadCount || 0) + 1
       ticket.unread_count = (ticket.unread_count || 0) + 1
     }
   }
 
   function patchMessage(ticketId, messageId, patch) {
-    const ticket = queue.value.find(t => t.id === ticketId)
+    const ticket = queue.value.find(t => String(t.id) === String(ticketId))
     const message = ticket?.messages?.find(item => String(item.id) === String(messageId))
     if (message) Object.assign(message, patch)
   }
 
   // Remove ticket da fila (após encerramento)
   function removeTicket(ticketId) {
-    const idx = queue.value.findIndex(t => t.id === ticketId)
+    const idx = queue.value.findIndex(t => String(t.id) === String(ticketId))
     if (idx !== -1) queue.value.splice(idx, 1)
-    if (activeTicketId.value === ticketId) {
+    if (String(activeTicketId.value) === String(ticketId)) {
       minimizeActiveTicket({ clearPersisted: true })
     }
   }

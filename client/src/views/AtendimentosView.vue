@@ -80,6 +80,7 @@ let refreshTimer           = null
 let queueRefreshTimer      = null
 let performanceRequestId   = 0
 let liveSyncRunning        = false
+let isComponentMounted     = false
 
 function onTicketSelected() {
   mobilePanel.value = 'chat'
@@ -194,6 +195,8 @@ onBeforeRouteLeave(() => {
 })
 
 onMounted(async () => {
+  isComponentMounted = true
+
   // Lê ticket que estava aberto antes de uma atualização da página (F5) ou passado por query param
   const persistedTicketId = typeof sessionStorage !== 'undefined'
     ? (sessionStorage.getItem('brifdesk_open_ticket_id') || null)
@@ -201,8 +204,23 @@ onMounted(async () => {
 
   const targetTicketId = route.query?.ticketId || persistedTicketId
 
+  refreshTimer = setInterval(syncLiveData, 30000)
+  document.addEventListener('visibilitychange', syncLiveData)
+  document.addEventListener('keydown', minimizeActiveChat)
+  window.addEventListener('popstate', handlePopState)
+
   // Carrega fila e indicadores
   await Promise.all([ticketStore.fetchQueue(), fetchPerformance()])
+
+  if (!isComponentMounted) return
+
+  // Se o usuário JÁ clicou em um ticket enquanto a fila carregava, NÃO minimize!
+  if (ticketStore.activeTicketId) {
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+      mobilePanel.value = 'chat'
+    }
+    return
+  }
 
   // Se for apenas atualização da página (F5) ou link direto, restaura o chat aberto
   if (targetTicketId) {
@@ -219,18 +237,15 @@ onMounted(async () => {
       mobilePanel.value = 'queue'
     }
   } else {
+    // Se não havia targetTicketId e o usuário não clicou em nada, garante que começa minimizado
     ticketStore.minimizeActiveTicket({ clearPersisted: true })
     isDetailsOpen.value = false
     mobilePanel.value = 'queue'
   }
-
-  refreshTimer = setInterval(syncLiveData, 30000)
-  document.addEventListener('visibilitychange', syncLiveData)
-  document.addEventListener('keydown', minimizeActiveChat)
-  window.addEventListener('popstate', handlePopState)
 })
 
 onBeforeUnmount(() => {
+  isComponentMounted = false
   if (ticketStore.activeTicket) {
     const tab = ticketStore.getTicketQueueTab(ticketStore.activeTicket)
     if (tab) ticketStore.setQueueTab(tab)
