@@ -153,16 +153,6 @@
           </div>
         </div>
 
-        <!-- Botão Minimizar Atendimento (fechar chat) -->
-        <button
-          type="button"
-          class="header-tool-btn header-tool-close-btn"
-          title="Minimizar atendimento (Esc)"
-          aria-label="Minimizar atendimento"
-          @click="$emit('go-back')"
-        >
-          <span class="tool-icon-box"><i class="ri-close-line"></i></span>
-        </button>
       </div>
     </div>
 

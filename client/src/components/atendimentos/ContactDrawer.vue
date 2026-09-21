@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="details-column" id="contactDetailsCol">
     <!-- Header com gradiente verde -->
     <div class="details-header">
@@ -67,7 +67,7 @@
               <span class="meta-label">Protocolo</span>
             </div>
             <div class="id-copy-box" @click="copyTicketId" title="Clique para copiar ID">
-              <code>#{{ ticket?.id ? ticket.id.substring(0, 8) : 'â€”' }}</code>
+              <code>#{{ ticket?.id ? ticket.id.substring(0, 8) : '—' }}</code>
               <i class="fa-regular" :class="copiedId ? 'fa-circle-check text-success' : 'fa-copy'"></i>
             </div>
           </div>
@@ -92,7 +92,7 @@
             <span class="contact-hero-phone">{{ displayPhone }}</span>
             <div class="contact-role-tag" :class="{ employee: ticket?.is_employee }">
               <i class="fa-solid" :class="ticket?.is_employee ? 'fa-id-badge' : 'fa-user'"></i>
-              {{ ticket?.is_employee ? 'FuncionÃ¡rio' : 'Cliente' }}
+              {{ ticket?.is_employee ? 'Funcionário' : 'Cliente' }}
             </div>
           </div>
           <div class="contact-hero-actions">
@@ -127,10 +127,10 @@
               :disabled="savingContact"
               @click="saveContact(true)"
             >
-              <i class="fa-solid fa-id-badge"></i> FuncionÃ¡rio
+              <i class="fa-solid fa-id-badge"></i> Funcionário
             </button>
           </div>
-          <small>{{ contactSaved ? 'AlteraÃ§Ãµes sÃ£o salvas imediatamente.' : 'Ao escolher, o contato tambÃ©m serÃ¡ salvo.' }}</small>
+          <small>{{ contactSaved ? 'Alterações são salvas imediatamente.' : 'Ao escolher, o contato também será salvo.' }}</small>
         </div>
 
         <!-- Atributos do contato -->
@@ -140,7 +140,7 @@
             <div class="attribute-content">
               <span class="attribute-label">E-mail</span>
               <span class="attribute-val" :class="{ 'text-muted': !contact.email }">
-                {{ contact.email || 'NÃ£o informado' }}
+                {{ contact.email || 'Não informado' }}
               </span>
             </div>
           </div>
@@ -150,7 +150,7 @@
             <div class="attribute-content">
               <span class="attribute-label">CPF / CNPJ</span>
               <span class="attribute-val" :class="{ 'text-muted': !contact.cnpj }">
-                {{ contact.cnpj ? formatCnpjCpf(contact.cnpj) : 'NÃ£o informado' }}
+                {{ contact.cnpj ? formatCnpjCpf(contact.cnpj) : 'Não informado' }}
               </span>
             </div>
           </div>
@@ -160,7 +160,7 @@
             <div class="attribute-content">
               <span class="attribute-label">Empresa</span>
               <span class="attribute-val" :class="{ 'text-muted': !contact.company }">
-                {{ contact.company || 'NÃ£o informada' }}
+                {{ contact.company || 'Não informada' }}
               </span>
             </div>
           </div>
@@ -169,7 +169,7 @@
 
     </div>
 
-    <!-- Modal de EdiÃ§Ã£o de Contato -->
+    <!-- Modal de Edição de Contato -->
     <ModalEditarContato
       v-if="showEditModal"
       :ticket="ticket"
