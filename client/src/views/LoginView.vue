@@ -8,65 +8,59 @@
       <div class="brand-particles-overlay"></div>
 
       <div class="brand-panel-content">
-        <!-- Logo e Marca no Topo -->
+        <!-- Logo Oficial BriSoft -->
         <div class="brand-header-box">
-          <div class="brand-logo-badge">
-            <img :src="iconUrl" alt="BriSoft Desk" class="brand-glyph-img" />
-          </div>
-          <div class="brand-logo-text">
-            <span class="brand-title">BriSoft</span>
-            <span class="brand-tagline">DESK</span>
-          </div>
+          <img :src="logoDarkUrl" alt="BriSoft Desk" class="brand-logo-img" />
         </div>
 
-        <!-- Área Central de Conteúdo e Valor -->
+        <!-- Área Central de Conteúdo e Valor Comercial -->
         <div class="brand-hero-section">
           <!-- Pílula de Status Operacional -->
           <div class="brand-status-pill">
             <span class="status-pulse-dot"></span>
-            <span class="status-pill-text">Servidor operacional</span>
+            <span class="status-pill-text">Central de Atendimento Corporativa</span>
           </div>
 
-          <!-- Título Principal -->
+          <!-- Título Principal de Alto Impacto -->
           <h1 class="brand-headline">
-            Todas as conversas.<br />
-            <span class="headline-emerald">Uma só central.</span>
+            O WhatsApp da sua empresa.<br />
+            <span class="headline-emerald">Em escala de alta performance.</span>
           </h1>
 
-          <!-- Subtítulo Explicativo -->
+          <!-- Subtítulo Persuasivo -->
           <p class="brand-description">
-            Centralize o atendimento da sua equipe, reduza o tempo de resposta e encante seus clientes com a BriSoft Desk.
+            Elimine o caos das conversas, atenda múltiplos clientes no mesmo número e transforme seu WhatsApp em uma máquina de produtividade e vendas.
           </p>
 
-          <!-- 3 Destaques do Sistema (Features) -->
+          <!-- 3 Destaques Comerciais de Alto Impacto -->
           <div class="brand-features-list">
             <div class="feature-item">
               <div class="feature-icon-box">
-                <i class="ri-headphone-line"></i>
+                <i class="ri-whatsapp-line"></i>
               </div>
               <div class="feature-copy">
-                <strong class="feature-title">Atendimento omnichannel</strong>
-                <span class="feature-subtitle">WhatsApp, chatbot e múltiplos analistas num só painel.</span>
+                <strong class="feature-title">Múltiplos analistas em 1 só WhatsApp</strong>
+                <span class="feature-subtitle">Fim do celular de mão em mão. Toda a equipe atendendo no mesmo número oficial com distribuição automática.</span>
               </div>
             </div>
 
             <div class="feature-item">
               <div class="feature-icon-box">
-                <i class="ri-line-chart-line"></i>
+                <i class="ri-tv-2-line"></i>
               </div>
               <div class="feature-copy">
-                <strong class="feature-title">Relatórios em tempo real</strong>
-                <span class="feature-subtitle">Acompanhe KPIs, fila e SLA sem depender de planilhas.</span>
+                <strong class="feature-title">Gestão à vista com Painel TV ao vivo</strong>
+                <span class="feature-subtitle">Supervisão total da operação em telão: fila de espera, tempo de atendimento (TMA) e alertas sonoros instantâneos.</span>
               </div>
             </div>
 
             <div class="feature-item">
               <div class="feature-icon-box">
-                <i class="ri-shield-check-line"></i>
+                <i class="ri-flashlight-line"></i>
               </div>
               <div class="feature-copy">
-                <strong class="feature-title">Seguro e confiável</strong>
-                <span class="feature-subtitle">Histórico completo e dados protegidos de ponta a ponta.</span>
+                <strong class="feature-title">Triagem inteligente & Zero espera (24/7)</strong>
+                <span class="feature-subtitle">Chatbot que qualifica o cliente na hora e mensagens rápidas em 1 clique para fechar negócios com agilidade máxima.</span>
               </div>
             </div>
           </div>
@@ -74,7 +68,7 @@
 
         <!-- Rodapé do Painel Esquerdo -->
         <div class="brand-panel-footer">
-          <span>© {{ currentYear }} Grupo Combate · Todos os direitos reservados</span>
+          <span>© {{ currentYear }} BriSoft · Todos os direitos reservados</span>
         </div>
       </div>
     </div>
@@ -83,15 +77,7 @@
     <div class="login-auth-panel">
       <!-- Logo Compacta visível apenas no Mobile -->
       <div class="mobile-brand-header">
-        <div class="brand-header-box dark">
-          <div class="brand-logo-badge">
-            <img :src="iconUrl" alt="BriSoft Desk" class="brand-glyph-img" />
-          </div>
-          <div class="brand-logo-text">
-            <span class="brand-title">BriSoft</span>
-            <span class="brand-tagline">DESK</span>
-          </div>
-        </div>
+        <img :src="logoLightUrl" alt="BriSoft Desk" class="mobile-logo-img" />
       </div>
 
       <div class="auth-form-card">
@@ -207,7 +193,8 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 import { useSocket }    from '@/composables/useSocket'
-import iconUrl from '@/assets/img/icon.png'
+import logoDarkUrl from '@/assets/img/logo_tema_escuro.png'
+import logoLightUrl from '@/assets/img/logo_tema_claro.png'
 
 const router   = useRouter()
 const route    = useRoute()
@@ -270,7 +257,7 @@ async function handleSubmit() {
 }
 
 function handleForgotPassword() {
-  alert('Para redefinir sua senha, solicite ao administrador do sistema ou entre em contato com o suporte do Grupo Combate.')
+  alert('Para redefinir sua senha, solicite ao administrador do sistema ou entre em contato com o suporte da BriSoft.')
 }
 
 function handleSupport() {
