@@ -304,10 +304,10 @@ function startDrag(e) {
 
   function onMouseMove(moveEvent) {
     const deltaX = dragStartX - moveEvent.clientX // > 0 ao puxar para a esquerda (centro da tela)
-    if (Math.abs(deltaX) > 6) {
+    if (Math.abs(deltaX) > 4) {
       hasMoved = true
     }
-    if (deltaX > 20) {
+    if (deltaX > 8) {
       expandSidebar()
       stopDrag()
     }
@@ -336,10 +336,10 @@ function startTouch(e) {
   function onTouchMove(moveEvent) {
     if (!moveEvent.touches || moveEvent.touches.length === 0) return
     const deltaX = dragStartX - moveEvent.touches[0].clientX
-    if (Math.abs(deltaX) > 6) {
+    if (Math.abs(deltaX) > 4) {
       hasMoved = true
     }
-    if (deltaX > 20) {
+    if (deltaX > 8) {
       expandSidebar()
       stopTouch()
     }
@@ -595,10 +595,10 @@ onUnmounted(() => {
   z-index: 3005; /* Acima do backdrop para manter os botões interativos */
   user-select: none;
   position: relative;
-  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-              min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-              max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-              padding 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.12s cubic-bezier(0.2, 0, 0, 1),
+              min-width 0.12s cubic-bezier(0.2, 0, 0, 1),
+              max-width 0.12s cubic-bezier(0.2, 0, 0, 1),
+              padding 0.12s cubic-bezier(0.2, 0, 0, 1);
 }
 
 .tools-sidebar.is-collapsed {
@@ -1366,17 +1366,21 @@ onUnmounted(() => {
   top: 50%;
   transform: translateY(-50%);
   z-index: 3010;
+  width: 22px;
+  min-width: 22px;
+  max-width: 22px;
+  box-sizing: border-box;
   background: #ffffff;
   border: 1px solid #cbd5e1;
   border-right: none;
-  border-radius: 9px 0 0 9px;
-  box-shadow: -2px 0 10px rgba(15, 23, 42, 0.08);
-  padding: 14px 7px 16px;
+  border-radius: 6px 0 0 6px;
+  box-shadow: -2px 0 8px rgba(15, 23, 42, 0.07);
+  padding: 10px 0 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 7px;
   cursor: pointer;
   user-select: none;
   touch-action: pan-y;
@@ -1393,8 +1397,8 @@ onUnmounted(() => {
   background: #f8fafc;
   color: #059669;
   border-color: #059669;
-  transform: translateY(-50%) translateX(-4px);
-  box-shadow: -4px 0 14px rgba(5, 150, 105, 0.2);
+  transform: translateY(-50%) translateX(-3px);
+  box-shadow: -3px 0 10px rgba(5, 150, 105, 0.18);
 }
 
 .tools-collapsed-tab.is-dragging {
@@ -1402,20 +1406,21 @@ onUnmounted(() => {
   background: #f0fdf4;
   color: #059669;
   border-color: #059669;
-  transform: translateY(-50%) translateX(-6px);
+  transform: translateY(-50%) translateX(-5px);
 }
 
 .tab-arrow {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  width: 100%;
+  font-size: 12px;
   line-height: 1;
   transition: transform 0.2s ease;
 }
 
 .tools-collapsed-tab:hover .tab-arrow {
-  transform: translateX(-3px);
+  transform: translateX(-2px);
   color: #059669;
 }
 
@@ -1423,23 +1428,27 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+  width: 100%;
+  font-size: 12px;
   line-height: 1;
 }
 
 .tab-label {
   writing-mode: vertical-rl;
-  font-size: 11px;
+  font-size: 9.5px;
   font-weight: 600;
-  letter-spacing: 1.6px;
+  letter-spacing: 1.1px;
   text-transform: uppercase;
   color: inherit;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .tools-tab-slide-enter-active,
 .tools-tab-slide-leave-active {
-  transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.24s ease;
+  transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1), opacity 0.12s ease-out;
 }
 
 .tools-tab-slide-enter-from,
