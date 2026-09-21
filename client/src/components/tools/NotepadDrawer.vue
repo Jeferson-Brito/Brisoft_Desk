@@ -463,7 +463,7 @@ function formatDate(isoStr) {
 }
 
 .autosave-switch input:checked + .slider {
-  background-color: #10b981;
+  background-color: #059669;
 }
 
 .autosave-switch input:checked + .slider::before {
@@ -507,14 +507,14 @@ function formatDate(isoStr) {
 .notepad-app-icon {
   width: 26px;
   height: 26px;
-  background: #3b82f6;
+  background: #059669;
   color: #ffffff;
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 13px;
-  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.3);
 }
 
 .notepad-title {
@@ -551,19 +551,20 @@ function formatDate(isoStr) {
 }
 
 .header-btn.primary {
-  background: #1f62d0;
-  border-color: #1f62d0;
+  background: #059669;
+  border-color: #059669;
   color: #ffffff;
 }
 
 .header-btn.primary:hover {
-  background: #1d4ed8;
+  background: #047857;
+  border-color: #047857;
 }
 
 .header-btn.active {
-  background: #e0e7ff;
-  border-color: #c7d2fe;
-  color: #3730a3;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
 }
 
 .header-count-badge {
@@ -665,7 +666,7 @@ function formatDate(isoStr) {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #3b82f6;
+  background: #059669;
   flex-shrink: 0;
 }
 
@@ -832,7 +833,7 @@ function formatDate(isoStr) {
 .history-back-btn {
   background: transparent;
   border: none;
-  color: #1f62d0;
+  color: #059669;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -956,9 +957,9 @@ function formatDate(isoStr) {
 }
 
 .history-card:hover {
-  border-color: #93c5fd;
+  border-color: #a7f3d0;
   transform: translateY(-1px);
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 3px 6px rgba(5, 150, 105, 0.08);
 }
 
 .card-top {

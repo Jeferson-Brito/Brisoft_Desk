@@ -536,38 +536,38 @@ onUnmounted(() => {
 
 /* Cores específicas de hover por ferramenta */
 .tool-btn-notepad:hover {
-  border-color: #f59e0b;
-  color: #d97706;
+  border-color: #059669;
+  color: #059669;
   transform: translateY(-2px) scale(1.08);
-  box-shadow: 0 6px 12px rgba(245, 158, 11, 0.2);
+  box-shadow: 0 6px 12px rgba(5, 150, 105, 0.2);
 }
 
 .tool-btn-whatsapp:hover {
-  border-color: #22c55e;
-  color: #16a34a;
+  border-color: #059669;
+  color: #059669;
   transform: translateY(-2px) scale(1.08);
-  box-shadow: 0 6px 12px rgba(34, 197, 94, 0.22);
+  box-shadow: 0 6px 12px rgba(5, 150, 105, 0.22);
 }
 
 .tool-btn-cpf:hover {
-  border-color: #6366f1;
-  color: #4f46e5;
+  border-color: #059669;
+  color: #059669;
   transform: translateY(-2px) scale(1.08);
-  box-shadow: 0 6px 12px rgba(99, 102, 241, 0.22);
+  box-shadow: 0 6px 12px rgba(5, 150, 105, 0.22);
 }
 
 .tool-btn-calc:hover {
-  border-color: #3b82f6;
-  color: #2563eb;
+  border-color: #059669;
+  color: #059669;
   transform: translateY(-2px) scale(1.08);
-  box-shadow: 0 6px 12px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 6px 12px rgba(5, 150, 105, 0.2);
 }
 
 .tool-btn-shortcuts:hover {
-  border-color: #94a3b8;
-  color: #334155;
+  border-color: #059669;
+  color: #059669;
   transform: translateY(-2px) scale(1.08);
-  box-shadow: 0 6px 12px rgba(71, 85, 105, 0.15);
+  box-shadow: 0 6px 12px rgba(5, 150, 105, 0.15);
 }
 
 .tool-bubble-btn:active {
@@ -576,39 +576,39 @@ onUnmounted(() => {
 
 /* Balão Ativo */
 .tool-bubble-btn.active {
-  background: #1e293b;
-  border-color: #0f172a;
-  color: #ffffff;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+  background: #059669 !important;
+  border-color: #047857 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
   transform: scale(1.05);
 }
 
 .tool-btn-whatsapp.active {
-  background: #16a34a;
-  border-color: #15803d;
+  background: #059669;
+  border-color: #047857;
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.35);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
 }
 
 .tool-btn-cpf.active {
-  background: #4f46e5;
-  border-color: #4338ca;
+  background: #059669;
+  border-color: #047857;
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
 }
 
 .tool-btn-calc.active {
-  background: #2563eb;
-  border-color: #1d4ed8;
+  background: #059669;
+  border-color: #047857;
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
 }
 
 .tool-btn-notepad.active {
-  background: #d97706;
-  border-color: #b45309;
+  background: #059669;
+  border-color: #047857;
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
 }
 
 .tool-bubble-btn.active i {
@@ -729,12 +729,12 @@ onUnmounted(() => {
 }
 
 .doc-icon-header {
-  color: #4f46e5;
+  color: #059669;
   font-size: 14px;
 }
 
 .calc-icon-header {
-  color: #2563eb;
+  color: #059669;
   font-size: 14px;
 }
 
@@ -817,8 +817,9 @@ onUnmounted(() => {
 }
 
 .tool-input:focus {
-  border-color: #2563eb;
+  border-color: #059669;
   background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
 }
 
 .tool-textarea {
@@ -838,8 +839,9 @@ onUnmounted(() => {
 }
 
 .tool-textarea:focus {
-  border-color: #2563eb;
+  border-color: #059669;
   background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
 }
 
 /* Preview Box de WhatsApp */
@@ -1032,9 +1034,9 @@ onUnmounted(() => {
 }
 
 .doc-copy-btn:hover {
-  background: #f1f5f9;
-  color: #2563eb;
-  border-color: #93c5fd;
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #a7f3d0;
 }
 
 /* Calculadora */
@@ -1095,8 +1097,14 @@ onUnmounted(() => {
 
 .calc-op {
   background: #f8fafc;
-  color: #2563eb;
+  color: #059669;
   font-weight: 700;
+}
+
+.calc-op:hover {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
 }
 
 .calc-op-clear {
@@ -1110,13 +1118,14 @@ onUnmounted(() => {
 }
 
 .calc-equals {
-  background: #2563eb;
+  background: #059669;
   color: #ffffff;
-  border-color: #2563eb;
+  border-color: #059669;
 }
 
 .calc-equals:hover {
-  background: #1d4ed8;
+  background: #047857;
+  border-color: #047857;
 }
 
 /* Atalhos Rápidos */
