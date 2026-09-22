@@ -313,8 +313,8 @@ async function saveContact(isEmployee = false) {
   min-width: 300px;
   max-width: 300px;
   flex-shrink: 0;
-  background-color: #f0fdf4;
-  border-left: 1px solid #bbf7d0;
+  background-color: #ffffff;
+  border-left: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -323,7 +323,7 @@ async function saveContact(isEmployee = false) {
   user-select: none;
 }
 
-/* Header Compacto com Identidade Verde */
+/* Header com visual neutro alinhado ao sidebar */
 .details-header {
   height: 52px;
   min-height: 52px;
@@ -331,7 +331,8 @@ async function saveContact(isEmployee = false) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
   gap: 8px;
 }
 
@@ -345,12 +346,12 @@ async function saveContact(isEmployee = false) {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.25);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: #0f172a;
   font-size: 13px;
   flex-shrink: 0;
 }
@@ -358,7 +359,7 @@ async function saveContact(isEmployee = false) {
 .details-header-title {
   font-size: 13.5px;
   font-weight: 700;
-  color: #ffffff;
+  color: #334155;
   letter-spacing: -0.01em;
 }
 
@@ -372,9 +373,9 @@ async function saveContact(isEmployee = false) {
   width: 28px;
   height: 28px;
   border-radius: 7px;
-  border: 1px solid rgba(255,255,255,0.25);
-  background: rgba(255,255,255,0.12);
-  color: #e0f2f1;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #0f172a;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -384,8 +385,8 @@ async function saveContact(isEmployee = false) {
 }
 
 .details-action-btn:hover {
-  background: rgba(255,255,255,0.22);
-  color: #ffffff;
+  background: #f1f5f9;
+  color: #0f172a;
 }
 
 .details-action-btn.close-btn:hover {
@@ -413,7 +414,7 @@ async function saveContact(isEmployee = false) {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
 }
 
 .card-title-row {
@@ -427,14 +428,14 @@ async function saveContact(isEmployee = false) {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #059669;
+  color: #475569;
   display: flex;
   align-items: center;
   gap: 5px;
 }
 
 .card-section-title i {
-  color: #059669;
+  color: #0f172a;
   font-size: 12px;
 }
 
@@ -457,35 +458,35 @@ async function saveContact(isEmployee = false) {
 }
 
 .status-pill.em_atendimento {
-  background: #ecfdf5;
-  color: #059669;
-  border: 1px solid #a7f3d0;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #dfe7f1;
 }
 .status-pill.em_atendimento .status-dot {
-  background: #10b981;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  background: #0f172a;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.12);
 }
 
 .status-pill.aguardando {
-  background: #fffbeb;
-  color: #d97706;
-  border: 1px solid #fde68a;
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
 }
-.status-pill.aguardando .status-dot { background: #f59e0b; }
+.status-pill.aguardando .status-dot { background: #64748b; }
 
 .status-pill.chatbot {
-  background: #f5f3ff;
-  color: #7c3aed;
-  border: 1px solid #ddd6fe;
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
 }
-.status-pill.chatbot .status-dot { background: #8b5cf6; }
+.status-pill.chatbot .status-dot { background: #334155; }
 
 .status-pill.finalizado {
   background: #f1f5f9;
-  color: #64748b;
+  color: #475569;
   border: 1px solid #e2e8f0;
 }
-.status-pill.finalizado .status-dot { background: #94a3b8; }
+.status-pill.finalizado .status-dot { background: #64748b; }
 
 /* Meta Grid (dados do chamado) */
 .meta-grid {
@@ -523,9 +524,9 @@ async function saveContact(isEmployee = false) {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  background: #ecfdf5;
-  border: 1px solid #d1fae5;
-  color: #059669;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -534,13 +535,13 @@ async function saveContact(isEmployee = false) {
 }
 
 .meta-icon-box--muted {
-  background: #ecfdf5;
-  border-color: #d1fae5;
-  color: #059669;
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #0f172a;
 }
 
 .meta-label {
-  color: #64748b;
+  color: #475569;
   font-size: 11.5px;
   white-space: nowrap;
 }
@@ -550,9 +551,9 @@ async function saveContact(isEmployee = false) {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-  color: #047857;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #334155;
   border-radius: 5px;
   font-size: 11px;
   font-weight: 700;
@@ -563,9 +564,9 @@ async function saveContact(isEmployee = false) {
   font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
   font-size: 12px;
   font-weight: 700;
-  color: #047857;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   padding: 2px 8px;
   border-radius: 5px;
   white-space: nowrap;
@@ -573,9 +574,9 @@ async function saveContact(isEmployee = false) {
 }
 
 .duration-badge--muted {
-  background: #ecfdf5;
-  border-color: #a7f3d0;
-  color: #047857;
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #334155;
 }
 
 .id-copy-box {
@@ -583,27 +584,27 @@ async function saveContact(isEmployee = false) {
   align-items: center;
   gap: 5px;
   padding: 2px 7px;
-  background: #f0fdf4;
-  border: 1px solid #d1fae5;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 5px;
   cursor: pointer;
   transition: all 0.12s ease;
 }
 
 .id-copy-box:hover {
-  background: #dcfce7;
-  border-color: #6ee7b7;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
 }
 
 .id-copy-box code {
   font-size: 11px;
   font-family: monospace;
-  color: #047857;
+  color: #334155;
   font-weight: 700;
 }
 
-.id-copy-box i { font-size: 10px; color: #059669; }
-.text-success { color: #10b981 !important; }
+.id-copy-box i { font-size: 10px; color: #0f172a; }
+.text-success { color: #0f172a !important; }
 
 /* Card de Contato (Hero) */
 .contact-card { gap: 14px; }
@@ -613,8 +614,8 @@ async function saveContact(isEmployee = false) {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 1px solid #dfe7f1;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 10px;
   position: relative;
 }
@@ -631,7 +632,7 @@ async function saveContact(isEmployee = false) {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
   border: 2px solid rgba(255,255,255,0.8);
 }
 
@@ -648,7 +649,7 @@ async function saveContact(isEmployee = false) {
 .contact-hero-name {
   font-size: 13.5px;
   font-weight: 800;
-  color: #064e3b;
+  color: #0f172a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -656,7 +657,7 @@ async function saveContact(isEmployee = false) {
 
 .contact-hero-phone {
   font-size: 11.5px;
-  color: #059669;
+  color: #475569;
   font-weight: 500;
 }
 
@@ -669,16 +670,16 @@ async function saveContact(isEmployee = false) {
   border-radius: 20px;
   font-size: 10px;
   font-weight: 700;
-  background: #ecfdf5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
   margin-top: 2px;
 }
 
 .contact-role-tag.employee {
-  background: #fff7ed;
-  color: #b45309;
-  border-color: #fdba74;
+  background: #f8fafc;
+  color: #475569;
+  border-color: #e2e8f0;
 }
 
 .contact-hero-actions {
@@ -691,7 +692,7 @@ async function saveContact(isEmployee = false) {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: #059669;
+  background: #0f172a;
   border: none;
   color: #ffffff;
   font-size: 11px;
@@ -700,11 +701,11 @@ async function saveContact(isEmployee = false) {
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
-  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.3);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
 }
 
 .btn-hero-save:hover {
-  background: #047857;
+  background: #1f2937;
   transform: scale(1.1);
 }
 
@@ -716,7 +717,7 @@ async function saveContact(isEmployee = false) {
 }
 
 .contact-type-label {
-  color: #059669;
+  color: #475569;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -747,7 +748,7 @@ async function saveContact(isEmployee = false) {
 
 .contact-type-options button.active {
   background: #ffffff;
-  color: #0f766e;
+  color: #0f172a;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
   font-weight: 800;
 }
@@ -755,7 +756,7 @@ async function saveContact(isEmployee = false) {
 .contact-type-options button:disabled { cursor: wait; opacity: 0.7; }
 
 .contact-type-control small {
-  color: #6ee7b7;
+  color: #64748b;
   font-size: 9.5px;
 }
 
@@ -781,9 +782,9 @@ async function saveContact(isEmployee = false) {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  background: #f0fdf4;
-  border: 1px solid #d1fae5;
-  color: #059669;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -801,7 +802,7 @@ async function saveContact(isEmployee = false) {
 
 .attribute-label {
   font-size: 9.5px;
-  color: #a7f3d0;
+  color: #475569;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 700;
@@ -809,7 +810,7 @@ async function saveContact(isEmployee = false) {
 
 /* Override: label mais visÃ­vel dentro de card branco */
 .contact-card .attribute-label {
-  color: #059669;
+  color: #475569;
 }
 
 .attribute-val {
@@ -828,8 +829,8 @@ async function saveContact(isEmployee = false) {
 .details-body::-webkit-scrollbar { width: 4px; }
 .details-body::-webkit-scrollbar-track { background: transparent; }
 .details-body::-webkit-scrollbar-thumb {
-  background: #a7f3d0;
+  background: #cbd5e1;
   border-radius: 4px;
 }
-.details-body::-webkit-scrollbar-thumb:hover { background: #6ee7b7; }
+.details-body::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 </style>
