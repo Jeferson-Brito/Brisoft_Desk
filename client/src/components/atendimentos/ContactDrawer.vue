@@ -331,7 +331,7 @@ async function saveContact(isEmployee = false) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: linear-gradient(135deg, #0f766e 0%, #1f2937 100%);
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
   gap: 8px;
 }
 
@@ -434,7 +434,7 @@ async function saveContact(isEmployee = false) {
 }
 
 .card-section-title i {
-  color: #34d399;
+  color: #059669;
   font-size: 12px;
 }
 
@@ -457,13 +457,13 @@ async function saveContact(isEmployee = false) {
 }
 
 .status-pill.em_atendimento {
-  background: #ecfeff;
-  color: #0f766e;
+  background: #ecfdf5;
+  color: #059669;
   border: 1px solid #a7f3d0;
 }
 .status-pill.em_atendimento .status-dot {
-  background: #14b8a6;
-  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.2);
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
 }
 
 .status-pill.aguardando {
@@ -504,10 +504,10 @@ async function saveContact(isEmployee = false) {
 }
 
 .meta-item--subtle {
-  background: #f8fafc;
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin-top: 2px;
+  background: transparent;
+  border-radius: 0;
+  padding: 8px 0;
+  margin-top: 0;
 }
 
 .meta-item:last-child { border-bottom: none; padding-bottom: 0; }
@@ -523,9 +523,9 @@ async function saveContact(isEmployee = false) {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  background: #ecfeff;
-  border: 1px solid #ccfbf1;
-  color: #0f766e;
+  background: #ecfdf5;
+  border: 1px solid #d1fae5;
+  color: #059669;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -534,9 +534,9 @@ async function saveContact(isEmployee = false) {
 }
 
 .meta-icon-box--muted {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-  color: #475569;
+  background: #ecfdf5;
+  border-color: #d1fae5;
+  color: #059669;
 }
 
 .meta-label {
@@ -563,18 +563,19 @@ async function saveContact(isEmployee = false) {
   font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
   font-size: 12px;
   font-weight: 700;
-  color: #0f766e;
-  background: #ecfeff;
+  color: #047857;
+  background: #ecfdf5;
   border: 1px solid #a7f3d0;
   padding: 2px 8px;
   border-radius: 5px;
   white-space: nowrap;
+  line-height: 1.3;
 }
 
 .duration-badge--muted {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-  color: #334155;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
 }
 
 .id-copy-box {
@@ -668,9 +669,9 @@ async function saveContact(isEmployee = false) {
   border-radius: 20px;
   font-size: 10px;
   font-weight: 700;
-  background: #e2e8f0;
-  color: #334155;
-  border: 1px solid #cbd5e1;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
   margin-top: 2px;
 }
 
