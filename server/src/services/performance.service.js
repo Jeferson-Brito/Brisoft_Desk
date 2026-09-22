@@ -48,15 +48,24 @@ function parseMonth(value, fallback = new Date()) {
   };
 }
 
+// Paginação paralela: 1 query head para obter o total, depois todas as páginas em paralelo
 async function fetchAll(buildQuery) {
-  const rows = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
-    if (error) throw error;
-    rows.push(...(data || []));
-    if (!data || data.length < PAGE_SIZE) break;
-  }
-  return rows;
+  const { count, error: countError } = await buildQuery().select('id', { count: 'exact', head: true });
+  if (countError) throw countError;
+  if (!count || count === 0) return [];
+
+  const pages = Math.ceil(count / PAGE_SIZE);
+  const ranges = Array.from({ length: pages }, (_, i) => [i * PAGE_SIZE, i * PAGE_SIZE + PAGE_SIZE - 1]);
+
+  const results = await Promise.all(
+    ranges.map(([from, to]) =>
+      buildQuery().range(from, to).then(({ data, error }) => {
+        if (error) throw error;
+        return data || [];
+      })
+    )
+  );
+  return results.flat();
 }
 
 function secondsBetween(start, end) {

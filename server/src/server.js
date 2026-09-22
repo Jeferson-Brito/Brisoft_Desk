@@ -71,6 +71,19 @@ app.use((req, res, next) => {
 });
 
 const apiRateLimits = new Map();
+const RATE_WINDOW_MS = 5 * 60 * 1000; // janela de 5 minutos
+const RATE_LIMIT = 900;               // máximo de requisições por janela
+
+// Limpeza proativa a cada 60s — impede crescimento ilimitado do mapa
+// mesmo em cenários de muitos IPs distintos (ataque distribuído)
+const rateLimitCleanup = setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of apiRateLimits) {
+    if (now - entry.startedAt >= RATE_WINDOW_MS) apiRateLimits.delete(key);
+  }
+}, 60 * 1000);
+rateLimitCleanup.unref?.(); // não impede o processo de encerrar
+
 app.use('/api', (req, res, next) => {
   if (req.path === '/health') return next();
   const now = Date.now();
@@ -79,13 +92,12 @@ app.use('/api', (req, res, next) => {
   const identity = bearer ? crypto.createHash('sha256').update(bearer).digest('hex').slice(0, 16) : 'anonymous';
   const key = `${ip}:${identity}`;
   const current = apiRateLimits.get(key);
-  const entry = !current || now - current.startedAt >= 5 * 60 * 1000 ? { startedAt: now, count: 0 } : current;
+  const entry = !current || now - current.startedAt >= RATE_WINDOW_MS ? { startedAt: now, count: 0 } : current;
   entry.count += 1;
   apiRateLimits.set(key, entry);
-  res.setHeader('RateLimit-Limit', '600');
-  res.setHeader('RateLimit-Remaining', String(Math.max(0, 600 - entry.count)));
-  if (entry.count > 600) return res.status(429).json({ success: false, error: 'Muitas requisições. Aguarde alguns minutos.' });
-  if (apiRateLimits.size > 5000) for (const [entryKey, value] of apiRateLimits) if (now - value.startedAt >= 5 * 60 * 1000) apiRateLimits.delete(entryKey);
+  res.setHeader('RateLimit-Limit', String(RATE_LIMIT));
+  res.setHeader('RateLimit-Remaining', String(Math.max(0, RATE_LIMIT - entry.count)));
+  if (entry.count > RATE_LIMIT) return res.status(429).json({ success: false, error: 'Muitas requisições. Aguarde alguns minutos.' });
   return next();
 });
 app.use(express.json({ limit: '1mb' }));
