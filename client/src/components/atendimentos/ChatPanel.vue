@@ -30,7 +30,7 @@
               <h2 class="chat-contact-title">{{ headerPerson.name || 'Cliente' }}</h2>
               <i v-if="!ticket.is_group" class="ri-arrow-down-s-line chat-contact-chevron" :class="{ 'rotate-180': isDetailsOpen }"></i>
               <span v-if="ticket.is_group" class="group-contact-badge"><span class="badge-icon-box"><i class="ri-group-line"></i></span> {{ groupParticipantLabel }}</span>
-              <span class="employee-contact-badge" title="Funcionário da empresa">Funcionário</span>
+              <span v-if="shouldDisplayEmployeeRole(ticket)" class="employee-contact-badge" title="Funcionário da empresa">Funcionário</span>
             </div>
             <div class="chat-contact-subtitle">
               <span v-if="headerPerson.role">{{ headerPerson.role }}</span>
@@ -501,6 +501,7 @@ import EmptyChatAnimation from './EmptyChatAnimation.vue'
 import ModalTransferir from '@/components/modals/ModalTransferir.vue'
 import ModalColaboradores from '@/components/modals/ModalColaboradores.vue'
 import ModalHistoricoCliente from '@/components/modals/ModalHistoricoCliente.vue'
+import { shouldDisplayEmployeeRole } from '@/utils/contact-role'
 
 const props = defineProps({
   ticket: {
