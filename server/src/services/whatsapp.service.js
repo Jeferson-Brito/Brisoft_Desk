@@ -90,6 +90,12 @@ function envInteger(name, fallback, minimum = 0) {
   return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback;
 }
 
+function reconnectDelay(attempt) {
+  const base = envInteger('WHATSAPP_RECONNECT_BASE_MS', 5000, 1000);
+  const maximum = envInteger('WHATSAPP_RECONNECT_MAX_MS', 300000, base);
+  return Math.min(maximum, base * (2 ** Math.max(0, attempt - 1)));
+}
+
 function mediaSizeBytes(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   if (typeof value === 'bigint') return Number(value);
@@ -468,7 +474,12 @@ class WhatsAppService {
       fallback_department_id: account.fallbackDepartmentId || null,
       fallback_department_name: account.fallbackDepartmentName || null,
       created_at: account.createdAt,
-      last_connected_at: account.lastConnectedAt || null
+      last_connected_at: account.lastConnectedAt || null,
+      status: account.status,
+      last_disconnected_at: account.lastDisconnectedAt || null,
+      disconnect_reason: account.disconnectReason || null,
+      reconnect_attempts: account.reconnectAttempts || 0,
+      next_reconnect_at: account.nextReconnectAt || null
     }));
     const { error } = await supabase.from('system_settings').upsert({ key: SETTINGS_KEY, value, updated_at: new Date() }, { onConflict: 'key' });
     if (error) {
@@ -498,6 +509,10 @@ class WhatsAppService {
         fallbackDepartmentName: routing.fallbackDepartmentName,
         createdAt: config.created_at || new Date().toISOString(),
         lastConnectedAt: config.last_connected_at || null,
+        lastDisconnectedAt: config.last_disconnected_at || null,
+        disconnectReason: config.disconnect_reason || null,
+        reconnectAttempts: Number(config.reconnect_attempts) || 0,
+        nextReconnectAt: config.next_reconnect_at || null,
         status: 'disconnected',
         qrCode: null,
         sock: null,
@@ -590,6 +605,7 @@ class WhatsAppService {
     account.initializing = true;
     account.manualDisconnect = false;
     account.status = 'connecting';
+    account.nextReconnectAt = null;
     this.emitAccounts();
 
     const authDir = path.join(ACCOUNTS_ROOT, account.id);
@@ -666,6 +682,9 @@ class WhatsAppService {
     } catch (error) {
       account.initializing = false;
       account.status = 'disconnected';
+      account.lastDisconnectedAt = new Date().toISOString();
+      account.disconnectReason = 'initialization_error';
+      await this.saveConfigs().catch(() => {});
       this.emitAccounts();
       throw error;
     }
@@ -727,6 +746,7 @@ class WhatsAppService {
         account.status = 'scan_qr';
         account.initializing = false;
         console.log(`[WhatsApp:${account.name}] QR Code disponível.`);
+        this.saveConfigs().catch(() => {});
         this.emitAccounts();
       }
 
@@ -739,6 +759,10 @@ class WhatsAppService {
         account.phone = getPhoneFromJid(user.id, account.lidMap) || account.phone;
         account.displayName = user.name || account.displayName || account.name;
         account.lastConnectedAt = new Date().toISOString();
+        account.lastDisconnectedAt = null;
+        account.disconnectReason = null;
+        account.reconnectAttempts = 0;
+        account.nextReconnectAt = null;
         account.status = 'connected';
         account.qrCode = null;
         account.initializing = false;
@@ -758,7 +782,10 @@ class WhatsAppService {
         }
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const loggedOut = statusCode === DisconnectReason.loggedOut;
+        const disconnectReason = loggedOut ? 'device_logout' : 'connection_lost';
         account.status = 'disconnected';
+        account.lastDisconnectedAt = account.lastDisconnectedAt || new Date().toISOString();
+        account.disconnectReason = disconnectReason;
         account.qrCode = null;
         account.initializing = false;
         account.sock = null;
@@ -775,8 +802,23 @@ class WhatsAppService {
           });
         } else if (!account.manualDisconnect && account.active !== false) {
           ticketService.handleAccountDisconnected(account.id, 'connection_lost', this.io).catch(() => {});
-          clearTimeout(account.reconnectTimer);
-          account.reconnectTimer = setTimeout(() => this.initialize(account.id).catch(() => {}), 5000);
+          account.reconnectAttempts += 1;
+          const maxAttempts = envInteger('WHATSAPP_RECONNECT_MAX_ATTEMPTS', 8, 1);
+          if (account.reconnectAttempts <= maxAttempts) {
+            const delay = reconnectDelay(account.reconnectAttempts);
+            account.nextReconnectAt = new Date(Date.now() + delay).toISOString();
+            clearTimeout(account.reconnectTimer);
+            account.reconnectTimer = setTimeout(() => {
+              account.nextReconnectAt = null;
+              this.initialize(account.id).catch(() => {});
+            }, delay);
+            account.reconnectTimer.unref?.();
+          } else {
+            account.nextReconnectAt = null;
+            console.error(`[WhatsApp:${account.name}] limite de reconexões atingido (${maxAttempts}).`);
+          }
+          this.saveConfigs().catch(() => {});
+          this.emitAccounts();
         }
       }
     });
@@ -1389,6 +1431,10 @@ class WhatsAppService {
     try { if (account.sock) { account.sock.ev.removeAllListeners(); account.sock.end(); } } catch {}
     account.sock = null;
     account.status = 'disconnected';
+    account.lastDisconnectedAt = new Date().toISOString();
+    account.disconnectReason = 'manual_disconnect';
+    account.reconnectAttempts = 0;
+    account.nextReconnectAt = null;
     account.qrCode = null;
     account.phone = null;
     account.displayName = null;
@@ -1421,6 +1467,10 @@ class WhatsAppService {
       fallbackDepartmentId: account.fallbackDepartmentId,
       fallbackDepartmentName: account.fallbackDepartmentName,
       lastConnectedAt: account.lastConnectedAt,
+      lastDisconnectedAt: account.lastDisconnectedAt,
+      disconnectReason: account.disconnectReason,
+      reconnectAttempts: account.reconnectAttempts,
+      nextReconnectAt: account.nextReconnectAt,
       createdAt: account.createdAt,
       ...(includeQr ? { qrCode: account.qrCode } : {})
     };
@@ -1508,6 +1558,7 @@ whatsappService._test = {
   getPhoneFromJid,
   phoneJidFromMessageMetadata,
   resolveJid,
+    reconnectDelay,
   scheduleSessionBackup,
   loadRetryMessageCache,
   ExpiringCache,

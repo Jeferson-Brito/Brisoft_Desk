@@ -138,6 +138,7 @@
                       <span class="status-indicator disconnected">
                         <span class="status-dot"></span> {{ statusLabel(acc.status) }}
                       </span>
+                      <small v-if="acc.disconnectReason" class="disconnect-reason">{{ disconnectReasonLabel(acc.disconnectReason) }}</small>
                     </div>
                   </div>
                 </div>
@@ -463,6 +464,16 @@ function statusLabel(status) {
     case 'scan_qr': return 'Aguardando leitura do QR Code'
     case 'connecting': return 'Conectando...'
     default: return 'Desconectado'
+  }
+}
+
+function disconnectReasonLabel(reason) {
+  switch (reason) {
+    case 'connection_lost': return 'Conexão perdida'
+    case 'device_logout': return 'Logout no aparelho'
+    case 'manual_disconnect': return 'Desconectado manualmente'
+    case 'initialization_error': return 'Falha ao iniciar'
+    default: return 'Motivo não informado'
   }
 }
 
@@ -974,6 +985,12 @@ function formatPhone(phone) {
   height: 7px;
   border-radius: 50%;
   background: currentColor;
+}
+
+.disconnect-reason {
+  color: #b45309;
+  font-size: 10px;
+  font-weight: 600;
 }
 
 /* Área do QR Code */

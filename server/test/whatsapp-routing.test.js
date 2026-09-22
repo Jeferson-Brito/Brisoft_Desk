@@ -3,6 +3,14 @@ const assert = require('node:assert/strict');
 
 const whatsappService = require('../src/services/whatsapp.service');
 
+test('calcula backoff de reconexão com limite superior', () => {
+  const { reconnectDelay } = whatsappService._test;
+  assert.equal(reconnectDelay(1), 5000);
+  assert.equal(reconnectDelay(2), 10000);
+  assert.equal(reconnectDelay(3), 20000);
+  assert.equal(reconnectDelay(99), 300000);
+});
+
 test('mantém mensagens recentes disponíveis para novas tentativas de descriptografia', () => {
   const cache = new whatsappService._test.ExpiringCache({ ttlMs: 1000, maxEntries: 2 });
   const key = whatsappService._test.messageCacheKey({ remoteJid: '558399999999:2@s.whatsapp.net', id: 'ABC' });

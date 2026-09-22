@@ -101,6 +101,9 @@
                 <div><span>Identificação</span><strong>{{ account.displayName || account.name }}</strong></div>
                 <div><span>Número conectado</span><strong>{{ account.phone ? formatPhone(account.phone) : 'Ainda não conectado' }}</strong></div>
                 <div><span>Última conexão</span><strong>{{ account.lastConnectedAt ? formatDate(account.lastConnectedAt) : '—' }}</strong></div>
+                <div><span>Última desconexão</span><strong>{{ account.lastDisconnectedAt ? formatDate(account.lastDisconnectedAt) : '—' }}</strong></div>
+                <div><span>Motivo</span><strong>{{ disconnectReasonLabel(account.disconnectReason) }}</strong></div>
+                <div><span>Tentativas de reconexão</span><strong>{{ account.reconnectAttempts || 0 }}</strong></div>
               </div>
 
               <!-- Configuração de Roteamento / Departamento -->
@@ -455,6 +458,9 @@ async function removeAccount(account) {
 
 function accountStatusLabel(status) {
   return ({ connected: 'Conectado', scan_qr: 'Aguardando QR Code', connecting: 'Conectando', disconnected: 'Desconectado' })[status] || 'Desconectado'
+}
+function disconnectReasonLabel(reason) {
+  return ({ connection_lost: 'Conexão perdida', device_logout: 'Logout no aparelho', manual_disconnect: 'Desconectado manualmente', initialization_error: 'Falha ao iniciar' })[reason] || '—'
 }
 function statusClass(status) { return status === 'connected' ? 'connected' : status === 'scan_qr' || status === 'connecting' ? 'pending' : 'disconnected' }
 function formatDate(value) { return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) }
