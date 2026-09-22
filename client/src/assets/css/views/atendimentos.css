@@ -199,6 +199,16 @@
   border-color: #e2e8f0;
 }
 
+.header-tool-btn--unavailable,
+.header-tool-btn--unavailable:hover {
+  opacity: 0.38;
+  color: #94a3b8;
+  background: transparent;
+  border-color: transparent;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .header-resolve-btn {
   width: 28px;
   height: 28px;

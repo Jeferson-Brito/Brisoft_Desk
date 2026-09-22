@@ -64,10 +64,10 @@
 
         <!-- Botões de chamada, vídeo, histórico e busca (aparecem assim que o atendimento for assumido) -->
         <template v-else>
-          <button type="button" class="header-tool-btn" title="Ligação">
+          <button type="button" class="header-tool-btn header-tool-btn--unavailable" title="Ligação (funcionalidade em breve)" disabled aria-disabled="true">
             <span class="tool-icon-box"><i class="ri-phone-line"></i></span>
           </button>
-          <button type="button" class="header-tool-btn" title="Chamada de vídeo">
+          <button type="button" class="header-tool-btn header-tool-btn--unavailable" title="Chamada de vídeo (funcionalidade em breve)" disabled aria-disabled="true">
             <span class="tool-icon-box"><i class="ri-video-chat-line"></i></span>
           </button>
 
