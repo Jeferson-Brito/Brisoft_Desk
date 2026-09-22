@@ -61,6 +61,14 @@
             <span class="duration-badge">{{ durationStr }}</span>
           </div>
 
+          <div class="meta-item meta-item--subtle">
+            <div class="meta-icon-label">
+              <span class="meta-icon-box meta-icon-box--muted"><i class="fa-solid fa-stopwatch"></i></span>
+              <span class="meta-label">TME</span>
+            </div>
+            <span class="duration-badge duration-badge--muted">{{ tmeStr }}</span>
+          </div>
+
           <div class="meta-item">
             <div class="meta-icon-label">
               <span class="meta-icon-box"><i class="fa-solid fa-hashtag"></i></span>
@@ -239,16 +247,29 @@ const whatsappAccountLabel = computed(() => {
   return account?.name || 'WhatsApp Principal'
 })
 
+function formatDurationSeconds(totalSeconds) {
+  const safeSeconds = Math.max(0, Math.floor(Number(totalSeconds) || 0))
+  const hrs = Math.floor(safeSeconds / 3600)
+  const mins = Math.floor((safeSeconds % 3600) / 60)
+  const secs = safeSeconds % 60
+  return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+}
+
 const durationStr = computed(() => {
   // Trigger on every second
   const _ = nowTick.value
   const start = props.ticket?.assumed_at || props.ticket?.started_at || props.ticket?.created_at
   if (!start) return '00:00:00'
   const diffSec = Math.max(0, Math.floor((Date.now() - new Date(start).getTime()) / 1000))
-  const hrs = Math.floor(diffSec / 3600)
-  const mins = Math.floor((diffSec % 3600) / 60)
-  const secs = diffSec % 60
-  return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  return formatDurationSeconds(diffSec)
+})
+
+const tmeStr = computed(() => {
+  const createdAt = props.ticket?.created_at
+  const assumedAt = props.ticket?.assumed_at
+  if (!createdAt || !assumedAt) return '—'
+  const diffSec = Math.max(0, Math.floor((new Date(assumedAt).getTime() - new Date(createdAt).getTime()) / 1000))
+  return formatDurationSeconds(diffSec)
 })
 
 function copyTicketId() {
@@ -310,7 +331,7 @@ async function saveContact(isEmployee = false) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  background: linear-gradient(135deg, #0f766e 0%, #1f2937 100%);
   gap: 8px;
 }
 
@@ -386,13 +407,13 @@ async function saveContact(isEmployee = false) {
 /* Cards */
 .details-card {
   background: #ffffff;
-  border: 1px solid #d1fae5;
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 1px 4px rgba(5, 150, 105, 0.06);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.05);
 }
 
 .card-title-row {
@@ -436,13 +457,13 @@ async function saveContact(isEmployee = false) {
 }
 
 .status-pill.em_atendimento {
-  background: #ecfdf5;
-  color: #059669;
+  background: #ecfeff;
+  color: #0f766e;
   border: 1px solid #a7f3d0;
 }
 .status-pill.em_atendimento .status-dot {
-  background: #10b981;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  background: #14b8a6;
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.2);
 }
 
 .status-pill.aguardando {
@@ -478,8 +499,15 @@ async function saveContact(isEmployee = false) {
   align-items: center;
   justify-content: space-between;
   padding: 8px 0;
-  border-bottom: 1px solid #f0fdf4;
+  border-bottom: 1px solid #f1f5f9;
   gap: 6px;
+}
+
+.meta-item--subtle {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 2px;
 }
 
 .meta-item:last-child { border-bottom: none; padding-bottom: 0; }
@@ -495,14 +523,20 @@ async function saveContact(isEmployee = false) {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  background: #f0fdf4;
-  border: 1px solid #d1fae5;
-  color: #059669;
+  background: #ecfeff;
+  border: 1px solid #ccfbf1;
+  color: #0f766e;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 10px;
   flex-shrink: 0;
+}
+
+.meta-icon-box--muted {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #475569;
 }
 
 .meta-label {
@@ -529,12 +563,18 @@ async function saveContact(isEmployee = false) {
   font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
   font-size: 12px;
   font-weight: 700;
-  color: #047857;
-  background: #ecfdf5;
+  color: #0f766e;
+  background: #ecfeff;
   border: 1px solid #a7f3d0;
   padding: 2px 8px;
   border-radius: 5px;
   white-space: nowrap;
+}
+
+.duration-badge--muted {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #334155;
 }
 
 .id-copy-box {
@@ -572,8 +612,8 @@ async function saveContact(isEmployee = false) {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
-  border: 1px solid #a7f3d0;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #dfe7f1;
   border-radius: 10px;
   position: relative;
 }
@@ -628,16 +668,16 @@ async function saveContact(isEmployee = false) {
   border-radius: 20px;
   font-size: 10px;
   font-weight: 700;
-  background: #d1fae5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
+  background: #e2e8f0;
+  color: #334155;
+  border: 1px solid #cbd5e1;
   margin-top: 2px;
 }
 
 .contact-role-tag.employee {
-  background: #fef3c7;
+  background: #fff7ed;
   color: #b45309;
-  border-color: #fde68a;
+  border-color: #fdba74;
 }
 
 .contact-hero-actions {
@@ -687,9 +727,9 @@ async function saveContact(isEmployee = false) {
   grid-template-columns: 1fr 1fr;
   gap: 4px;
   padding: 3px;
-  border: 1px solid #a7f3d0;
+  border: 1px solid #dbe3ee;
   border-radius: 8px;
-  background: #f0fdf4;
+  background: #f8fafc;
 }
 
 .contact-type-options button {
@@ -706,8 +746,8 @@ async function saveContact(isEmployee = false) {
 
 .contact-type-options button.active {
   background: #ffffff;
-  color: #059669;
-  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.15);
+  color: #0f766e;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
   font-weight: 800;
 }
 
