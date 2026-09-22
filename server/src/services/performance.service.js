@@ -48,24 +48,21 @@ function parseMonth(value, fallback = new Date()) {
   };
 }
 
-// Paginação paralela: 1 query head para obter o total, depois todas as páginas em paralelo
+// Paginação por blocos: evita depender do count do PostgREST, que pode vir null
+// quando o builder já contém order/select encadeados.
 async function fetchAll(buildQuery) {
-  const { count, error: countError } = await buildQuery().select('id', { count: 'exact', head: true });
-  if (countError) throw countError;
-  if (!count || count === 0) return [];
+  const results = [];
+  let from = 0;
 
-  const pages = Math.ceil(count / PAGE_SIZE);
-  const ranges = Array.from({ length: pages }, (_, i) => [i * PAGE_SIZE, i * PAGE_SIZE + PAGE_SIZE - 1]);
+  while (true) {
+    const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
 
-  const results = await Promise.all(
-    ranges.map(([from, to]) =>
-      buildQuery().range(from, to).then(({ data, error }) => {
-        if (error) throw error;
-        return data || [];
-      })
-    )
-  );
-  return results.flat();
+    const page = data || [];
+    results.push(...page);
+    if (page.length < PAGE_SIZE) return results;
+    from += PAGE_SIZE;
+  }
 }
 
 function secondsBetween(start, end) {
@@ -475,6 +472,7 @@ performanceService._test = {
   formatDuration,
   localDateKey,
   isCustomerTicket,
+  fetchAll,
   clearPerformanceCache
 };
 

@@ -112,3 +112,19 @@ test('permite invalidar o cache de desempenho em memória', () => {
     performanceService._test.clearPerformanceCache();
   });
 });
+
+test('pagina registros sem depender de count do PostgREST', async () => {
+  const calls = [];
+  const rows = await performanceService._test.fetchAll(() => ({
+    range(from, to) {
+      calls.push([from, to]);
+      return Promise.resolve({
+        data: from === 0 ? Array.from({ length: 1000 }, (_, index) => ({ id: index })) : [{ id: 1000 }],
+        error: null
+      });
+    }
+  }));
+
+  assert.equal(rows.length, 1001);
+  assert.deepEqual(calls, [[0, 999], [1000, 1999]]);
+});
