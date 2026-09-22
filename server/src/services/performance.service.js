@@ -15,6 +15,17 @@ function clearPerformanceCache() {
   periodDataCache.clear();
 }
 
+function clearCurrentMonthCache() {
+  const now = new Date();
+  const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  for (const key of performanceResultCache.keys()) {
+    if (key.startsWith(currentMonthPrefix)) performanceResultCache.delete(key);
+  }
+  for (const key of periodDataCache.keys()) {
+    if (key.startsWith(currentMonthPrefix)) periodDataCache.delete(key);
+  }
+}
+
 function parseMonth(value, fallback = new Date()) {
   const match = String(value || '').match(/^(\d{4})-(\d{2})$/);
   const year = match ? Number(match[1]) : fallback.getFullYear();
@@ -369,7 +380,12 @@ class PerformanceService {
       return { id: dept.id, name: dept.name, color: dept.color, headcount, averagePerAgent: headcount ? round(metrics.completed / headcount, 1) : 0, ...metrics };
     });
 
-    if (requestedPeriod.isCurrent && !(supervisor && !departmentId)) await this.saveSnapshot(previousPeriod, selectedUser, departmentId, previousMetrics);
+    if (requestedPeriod.isCurrent && !(supervisor && !departmentId)) {
+      // Fire-and-forget: não bloqueia a resposta ao cliente
+      this.saveSnapshot(previousPeriod, selectedUser, departmentId, previousMetrics).catch(err =>
+        console.warn('Erro ao salvar snapshot em background:', err?.message || err)
+      );
+    }
 
     const result = {
       month: requestedPeriod.key,

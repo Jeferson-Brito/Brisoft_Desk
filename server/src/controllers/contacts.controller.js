@@ -1,4 +1,4 @@
-﻿// ==========================================================================
+// ==========================================================================
 // BRISOFT DESK - CONTACTS CONTROLLER
 // ==========================================================================
 
@@ -27,16 +27,29 @@ async function syncContactClassification(contact) {
   }
 }
 
+let contactsCache = null;
+let contactsCacheExpiresAt = 0;
+
+function invalidateContactsCache() {
+  contactsCache = null;
+  contactsCacheExpiresAt = 0;
+}
+
 class ContactsController {
   async listContacts(req, res) {
     if (!isSupabaseConfigured()) return res.json({ success: true, contacts: [] });
+    if (contactsCache && contactsCacheExpiresAt > Date.now()) {
+      return res.json({ success: true, contacts: contactsCache });
+    }
     try {
       const { data, error } = await supabase
         .from('contacts')
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return res.json({ success: true, contacts: data || [] });
+      contactsCache = data || [];
+      contactsCacheExpiresAt = Date.now() + 30000;
+      return res.json({ success: true, contacts: contactsCache });
     } catch (err) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -77,6 +90,7 @@ class ContactsController {
       const { data, error } = await operation.select().single();
       if (error) throw error;
       await syncContactClassification(data);
+      invalidateContactsCache();
       return res.json({ success: true, contact: data, updatedExisting: Boolean(existing) });
     } catch (err) {
       return res.status(500).json({ success: false, error: err.message });
@@ -140,6 +154,7 @@ class ContactsController {
       }
 
       const updated = payloads.filter(row => existingByPhone.has(row.phone)).length;
+      invalidateContactsCache();
       return res.json({
         success: true,
         imported: payloads.length - updated,
@@ -186,6 +201,7 @@ class ContactsController {
         .single();
       if (error) throw error;
       await syncContactClassification(data);
+      invalidateContactsCache();
       return res.json({ success: true, contact: data });
     } catch (err) {
       return res.status(500).json({ success: false, error: err.message });
@@ -199,6 +215,7 @@ class ContactsController {
     try {
       const { error } = await supabase.from('contacts').delete().eq('id', id);
       if (error) throw error;
+      invalidateContactsCache();
       return res.json({ success: true });
     } catch (err) {
       return res.status(500).json({ success: false, error: err.message });

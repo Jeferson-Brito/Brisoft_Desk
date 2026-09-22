@@ -39,10 +39,7 @@
     <div class="table-content-area">
       <div class="table-card-container">
         <div class="table-scroll-wrap">
-          <div v-if="loading" class="clientes-loading">
-            <i class="fa-solid fa-circle-notch fa-spin"></i> Carregando contatos...
-          </div>
-          <div v-else-if="errorMsg" class="clientes-error">
+          <div v-if="errorMsg" class="clientes-error">
             <i class="fa-solid fa-triangle-exclamation"></i> {{ errorMsg }}
           </div>
           <table v-else class="data-table">
@@ -57,13 +54,21 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-if="filteredContacts.length === 0">
+              <tr v-if="loading" v-for="i in 8" :key="'skel-' + i" class="skeleton-row">
+                <td><div class="sk-cell"><div class="sk-avatar"></div><div class="sk-lines"><div class="sk-line sk-w70"></div><div class="sk-line sk-w45"></div></div></div></td>
+                <td><div class="sk-line sk-w55"></div></td>
+                <td><div class="sk-line sk-w60"></div></td>
+                <td><div class="sk-line sk-w40"></div></td>
+                <td><div class="sk-line sk-w30"></div></td>
+                <td><div class="sk-line sk-w25" style="margin-left:auto"></div></td>
+              </tr>
+              <tr v-else-if="filteredContacts.length === 0">
                 <td colspan="6" style="text-align:center;color:#64748b;padding:32px;">
                   <i class="fa-solid fa-users-slash" style="margin-right:8px;"></i>
                   Cliente não encontrado ou funcionário não encontrado!
                 </td>
               </tr>
-              <tr v-for="c in filteredContacts" :key="c.id">
+              <tr v-else v-for="c in filteredContacts" :key="c.id">
                 <td>
                   <div class="contact-cell">
                     <div class="initial-avatar" :style="{ background: avatarColor(c.name) }" style="width:32px;height:32px;font-size:11px;">
@@ -108,6 +113,7 @@
         </div>
       </div>
     </div>
+
 
     <!-- Modal de Edição / Criação -->
     <Teleport to="body">
@@ -663,4 +669,13 @@ onMounted(loadContacts)
   .contacts-toolbar-actions .btn-secondary i { font-size: 12px; }
   .contacts-tabs-bar small { display: none; }
 }
+
+/* ── Skeleton loader ── */
+@keyframes sk-shimmer { 0% { background-position: -400px 0 } 100% { background-position: 400px 0 } }
+.skeleton-row td { padding: 10px 12px; border-top: 1px solid #f1f5f9; }
+.sk-cell { display: flex; align-items: center; gap: 9px; }
+.sk-lines { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+.sk-avatar { width: 32px; height: 32px; border-radius: 8px; flex: none; background: linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%); background-size: 800px 100%; animation: sk-shimmer 1.4s infinite linear; }
+.sk-line { height: 10px; border-radius: 5px; background: linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%); background-size: 800px 100%; animation: sk-shimmer 1.4s infinite linear; }
+.sk-w70 { width: 70%; } .sk-w60 { width: 60%; } .sk-w55 { width: 55%; } .sk-w50 { width: 50%; } .sk-w45 { width: 45%; } .sk-w40 { width: 40%; } .sk-w35 { width: 35%; } .sk-w30 { width: 30%; } .sk-w25 { width: 25%; }
 </style>

@@ -53,7 +53,15 @@
       </div>
     </section>
 
-    <section class="executive-kpis" :class="{ 'is-loading': loading }">
+    <section v-if="loading && !performance" class="executive-kpis">
+      <article v-for="i in 6" :key="'sk-' + i" class="executive-kpi executive-kpi-skeleton">
+        <div class="executive-kpi-head"><div class="sk-round sk-w40"></div><div class="sk-round sk-w30"></div></div>
+        <div class="sk-rect sk-w50" style="height:28px;margin:6px 0 4px"></div>
+        <div class="sk-rect sk-w70"></div>
+        <div class="sk-rect sk-w55" style="margin-top:4px"></div>
+      </article>
+    </section>
+    <section v-else class="executive-kpis" :class="{ 'is-loading': loading }">
       <article v-for="card in primaryCards" :key="card.key" class="executive-kpi">
         <div class="executive-kpi-head">
           <span class="executive-kpi-icon" :style="{ color: card.color, background: card.background }"><i :class="card.icon"></i></span>
@@ -339,4 +347,11 @@ onBeforeUnmount(() => {
 @media (max-width:1180px) { .executive-kpis { grid-template-columns:repeat(3,1fr); }.health-hero { grid-template-columns:1fr auto; }.health-context { grid-column:1/-1;grid-template-columns:repeat(3,1fr);padding:11px 0 0;border-left:0;border-top:1px solid #e5e9ef; }.health-context div { flex-direction:column;gap:2px; }.health-context strong { text-align:left; } }
 @media (max-width:820px) { .executive-dashboard { padding:13px; }.executive-toolbar { align-items:stretch;flex-direction:column; }.executive-filters { display:grid;grid-template-columns:1fr 1fr; }.executive-filters label,.executive-filters input,.executive-filters select { width:100%;min-width:0; }.executive-refresh { align-self:end; }.executive-main-grid { grid-template-columns:1fr; }.executive-secondary-stats { grid-template-columns:repeat(2,1fr); } }
 @media (max-width:560px) { .executive-dashboard { padding:10px; }.executive-filters { grid-template-columns:1fr; }.executive-refresh { width:100%; }.health-hero { grid-template-columns:1fr;padding:15px; }.health-score { display:none; }.health-context { grid-template-columns:1fr; }.health-context div { flex-direction:row; }.executive-kpis { grid-template-columns:repeat(2,1fr); }.executive-secondary-stats { grid-template-columns:1fr; }.chart-legend { display:none; } }
+
+/* ── Skeleton shimmer ── */
+@keyframes sk-shimmer { 0% { background-position:-400px 0 } 100% { background-position:400px 0 } }
+.sk-rect,.sk-round { background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:800px 100%;animation:sk-shimmer 1.4s infinite linear;border-radius:6px;height:10px; }
+.sk-round { height:28px;border-radius:8px; }
+.executive-kpi-skeleton .executive-kpi-head { display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px; }
+.sk-w70 { width:70% } .sk-w55 { width:55% } .sk-w50 { width:50% } .sk-w40 { width:40% } .sk-w30 { width:30% }
 </style>
