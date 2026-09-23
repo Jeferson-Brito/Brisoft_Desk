@@ -2,9 +2,24 @@
   <div class="page-container">
     <div class="page-header">
       <h2 class="page-title">Usuários & Acesso</h2>
-      <button class="btn-primary" @click="openNewUserModal">
-        <i class="fa-solid fa-user-plus"></i> Novo Usuário
-      </button>
+      <div class="header-actions">
+        <div v-if="showSearchInput" class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input
+            v-model="searchTerm"
+            type="text"
+            placeholder="Buscar usuário..."
+            class="search-input"
+            @keydown.esc="showSearchInput = false"
+          />
+        </div>
+        <button class="btn-search" type="button" @click="toggleSearch" title="Buscar usuário">
+          <i class="fa-solid fa-magnifying-glass"></i>
+        </button>
+        <button class="btn-primary" @click="openNewUserModal">
+          <i class="fa-solid fa-user-plus"></i> Novo Usuário
+        </button>
+      </div>
     </div>
 
     <div class="settings-section-card">
@@ -20,12 +35,12 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-if="usersList.length === 0">
+          <tr v-if="filteredUsers.length === 0">
             <td colspan="6" style="text-align:center;padding:24px;color:#94a3b8;">
-              Nenhum usuário cadastrado.
+              {{ searchTerm ? 'Nenhum usuário encontrado.' : 'Nenhum usuário cadastrado.' }}
             </td>
           </tr>
-          <tr v-for="u in usersList" :key="u.id">
+          <tr v-for="u in filteredUsers" :key="u.id">
             <td>
               <div style="display:flex;align-items:center;gap:10px;">
                 <div
@@ -92,7 +107,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { usersApi } from '@/api/users.api'
@@ -105,6 +120,26 @@ const ui = useUiStore()
 const usersList = ref([])
 const showModalUser = ref(false)
 const selectedUserForEdit = ref(null)
+const searchTerm = ref('')
+const showSearchInput = ref(false)
+
+const filteredUsers = computed(() => {
+  const list = [...usersList.value].sort((a, b) => {
+    const nameA = normalizePersonName(a.name || '').toLowerCase()
+    const nameB = normalizePersonName(b.name || '').toLowerCase()
+    return nameA.localeCompare(nameB, 'pt-BR')
+  })
+
+  if (!searchTerm.value.trim()) return list
+
+  const term = searchTerm.value.trim().toLowerCase()
+  return list.filter((user) => {
+    const name = normalizePersonName(user.name || '').toLowerCase()
+    const email = (user.email || '').toLowerCase()
+    const role = (user.role || '').toLowerCase()
+    return name.includes(term) || email.includes(term) || role.includes(term)
+  })
+})
 
 function getUserInitials(name) {
   return (name || 'U').split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
@@ -123,6 +158,13 @@ async function loadUsers() {
     }
   } catch (e) {
     console.error('Erro ao carregar usuários:', e)
+  }
+}
+
+function toggleSearch() {
+  showSearchInput.value = !showSearchInput.value
+  if (!showSearchInput.value) {
+    searchTerm.value = ''
   }
 }
 
@@ -170,13 +212,57 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   margin-bottom: 16px;
   flex-shrink: 0;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .page-title {
   font-size: 16px;
   font-weight: 700;
   color: var(--text-main);
+}
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #fff;
+}
+.search-box i {
+  color: #94a3b8;
+  font-size: 12px;
+}
+.search-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: 12px;
+  color: var(--text-main);
+  background: transparent;
+}
+.search-input::placeholder {
+  color: #94a3b8;
+}
+.btn-search {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
 }
 .settings-section-card {
   background: #ffffff;
