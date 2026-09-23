@@ -1110,7 +1110,7 @@ watch(() => chatStore.messages.length, () => {
 watch(() => chatStore.activeConversation?.id, async (newId) => {
   scrollToBottom()
   nextTick(() => {
-    inputTextareaRef.value?.focus()
+    inputTextareaRef.value?.focus({ preventScroll: true })
   })
 
   // Se o drawer de detalhes estiver aberto, carrega os dados da nova conversa
@@ -1240,7 +1240,7 @@ function toggleMessageSearch() {
   showMessageSearch.value = !showMessageSearch.value
   if (showMessageSearch.value) {
     nextTick(() => {
-      messageSearchInputRef.value?.focus()
+      messageSearchInputRef.value?.focus({ preventScroll: true })
     })
   } else {
     messageSearchQuery.value = ''
@@ -1425,7 +1425,7 @@ function startEditMessage(msg) {
   editingMessage.value = msg
   inputMessage.value = msg.text || ''
   nextTick(() => {
-    inputTextareaRef.value?.focus()
+    inputTextareaRef.value?.focus({ preventScroll: true })
   })
 }
 
@@ -1458,7 +1458,7 @@ function selectMentionMember(member) {
   }
   showMentionSuggestions.value = false
   nextTick(() => {
-    inputTextareaRef.value?.focus()
+    inputTextareaRef.value?.focus({ preventScroll: true })
   })
 }
 
@@ -1573,14 +1573,14 @@ function onInputTyping() {
 
 function insertEmoji(emoji) {
   inputMessage.value += emoji
-  inputTextareaRef.value?.focus()
+  inputTextareaRef.value?.focus({ preventScroll: true })
 }
 
 // ─── Citação e Resposta (Reply) ──────────────────────────────────────────────
 function setReplyTo(msg) {
   replyingTo.value = msg
   nextTick(() => {
-    inputTextareaRef.value?.focus()
+    inputTextareaRef.value?.focus({ preventScroll: true })
   })
 }
 
@@ -1798,10 +1798,12 @@ function formatMessageTime(dateStr) {
   display: grid;
   grid-template-columns: 340px 1fr;
   height: 100%;
+  max-height: 100%;
   width: 100%;
   background: #f8fafc;
   overflow: hidden;
   font-family: inherit;
+  box-sizing: border-box;
 }
 
 /* ─── SIDEBAR ESQUERDA ──────────────────────────────────────────────────────── */
@@ -1811,13 +1813,17 @@ function formatMessageTime(dateStr) {
   background: #ffffff;
   border-right: 1px solid #e2e8f0;
   height: 100%;
+  max-height: 100%;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .sidebar-header {
   padding: 16px;
   border-bottom: 1px solid #f1f5f9;
   background: #ffffff;
+  flex-shrink: 0;
 }
 
 .header-title-row {
@@ -1983,6 +1989,7 @@ function formatMessageTime(dateStr) {
   flex: 1;
   overflow-y: auto;
   padding: 10px 8px;
+  min-height: 0;
 }
 
 .section-label-row {
@@ -2183,15 +2190,20 @@ function formatMessageTime(dateStr) {
   display: flex;
   flex-direction: column;
   height: 100%;
+  max-height: 100%;
   background: #f8fafc;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .chat-main-container {
   display: flex;
   flex-direction: row;
   height: 100%;
+  max-height: 100%;
   min-width: 0;
+  min-height: 0;
   position: relative;
   overflow: hidden;
 }
@@ -2200,13 +2212,18 @@ function formatMessageTime(dateStr) {
   display: flex;
   flex-direction: column;
   height: 100%;
+  max-height: 100%;
   flex: 1;
   min-width: 0;
+  min-height: 0;
   position: relative;
+  overflow: hidden;
 }
 
 .chat-header {
   height: 58px;
+  min-height: 58px;
+  max-height: 58px;
   padding: 0 20px;
   background: #ffffff;
   border-bottom: 1px solid #e2e8f0;
@@ -2214,6 +2231,7 @@ function formatMessageTime(dateStr) {
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .chat-header-info {
@@ -2433,6 +2451,7 @@ function formatMessageTime(dateStr) {
   padding: 20px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .messages-loading {
@@ -2829,6 +2848,8 @@ function formatMessageTime(dateStr) {
   padding: 12px 20px;
   background: #ffffff;
   border-top: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .chat-input-form {
