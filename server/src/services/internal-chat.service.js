@@ -68,7 +68,7 @@ class InternalChatService {
             .from('internal_conversations')
             .select('*')
             .in('id', convIds)
-            .eq('type', 'direct');
+            .in('type', ['direct', 'group']);
           if (directs) directConvs = directs;
         }
 
@@ -460,6 +460,128 @@ class InternalChatService {
       } catch (_) {}
     }
     return 0;
+  }
+
+  // Cria um novo canal ou grupo interno
+  async createChannel(currentUser, { name, type = 'group', department_id = null, participant_ids = [] }) {
+    if (!name || !name.trim()) throw new Error('Nome do canal é obrigatório');
+
+    const cleanName = name.trim();
+    const newId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const allParticipantIds = [...new Set([currentUser.id, ...(participant_ids || [])])];
+
+    const convData = {
+      id: newId,
+      type: type || 'group',
+      name: cleanName,
+      department_id: department_id || null,
+      created_by: currentUser.id,
+      last_message_text: `Canal criado por ${currentUser.name || 'Colega'}`,
+      last_message_at: now,
+      created_at: now,
+      updated_at: now
+    };
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('internal_conversations').insert(convData);
+
+        if (allParticipantIds.length > 0) {
+          const participantRows = allParticipantIds.map(uid => ({
+            conversation_id: newId,
+            user_id: uid,
+            joined_at: now
+          }));
+          await supabase.from('internal_conversation_participants').insert(participantRows);
+        }
+      } catch (err) {
+        console.warn('Erro ao criar canal no Supabase, usando memória:', err.message);
+      }
+    }
+
+    // Salva em memória para redundância
+    memoryConversations.unshift(convData);
+    allParticipantIds.forEach(uid => {
+      memoryParticipants.push({ conversation_id: newId, user_id: uid });
+    });
+
+    // Notifica via Socket.io
+    if (this.io) {
+      if (type === 'general') {
+        this.io.emit('internal_conversation_created', convData);
+      } else {
+        allParticipantIds.forEach(uid => {
+          this.io.to(`user:${uid}`).emit('internal_conversation_created', convData);
+        });
+      }
+    }
+
+    return convData;
+  }
+
+  // Retorna detalhes completos da conversa (membros e galeria de mídia)
+  async getConversationDetails(conversationId) {
+    if (!conversationId) return null;
+
+    let conv = null;
+    let participants = [];
+    let mediaMessages = [];
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: convData } = await supabase
+          .from('internal_conversations')
+          .select('*')
+          .eq('id', conversationId)
+          .single();
+        if (convData) conv = convData;
+
+        // Participantes
+        const { data: partData } = await supabase
+          .from('internal_conversation_participants')
+          .select('user_id, joined_at, user:users(id, name, avatar_url, role, email)')
+          .eq('conversation_id', conversationId);
+
+        if (partData && Array.isArray(partData)) {
+          participants = partData.map(p => ({
+            id: p.user_id,
+            joined_at: p.joined_at,
+            name: p.user?.name || 'Colega',
+            avatar_url: p.user?.avatar_url || null,
+            role: p.user?.role || 'Colaborador',
+            email: p.user?.email || ''
+          }));
+        }
+
+        // Mídias compartilhadas
+        const { data: medias } = await supabase
+          .from('internal_messages')
+          .select('id, media_url, media_type, file_name, created_at, sender_id')
+          .eq('conversation_id', conversationId)
+          .not('media_url', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(30);
+
+        if (medias) mediaMessages = medias;
+      } catch (err) {
+        console.warn('Erro ao obter detalhes no Supabase:', err.message);
+      }
+    }
+
+    if (!conv) {
+      conv = memoryConversations.find(c => c.id === conversationId);
+      const partIds = memoryParticipants.filter(p => p.conversation_id === conversationId).map(p => p.user_id);
+      participants = partIds.map(uid => ({ id: uid, name: 'Colega', role: 'Colaborador' }));
+      mediaMessages = memoryMessages.filter(m => m.conversation_id === conversationId && m.media_url);
+    }
+
+    return {
+      conversation: conv,
+      participants,
+      mediaCount: mediaMessages.length,
+      mediaMessages
+    };
   }
 }
 

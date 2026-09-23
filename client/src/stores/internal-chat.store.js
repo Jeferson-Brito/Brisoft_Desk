@@ -11,6 +11,8 @@ export const useInternalChatStore = defineStore('internalChat', () => {
   const conversations = ref([])
   const teamMembers = ref([])
   const activeConversation = ref(null)
+  const conversationDetails = ref(null)
+  const isLoadingDetails = ref(false)
   const messages = ref([])
   const isLoading = ref(false)
   const isSending = ref(false)
@@ -198,10 +200,54 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     }
   }
 
+  // Cria canal ou grupo corporativo
+  async function createChannel(payload) {
+    try {
+      const { data } = await internalChatApi.createChannel(payload)
+      if (data?.success && data.conversation) {
+        if (!conversations.value.some(c => c.id === data.conversation.id)) {
+          conversations.value.unshift(data.conversation)
+        }
+        await selectConversation(data.conversation)
+        ui.showToast(`🎉 Canal "${data.conversation.name}" criado com sucesso!`)
+        return data.conversation
+      }
+    } catch (err) {
+      ui.showToast('Erro ao criar canal: ' + (err.response?.data?.error || err.message), 'error')
+    }
+  }
+
+  // Busca detalhes da conversa (participantes e mídias)
+  async function fetchConversationDetails(conversationId) {
+    if (!conversationId) return
+    isLoadingDetails.value = true
+    try {
+      const { data } = await internalChatApi.getConversationDetails(conversationId)
+      if (data?.success && data.details) {
+        conversationDetails.value = data.details
+      }
+    } catch (err) {
+      console.warn('Erro ao carregar detalhes da conversa:', err)
+    } finally {
+      isLoadingDetails.value = false
+    }
+  }
+
+  // Notificação de novo canal criado em tempo real
+  function handleConversationCreated(conv) {
+    if (!conv || !conv.id) return
+    if (!conversations.value.some(c => c.id === conv.id)) {
+      conversations.value.unshift(conv)
+      ui.showToast(`📢 Novo canal disponível: ${conv.name}`)
+    }
+  }
+
   return {
     conversations,
     teamMembers,
     activeConversation,
+    conversationDetails,
+    isLoadingDetails,
     messages,
     isLoading,
     isSending,
@@ -211,6 +257,9 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     fetchTeamMembers,
     selectConversation,
     startDirectChatWith,
+    createChannel,
+    fetchConversationDetails,
+    handleConversationCreated,
     sendMessage,
     sendMedia,
     handleIncomingInternalMessage,

@@ -119,6 +119,33 @@ class InternalChatController {
       return res.status(500).json({ success: false, error: error.message });
     }
   }
+
+  async createChannel(req, res) {
+    try {
+      const { name, type, department_id, participant_ids } = req.body;
+      const conversation = await internalChatService.createChannel(req.user, {
+        name,
+        type,
+        department_id,
+        participant_ids
+      });
+      return res.json({ success: true, conversation });
+    } catch (error) {
+      console.error('Erro ao criar canal interno:', error);
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async getConversationDetails(req, res) {
+    try {
+      const { id } = req.params;
+      const details = await internalChatService.getConversationDetails(id);
+      return res.json({ success: true, details });
+    } catch (error) {
+      console.error('Erro ao obter detalhes da conversa:', error);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+  }
 }
 
 module.exports = new InternalChatController();

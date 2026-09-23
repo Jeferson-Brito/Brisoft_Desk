@@ -17,7 +17,7 @@
           </span>
         </div>
 
-        <!-- Campo de Busca -->
+        <!-- Campo de Busca na Sidebar -->
         <div class="search-box-wrapper">
           <i class="ri-search-line search-icon"></i>
           <input
@@ -30,374 +30,653 @@
             <i class="ri-close-line"></i>
           </button>
         </div>
+
+        <!-- Pílulas de Filtro (Fase 3) -->
+        <div class="sidebar-filter-tabs">
+          <button
+            type="button"
+            class="filter-pill"
+            :class="{ active: activeFilter === 'all' }"
+            @click="activeFilter = 'all'"
+          >
+            Todos
+          </button>
+          <button
+            type="button"
+            class="filter-pill"
+            :class="{ active: activeFilter === 'channels' }"
+            @click="activeFilter = 'channels'"
+          >
+            Canais
+          </button>
+          <button
+            type="button"
+            class="filter-pill"
+            :class="{ active: activeFilter === 'direct' }"
+            @click="activeFilter = 'direct'"
+          >
+            Colegas
+          </button>
+          <button
+            type="button"
+            class="filter-pill"
+            :class="{ active: activeFilter === 'unread' }"
+            @click="activeFilter = 'unread'"
+          >
+            Não Lidas
+            <span v-if="chatStore.totalUnreadCount > 0" class="filter-unread-count">
+              {{ chatStore.totalUnreadCount }}
+            </span>
+          </button>
+        </div>
       </div>
 
       <div class="sidebar-scrollable">
         <!-- SEÇÃO: Canais Coletivos -->
-        <div class="section-label">
-          <span>CANAIS DA EMPRESA</span>
-        </div>
+        <div
+          v-if="activeFilter === 'all' || activeFilter === 'channels' || (activeFilter === 'unread' && unreadChannelConversations.length > 0)"
+          class="section-channels-wrapper"
+        >
+          <div class="section-label-row">
+            <span class="section-label-text">CANAIS DA EMPRESA</span>
+            <button
+              type="button"
+              class="btn-new-channel"
+              title="Criar novo canal corporativo"
+              @click="openNewChannelModal"
+            >
+              <i class="ri-add-line"></i> Novo
+            </button>
+          </div>
 
-        <div class="conversations-list">
-          <button
-            v-for="conv in channelConversations"
-            :key="conv.id"
-            type="button"
-            class="conversation-item channel-item"
-            :class="{ active: chatStore.activeConversation?.id === conv.id }"
-            @click="chatStore.selectConversation(conv)"
-          >
-            <div class="channel-icon-box">
-              <i :class="conv.type === 'general' ? 'ri-megaphone-line' : 'ri-building-line'"></i>
-            </div>
-            <div class="conversation-info">
-              <div class="conv-title-row">
-                <span class="conv-title">{{ conv.name }}</span>
-                <span v-if="conv.last_message_at" class="conv-time">{{ formatTime(conv.last_message_at) }}</span>
+          <div class="conversations-list">
+            <button
+              v-for="conv in displayedChannels"
+              :key="conv.id"
+              type="button"
+              class="conversation-item channel-item"
+              :class="{ active: chatStore.activeConversation?.id === conv.id }"
+              @click="selectConversationWithDetails(conv)"
+            >
+              <div class="channel-icon-box">
+                <i :class="getChannelIcon(conv.type)"></i>
               </div>
-              <div class="conv-preview-row">
-                <span class="conv-preview">{{ conv.last_message_text || 'Sem mensagens recentes' }}</span>
-                <span v-if="conv.unread_count > 0" class="conv-unread-badge">{{ conv.unread_count }}</span>
+              <div class="conversation-info">
+                <div class="conv-title-row">
+                  <span class="conv-title">{{ conv.name }}</span>
+                  <span v-if="conv.last_message_at" class="conv-time">{{ formatTime(conv.last_message_at) }}</span>
+                </div>
+                <div class="conv-preview-row">
+                  <span class="conv-preview">{{ conv.last_message_text || 'Sem mensagens recentes' }}</span>
+                  <span v-if="conv.unread_count > 0" class="conv-unread-badge">{{ conv.unread_count }}</span>
+                </div>
               </div>
-            </div>
-          </button>
+            </button>
+          </div>
         </div>
 
         <!-- SEÇÃO: Mensagens Diretas (Equipe) -->
-        <div class="section-label section-mt">
-          <span>COLEGAS DE TRABALHO ({{ filteredMembers.length }})</span>
-        </div>
-
-        <div class="members-list">
-          <div v-if="filteredMembers.length === 0" class="empty-members-msg">
-            <i class="ri-user-search-line"></i>
-            <span>Nenhum colega encontrado</span>
+        <div
+          v-if="activeFilter === 'all' || activeFilter === 'direct' || (activeFilter === 'unread' && displayedMembers.length > 0)"
+          class="section-members-wrapper"
+        >
+          <div class="section-label-row section-mt">
+            <span class="section-label-text">COLEGAS DE TRABALHO ({{ displayedMembers.length }})</span>
           </div>
 
-          <button
-            v-for="member in filteredMembers"
-            :key="member.id"
-            type="button"
-            class="conversation-item member-item"
-            :class="{ active: isDirectActive(member.id) }"
-            @click="openDirectChat(member.id)"
-          >
-            <div class="member-avatar-wrapper">
-              <div class="member-avatar" :style="getAvatarStyle(member)">
-                <img v-if="member.avatar_url" :src="member.avatar_url" :alt="member.name" />
-                <span v-else>{{ getInitials(member.name) }}</span>
-              </div>
-              <span
-                class="member-status-dot"
-                :class="{ online: isUserOnline(member.id) }"
-                :title="isUserOnline(member.id) ? 'Online no sistema' : 'Offline'"
-              ></span>
+          <div class="members-list">
+            <div v-if="displayedMembers.length === 0" class="empty-members-msg">
+              <i class="ri-user-search-line"></i>
+              <span>Nenhum colega encontrado</span>
             </div>
 
-            <div class="conversation-info">
-              <div class="conv-title-row">
-                <span class="conv-title">{{ member.name }}</span>
-                <span v-if="getDirectConv(member.id)?.last_message_at" class="conv-time">
-                  {{ formatTime(getDirectConv(member.id).last_message_at) }}
-                </span>
+            <button
+              v-for="member in displayedMembers"
+              :key="member.id"
+              type="button"
+              class="conversation-item member-item"
+              :class="{ active: isDirectActive(member.id) }"
+              @click="openDirectChatWithDetails(member.id)"
+            >
+              <div class="member-avatar-wrapper">
+                <div class="member-avatar" :style="getAvatarStyle(member)">
+                  <img v-if="member.avatar_url" :src="member.avatar_url" :alt="member.name" />
+                  <span v-else>{{ getInitials(member.name) }}</span>
+                </div>
+                <span
+                  class="member-status-dot"
+                  :class="{ online: isUserOnline(member.id) }"
+                  :title="isUserOnline(member.id) ? 'Online no sistema' : 'Offline'"
+                ></span>
               </div>
-              <div class="conv-preview-row">
-                <span class="member-role-label">{{ member.role || 'Colaborador' }}</span>
-                <span v-if="getDirectConv(member.id)?.unread_count > 0" class="conv-unread-badge">
-                  {{ getDirectConv(member.id).unread_count }}
-                </span>
+
+              <div class="conversation-info">
+                <div class="conv-title-row">
+                  <span class="conv-title">{{ member.name }}</span>
+                  <span v-if="getDirectConv(member.id)?.last_message_at" class="conv-time">
+                    {{ formatTime(getDirectConv(member.id).last_message_at) }}
+                  </span>
+                </div>
+                <div class="conv-preview-row">
+                  <span class="member-role-label">{{ member.role || 'Colaborador' }}</span>
+                  <span v-if="getDirectConv(member.id)?.unread_count > 0" class="conv-unread-badge">
+                    {{ getDirectConv(member.id).unread_count }}
+                  </span>
+                </div>
               </div>
-            </div>
-          </button>
+            </button>
+          </div>
         </div>
       </div>
     </aside>
 
-    <!-- Coluna 2: Janela de Conversa Ativa -->
+    <!-- Coluna 2: Janela de Conversa Ativa e Painel de Informações -->
     <main class="internal-chat-main">
-      <div v-if="chatStore.activeConversation" class="chat-main-container">
-        <!-- Topo da Conversa -->
-        <header class="chat-header">
-          <div class="chat-header-info">
-            <div
-              v-if="chatStore.activeConversation.type === 'direct'"
-              class="member-avatar-wrapper header-avatar"
-            >
-              <div class="member-avatar" :style="getAvatarStyle(activeDirectUser)">
-                <img v-if="activeDirectUser?.avatar_url" :src="activeDirectUser.avatar_url" :alt="chatStore.activeConversation.name" />
-                <span v-else>{{ getInitials(chatStore.activeConversation.name) }}</span>
-              </div>
-              <span
-                class="member-status-dot"
-                :class="{ online: isUserOnline(activeDirectUser?.id) }"
-              ></span>
-            </div>
-
-            <div v-else class="channel-icon-box header-channel-icon">
-              <i :class="chatStore.activeConversation.type === 'general' ? 'ri-megaphone-line' : 'ri-building-line'"></i>
-            </div>
-
-            <div class="chat-header-text">
-              <h3 class="chat-title">{{ chatStore.activeConversation.name }}</h3>
-              <p class="chat-subtitle">
-                <template v-if="chatStore.activeConversation.type === 'direct'">
-                  <span class="status-indicator-text" :class="{ online: isUserOnline(activeDirectUser?.id) }">
-                    {{ isUserOnline(activeDirectUser?.id) ? 'Disponível agora' : 'Offline' }}
-                  </span>
-                  <span class="sep-dot">•</span>
-                  <span>{{ activeDirectUser?.role || 'Colaborador' }}</span>
-                </template>
-                <template v-else-if="chatStore.activeConversation.type === 'general'">
-                  <span>Canal visível para todos os colaboradores da empresa</span>
-                </template>
-                <template v-else>
-                  <span>Canal exclusivo do setor</span>
-                </template>
-              </p>
-            </div>
-          </div>
-
-          <div class="chat-header-actions">
-            <span class="secure-internal-badge" title="Mensagens trafegam exclusivamente dentro da rede interna">
-              <i class="ri-shield-check-line"></i> Chat Interno Seguro
-            </span>
-          </div>
-        </header>
-
-        <!-- Área de Rolagem das Mensagens -->
-        <div class="chat-messages-area" ref="messagesContainerRef">
-          <div v-if="chatStore.isLoading" class="messages-loading">
-            <i class="ri-loader-4-line spin-icon"></i>
-            <span>Carregando histórico...</span>
-          </div>
-
-          <div v-else-if="chatStore.messages.length === 0" class="empty-chat-state">
-            <div class="empty-icon-circle">
-              <i class="ri-chat-smile-2-line"></i>
-            </div>
-            <h4>Início da conversa</h4>
-            <p>Nenhuma mensagem enviada ainda. Envie uma saudação para começar a interagir!</p>
-          </div>
-
-          <div v-else class="messages-flow">
-            <template
-              v-for="(msg, index) in chatStore.messages"
-              :key="msg.id || index"
-            >
-              <!-- Divisor de Data -->
-              <div v-if="shouldShowDateDivider(chatStore.messages, index)" class="chat-date-divider">
-                <span class="date-badge">{{ formatDateDivider(msg.created_at) }}</span>
-              </div>
-
+      <div v-if="chatStore.activeConversation" class="chat-main-container" :class="{ 'with-drawer': showDetailsDrawer }">
+        <!-- Painel Central de Mensagens -->
+        <div class="chat-conversation-pane">
+          <!-- Topo da Conversa -->
+          <header class="chat-header">
+            <div class="chat-header-info">
               <div
-                :id="`msg-${msg.id}`"
-                class="message-row"
-                :class="{
-                  'message-mine': msg.sender_id === auth.user?.id,
-                  'message-other': msg.sender_id !== auth.user?.id
-                }"
+                v-if="chatStore.activeConversation.type === 'direct'"
+                class="member-avatar-wrapper header-avatar"
               >
-                <!-- Avatar do colega nas mensagens recebidas -->
-                <div
-                  v-if="msg.sender_id !== auth.user?.id"
-                  class="message-sender-avatar"
-                  :style="getAvatarStyle(msg.sender)"
-                  :title="msg.sender?.name"
-                >
-                  <img v-if="msg.sender?.avatar_url" :src="msg.sender.avatar_url" :alt="msg.sender.name" />
-                  <span v-else>{{ getInitials(msg.sender?.name) }}</span>
+                <div class="member-avatar" :style="getAvatarStyle(activeDirectUser)">
+                  <img v-if="activeDirectUser?.avatar_url" :src="activeDirectUser.avatar_url" :alt="chatStore.activeConversation.name" />
+                  <span v-else>{{ getInitials(chatStore.activeConversation.name) }}</span>
+                </div>
+                <span
+                  class="member-status-dot"
+                  :class="{ online: isUserOnline(activeDirectUser?.id) }"
+                ></span>
+              </div>
+
+              <div v-else class="channel-icon-box header-channel-icon">
+                <i :class="getChannelIcon(chatStore.activeConversation.type)"></i>
+              </div>
+
+              <div class="chat-header-text">
+                <h3 class="chat-title">{{ chatStore.activeConversation.name }}</h3>
+                <p class="chat-subtitle">
+                  <template v-if="chatStore.activeConversation.type === 'direct'">
+                    <span class="status-indicator-text" :class="{ online: isUserOnline(activeDirectUser?.id) }">
+                      {{ isUserOnline(activeDirectUser?.id) ? 'Disponível agora' : 'Offline' }}
+                    </span>
+                    <span class="sep-dot">•</span>
+                    <span>{{ activeDirectUser?.role || 'Colaborador' }}</span>
+                  </template>
+                  <template v-else-if="chatStore.activeConversation.type === 'general'">
+                    <span>Canal visível para todos os colaboradores da empresa</span>
+                  </template>
+                  <template v-else-if="chatStore.activeConversation.type === 'group'">
+                    <span>Grupo interno restrito a participantes</span>
+                  </template>
+                  <template v-else>
+                    <span>Canal exclusivo do setor</span>
+                  </template>
+                </p>
+              </div>
+            </div>
+
+            <div class="chat-header-actions">
+              <span class="secure-internal-badge" title="Mensagens trafegam exclusivamente dentro da rede interna">
+                <i class="ri-shield-check-line"></i> Seguro
+              </span>
+
+              <!-- Botão: Pesquisar nesta conversa -->
+              <button
+                type="button"
+                class="header-action-btn"
+                :class="{ active: showMessageSearch }"
+                title="Pesquisar mensagens nesta conversa"
+                @click="toggleMessageSearch"
+              >
+                <i class="ri-search-line"></i>
+              </button>
+
+              <!-- Botão: Detalhes da conversa / Mídias -->
+              <button
+                type="button"
+                class="header-action-btn"
+                :class="{ active: showDetailsDrawer }"
+                title="Ver participantes e mídias da conversa"
+                @click="toggleDetailsDrawer"
+              >
+                <i class="ri-layout-right-line"></i>
+              </button>
+            </div>
+          </header>
+
+          <!-- Barra Retrátil de Busca Textual na Conversa Ativa (Fase 3) -->
+          <div v-if="showMessageSearch" class="conversation-search-bar">
+            <div class="search-bar-input-box">
+              <i class="ri-search-line"></i>
+              <input
+                ref="messageSearchInputRef"
+                v-model="messageSearchQuery"
+                type="text"
+                placeholder="Pesquisar mensagens na conversa atual..."
+                class="conv-search-input"
+                @keydown.enter.prevent="nextSearchMatch"
+                @keydown.esc="closeMessageSearch"
+              />
+              <button v-if="messageSearchQuery" type="button" class="btn-clear-query" @click="messageSearchQuery = ''">
+                <i class="ri-close-line"></i>
+              </button>
+            </div>
+
+            <div class="search-bar-nav">
+              <span class="search-count-label">
+                {{ messageSearchQuery ? (searchMatches.length > 0 ? `${currentSearchIndex + 1} de ${searchMatches.length}` : 'Nenhum resultado') : '' }}
+              </span>
+              <button
+                type="button"
+                class="search-nav-btn"
+                :disabled="searchMatches.length === 0"
+                title="Resultado anterior"
+                @click="prevSearchMatch"
+              >
+                <i class="ri-arrow-up-s-line"></i>
+              </button>
+              <button
+                type="button"
+                class="search-nav-btn"
+                :disabled="searchMatches.length === 0"
+                title="Próximo resultado"
+                @click="nextSearchMatch"
+              >
+                <i class="ri-arrow-down-s-line"></i>
+              </button>
+              <button
+                type="button"
+                class="search-close-btn"
+                title="Fechar pesquisa (Esc)"
+                @click="closeMessageSearch"
+              >
+                <i class="ri-close-line"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Área de Rolagem das Mensagens -->
+          <div class="chat-messages-area" ref="messagesContainerRef">
+            <div v-if="chatStore.isLoading" class="messages-loading">
+              <i class="ri-loader-4-line spin-icon"></i>
+              <span>Carregando histórico...</span>
+            </div>
+
+            <div v-else-if="chatStore.messages.length === 0" class="empty-chat-state">
+              <div class="empty-icon-circle">
+                <i class="ri-chat-smile-2-line"></i>
+              </div>
+              <h4>Início da conversa</h4>
+              <p>Nenhuma mensagem enviada ainda. Envie uma saudação para começar a interagir!</p>
+            </div>
+
+            <div v-else class="messages-flow">
+              <template
+                v-for="(msg, index) in chatStore.messages"
+                :key="msg.id || index"
+              >
+                <!-- Divisor de Data -->
+                <div v-if="shouldShowDateDivider(chatStore.messages, index)" class="chat-date-divider">
+                  <span class="date-badge">{{ formatDateDivider(msg.created_at) }}</span>
                 </div>
 
-                <div class="message-bubble-wrapper">
-                  <div class="message-bubble-box">
-                    <!-- Botão de Ação Rápida: Responder -->
-                    <button
-                      type="button"
-                      class="msg-reply-trigger"
-                      title="Responder mensagem"
-                      @click="setReplyTo(msg)"
-                    >
-                      <i class="ri-reply-line"></i>
-                    </button>
+                <div
+                  :id="`msg-${msg.id}`"
+                  class="message-row"
+                  :class="{
+                    'message-mine': msg.sender_id === auth.user?.id,
+                    'message-other': msg.sender_id !== auth.user?.id,
+                    'search-target-matched': isMessageSearchMatched(msg.id)
+                  }"
+                >
+                  <!-- Avatar do colega nas mensagens recebidas -->
+                  <div
+                    v-if="msg.sender_id !== auth.user?.id"
+                    class="message-sender-avatar"
+                    :style="getAvatarStyle(msg.sender)"
+                    :title="msg.sender?.name"
+                  >
+                    <img v-if="msg.sender?.avatar_url" :src="msg.sender.avatar_url" :alt="msg.sender.name" />
+                    <span v-else>{{ getInitials(msg.sender?.name) }}</span>
+                  </div>
 
-                    <!-- Nome do remetente (apenas em canais ou se for de outro usuário) -->
-                    <span
-                      v-if="msg.sender_id !== auth.user?.id && chatStore.activeConversation.type !== 'direct'"
-                      class="bubble-sender-name"
-                    >
-                      {{ msg.sender?.name || 'Colega' }}
-                    </span>
+                  <div class="message-bubble-wrapper">
+                    <div class="message-bubble-box">
+                      <!-- Botão de Ação Rápida: Responder -->
+                      <button
+                        type="button"
+                        class="msg-reply-trigger"
+                        title="Responder mensagem"
+                        @click="setReplyTo(msg)"
+                      >
+                        <i class="ri-reply-line"></i>
+                      </button>
 
-                    <!-- Citação da Mensagem Respondida (se houver) -->
-                    <div
-                      v-if="msg.reply_to_id && findMessageById(msg.reply_to_id)"
-                      class="quoted-reply-box"
-                      @click="scrollToMessage(msg.reply_to_id)"
-                    >
-                      <div class="quoted-bar"></div>
-                      <div class="quoted-content">
-                        <span class="quoted-sender">{{ findMessageById(msg.reply_to_id)?.sender?.name || 'Colega' }}</span>
-                        <span class="quoted-snippet">{{ getMessageSnippet(findMessageById(msg.reply_to_id)) }}</span>
+                      <!-- Nome do remetente (apenas em canais ou se for de outro usuário) -->
+                      <span
+                        v-if="msg.sender_id !== auth.user?.id && chatStore.activeConversation.type !== 'direct'"
+                        class="bubble-sender-name"
+                      >
+                        {{ msg.sender?.name || 'Colega' }}
+                      </span>
+
+                      <!-- Citação da Mensagem Respondida (se houver) -->
+                      <div
+                        v-if="msg.reply_to_id && findMessageById(msg.reply_to_id)"
+                        class="quoted-reply-box"
+                        @click="scrollToMessage(msg.reply_to_id)"
+                      >
+                        <div class="quoted-bar"></div>
+                        <div class="quoted-content">
+                          <span class="quoted-sender">{{ findMessageById(msg.reply_to_id)?.sender?.name || 'Colega' }}</span>
+                          <span class="quoted-snippet">{{ getMessageSnippet(findMessageById(msg.reply_to_id)) }}</span>
+                        </div>
                       </div>
-                    </div>
 
-                    <!-- Mídia: Imagem -->
-                    <div
-                      v-if="msg.media_type === 'image' || isImageUrl(msg.media_url)"
-                      class="message-media-image"
-                      @click="openImagePreview(msg.media_url)"
-                    >
-                      <img :src="msg.media_url" :alt="msg.file_name || 'Imagem'" loading="lazy" />
-                    </div>
+                      <!-- Mídia: Imagem -->
+                      <div
+                        v-if="msg.media_type === 'image' || isImageUrl(msg.media_url)"
+                        class="message-media-image"
+                        @click="openImagePreview(msg.media_url)"
+                      >
+                        <img :src="msg.media_url" :alt="msg.file_name || 'Imagem'" loading="lazy" />
+                      </div>
 
-                    <!-- Mídia: Áudio -->
-                    <div
-                      v-else-if="msg.media_type === 'audio'"
-                      class="message-media-audio"
-                    >
-                      <audio :src="msg.media_url" controls controlsList="nodownload"></audio>
-                    </div>
+                      <!-- Mídia: Áudio -->
+                      <div
+                        v-else-if="msg.media_type === 'audio'"
+                        class="message-media-audio"
+                      >
+                        <audio :src="msg.media_url" controls controlsList="nodownload"></audio>
+                      </div>
 
-                    <!-- Mídia: Documento / Arquivo -->
-                    <div
-                      v-else-if="msg.media_type === 'document' || msg.media_url"
-                      class="message-media-doc"
-                    >
-                      <a :href="msg.media_url" target="_blank" download class="doc-attachment-card">
-                        <div class="doc-icon-box">
-                          <i class="ri-file-text-line"></i>
-                        </div>
-                        <div class="doc-info-box">
-                          <span class="doc-title">{{ msg.file_name || 'Documento anexo' }}</span>
-                          <span class="doc-action">Clique para baixar</span>
-                        </div>
-                        <i class="ri-download-2-line doc-download-icon"></i>
-                      </a>
-                    </div>
+                      <!-- Mídia: Documento / Arquivo -->
+                      <div
+                        v-else-if="msg.media_type === 'document' || msg.media_url"
+                        class="message-media-doc"
+                      >
+                        <a :href="msg.media_url" target="_blank" download class="doc-attachment-card">
+                          <div class="doc-icon-box">
+                            <i class="ri-file-text-line"></i>
+                          </div>
+                          <div class="doc-info-box">
+                            <span class="doc-title">{{ msg.file_name || 'Documento anexo' }}</span>
+                            <span class="doc-action">Clique para baixar</span>
+                          </div>
+                          <i class="ri-download-2-line doc-download-icon"></i>
+                        </a>
+                      </div>
 
-                    <!-- Texto da Mensagem -->
-                    <div
-                      v-if="msg.text"
-                      class="message-text-content"
-                      v-html="formatMessageBody(msg.text)"
-                    ></div>
+                      <!-- Texto da Mensagem -->
+                      <div
+                        v-if="msg.text"
+                        class="message-text-content"
+                        v-html="formatMessageBody(msg.text)"
+                      ></div>
 
-                    <div class="message-meta-row">
-                      <span class="message-timestamp">{{ formatMessageTime(msg.created_at) }}</span>
-                      <i
-                        v-if="msg.sender_id === auth.user?.id"
-                        class="ri-check-double-line message-check-read"
-                      ></i>
+                      <div class="message-meta-row">
+                        <span class="message-timestamp">{{ formatMessageTime(msg.created_at) }}</span>
+                        <i
+                          v-if="msg.sender_id === auth.user?.id"
+                          class="ri-check-double-line message-check-read"
+                        ></i>
+                      </div>
                     </div>
                   </div>
                 </div>
+              </template>
+            </div>
+
+            <!-- Indicador de Digitação -->
+            <div v-if="isTypingNow" class="typing-indicator-row">
+              <div class="typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
               </div>
-            </template>
+              <span class="typing-label">{{ typingLabel }}</span>
+            </div>
           </div>
 
-          <!-- Indicador de Digitação -->
-          <div v-if="isTypingNow" class="typing-indicator-row">
-            <div class="typing-dots">
-              <span></span>
-              <span></span>
-              <span></span>
+          <!-- Barra Inferior de Envio de Mensagem -->
+          <footer class="chat-input-footer">
+            <!-- Barra de Resposta Ativa -->
+            <div v-if="replyingTo" class="active-reply-banner">
+              <div class="reply-banner-bar"></div>
+              <div class="reply-banner-info">
+                <span class="reply-banner-title">
+                  Respondendo a <strong>{{ replyingTo.sender?.name || 'Colega' }}</strong>
+                </span>
+                <span class="reply-banner-snippet">{{ getMessageSnippet(replyingTo) }}</span>
+              </div>
+              <button type="button" class="btn-cancel-reply" title="Cancelar resposta" @click="cancelReply">
+                <i class="ri-close-line"></i>
+              </button>
             </div>
-            <span class="typing-label">{{ typingLabel }}</span>
-          </div>
+
+            <!-- Barra de Gravação de Áudio Ativa -->
+            <div v-if="isRecordingAudio" class="audio-recording-bar">
+              <div class="recording-indicator">
+                <span class="rec-pulse-dot"></span>
+                <span class="rec-timer">Gravando {{ formatRecordingTime(recordingSeconds) }}</span>
+              </div>
+              <div class="recording-actions">
+                <button type="button" class="btn-cancel-rec" title="Cancelar gravação" @click="cancelAudioRecording">
+                  <i class="ri-delete-bin-line"></i> Cancelar
+                </button>
+                <button type="button" class="btn-send-rec" title="Enviar áudio" @click="stopAndSendAudioRecording">
+                  <i class="ri-send-plane-fill"></i> Enviar Áudio
+                </button>
+              </div>
+            </div>
+
+            <!-- Formulário Normal de Envio -->
+            <form v-else class="chat-input-form" @submit.prevent="handleSend">
+              <input
+                ref="fileInputRef"
+                type="file"
+                style="display: none"
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                @change="onFileSelected"
+              />
+
+              <button
+                type="button"
+                class="tool-btn"
+                title="Anexar imagem ou documento"
+                @click="triggerFileInput"
+              >
+                <i class="ri-attachment-line"></i>
+              </button>
+
+              <button
+                type="button"
+                class="tool-btn"
+                title="Inserir emoji"
+                @click="insertEmoji('👋')"
+              >
+                <i class="ri-emotion-happy-line"></i>
+              </button>
+
+              <textarea
+                ref="inputTextareaRef"
+                v-model="inputMessage"
+                rows="1"
+                placeholder="Digite sua mensagem interna... (Enter para enviar, Shift+Enter para quebrar linha)"
+                class="chat-textarea"
+                @keydown="onKeyDown"
+                @input="onInputTyping"
+              ></textarea>
+
+              <button
+                v-if="!inputMessage.trim()"
+                type="button"
+                class="tool-btn mic-btn"
+                title="Gravar mensagem de voz"
+                @click="startAudioRecording"
+              >
+                <i class="ri-mic-line"></i>
+              </button>
+
+              <button
+                v-else
+                type="submit"
+                class="send-message-btn"
+                :disabled="chatStore.isSending"
+                title="Enviar mensagem"
+              >
+                <i v-if="chatStore.isSending" class="ri-loader-4-line spin-icon"></i>
+                <i v-else class="ri-send-plane-2-fill"></i>
+              </button>
+            </form>
+          </footer>
         </div>
 
-        <!-- Barra Inferior de Envio de Mensagem -->
-        <footer class="chat-input-footer">
-          <!-- Barra de Resposta Ativa -->
-          <div v-if="replyingTo" class="active-reply-banner">
-            <div class="reply-banner-bar"></div>
-            <div class="reply-banner-info">
-              <span class="reply-banner-title">
-                Respondendo a <strong>{{ replyingTo.sender?.name || 'Colega' }}</strong>
-              </span>
-              <span class="reply-banner-snippet">{{ getMessageSnippet(replyingTo) }}</span>
-            </div>
-            <button type="button" class="btn-cancel-reply" title="Cancelar resposta" @click="cancelReply">
+        <!-- Painel Lateral Direito: Drawer de Informações da Conversa (Fase 3) -->
+        <aside v-if="showDetailsDrawer" class="conversation-details-drawer">
+          <div class="drawer-header">
+            <h4 class="drawer-title">Detalhes da Conversa</h4>
+            <button type="button" class="drawer-close-btn" title="Fechar painel" @click="showDetailsDrawer = false">
               <i class="ri-close-line"></i>
             </button>
           </div>
 
-          <!-- Barra de Gravação de Áudio Ativa -->
-          <div v-if="isRecordingAudio" class="audio-recording-bar">
-            <div class="recording-indicator">
-              <span class="rec-pulse-dot"></span>
-              <span class="rec-timer">Gravando {{ formatRecordingTime(recordingSeconds) }}</span>
+          <div class="drawer-content">
+            <!-- Card de Perfil da Conversa -->
+            <div class="drawer-profile-card">
+              <div v-if="chatStore.activeConversation.type === 'direct'" class="drawer-big-avatar" :style="getAvatarStyle(activeDirectUser)">
+                <img v-if="activeDirectUser?.avatar_url" :src="activeDirectUser.avatar_url" :alt="chatStore.activeConversation.name" />
+                <span v-else>{{ getInitials(chatStore.activeConversation.name) }}</span>
+              </div>
+              <div v-else class="drawer-big-icon">
+                <i :class="getChannelIcon(chatStore.activeConversation.type)"></i>
+              </div>
+
+              <h3 class="drawer-conv-name">{{ chatStore.activeConversation.name }}</h3>
+              <span class="drawer-conv-type-badge">
+                {{ getConversationTypeLabel(chatStore.activeConversation) }}
+              </span>
             </div>
-            <div class="recording-actions">
-              <button type="button" class="btn-cancel-rec" title="Cancelar gravação" @click="cancelAudioRecording">
-                <i class="ri-delete-bin-line"></i> Cancelar
+
+            <!-- Abas do Drawer: Membros / Arquivos -->
+            <div class="drawer-tabs">
+              <button
+                type="button"
+                class="drawer-tab"
+                :class="{ active: detailsTab === 'members' }"
+                @click="detailsTab = 'members'"
+              >
+                <i class="ri-group-line"></i> Membros
+                <span v-if="conversationParticipants.length" class="drawer-badge-count">
+                  {{ conversationParticipants.length }}
+                </span>
               </button>
-              <button type="button" class="btn-send-rec" title="Enviar áudio" @click="stopAndSendAudioRecording">
-                <i class="ri-send-plane-fill"></i> Enviar Áudio
+              <button
+                type="button"
+                class="drawer-tab"
+                :class="{ active: detailsTab === 'media' }"
+                @click="detailsTab = 'media'"
+              >
+                <i class="ri-attachment-line"></i> Mídias
+                <span v-if="sharedMediaFiles.length" class="drawer-badge-count">
+                  {{ sharedMediaFiles.length }}
+                </span>
               </button>
+            </div>
+
+            <!-- Aba Membros -->
+            <div v-if="detailsTab === 'members'" class="drawer-tab-pane">
+              <div v-if="chatStore.isLoadingDetails" class="drawer-loading">
+                <i class="ri-loader-4-line spin-icon"></i> Carregando membros...
+              </div>
+              <div v-else class="drawer-members-list">
+                <div
+                  v-for="member in conversationParticipants"
+                  :key="member.id"
+                  class="drawer-member-card"
+                >
+                  <div class="member-avatar-wrapper">
+                    <div class="member-avatar drawer-small-avatar" :style="getAvatarStyle(member)">
+                      <img v-if="member.avatar_url" :src="member.avatar_url" :alt="member.name" />
+                      <span v-else>{{ getInitials(member.name) }}</span>
+                    </div>
+                    <span class="member-status-dot" :class="{ online: isUserOnline(member.id) }"></span>
+                  </div>
+                  <div class="drawer-member-info">
+                    <span class="drawer-member-name">{{ member.name }}</span>
+                    <span class="drawer-member-sub">
+                      {{ isUserOnline(member.id) ? 'Online agora' : 'Offline' }} • {{ member.role || 'Colaborador' }}
+                    </span>
+                  </div>
+                  <button
+                    v-if="member.id !== auth.user?.id"
+                    type="button"
+                    class="btn-quick-direct"
+                    title="Conversar em particular"
+                    @click="openDirectChatWithDetails(member.id)"
+                  >
+                    <i class="ri-message-3-line"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Aba Mídias & Arquivos -->
+            <div v-else-if="detailsTab === 'media'" class="drawer-tab-pane">
+              <div v-if="chatStore.isLoadingDetails" class="drawer-loading">
+                <i class="ri-loader-4-line spin-icon"></i> Carregando mídias...
+              </div>
+              <div v-else-if="sharedMediaFiles.length === 0" class="drawer-empty-media">
+                <i class="ri-image-line"></i>
+                <p>Nenhuma foto ou documento compartilhado nesta conversa ainda.</p>
+              </div>
+              <div v-else class="drawer-media-content">
+                <!-- Seção Fotos -->
+                <div v-if="sharedImages.length > 0" class="drawer-media-section">
+                  <span class="drawer-section-heading">Fotos e Imagens ({{ sharedImages.length }})</span>
+                  <div class="drawer-images-grid">
+                    <div
+                      v-for="img in sharedImages"
+                      :key="img.id"
+                      class="drawer-image-thumb"
+                      @click="openImagePreview(img.media_url)"
+                    >
+                      <img :src="img.media_url" :alt="img.file_name || 'Imagem'" loading="lazy" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Seção Documentos -->
+                <div v-if="sharedDocs.length > 0" class="drawer-media-section">
+                  <span class="drawer-section-heading">Documentos ({{ sharedDocs.length }})</span>
+                  <div class="drawer-docs-list">
+                    <a
+                      v-for="doc in sharedDocs"
+                      :key="doc.id"
+                      :href="doc.media_url"
+                      target="_blank"
+                      download
+                      class="drawer-doc-item"
+                    >
+                      <div class="drawer-doc-icon">
+                        <i class="ri-file-text-line"></i>
+                      </div>
+                      <div class="drawer-doc-details">
+                        <span class="drawer-doc-name">{{ doc.file_name || 'Documento anexo' }}</span>
+                        <span class="drawer-doc-date">{{ formatMessageTime(doc.created_at) }}</span>
+                      </div>
+                      <i class="ri-download-2-line"></i>
+                    </a>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-
-          <!-- Formulário Normal de Envio -->
-          <form v-else class="chat-input-form" @submit.prevent="handleSend">
-            <input
-              ref="fileInputRef"
-              type="file"
-              style="display: none"
-              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
-              @change="onFileSelected"
-            />
-
-            <button
-              type="button"
-              class="tool-btn"
-              title="Anexar imagem ou documento"
-              @click="triggerFileInput"
-            >
-              <i class="ri-attachment-line"></i>
-            </button>
-
-            <button
-              type="button"
-              class="tool-btn"
-              title="Inserir emoji"
-              @click="insertEmoji('👋')"
-            >
-              <i class="ri-emotion-happy-line"></i>
-            </button>
-
-            <textarea
-              ref="inputTextareaRef"
-              v-model="inputMessage"
-              rows="1"
-              placeholder="Digite sua mensagem interna... (Enter para enviar, Shift+Enter para quebrar linha)"
-              class="chat-textarea"
-              @keydown="onKeyDown"
-              @input="onInputTyping"
-            ></textarea>
-
-            <button
-              v-if="!inputMessage.trim()"
-              type="button"
-              class="tool-btn mic-btn"
-              title="Gravar mensagem de voz"
-              @click="startAudioRecording"
-            >
-              <i class="ri-mic-line"></i>
-            </button>
-
-            <button
-              v-else
-              type="submit"
-              class="send-message-btn"
-              :disabled="chatStore.isSending"
-              title="Enviar mensagem"
-            >
-              <i v-if="chatStore.isSending" class="ri-loader-4-line spin-icon"></i>
-              <i v-else class="ri-send-plane-2-fill"></i>
-            </button>
-          </form>
-        </footer>
+        </aside>
       </div>
 
       <!-- Estado Vazio (Nenhuma conversa selecionada) -->
@@ -418,6 +697,126 @@
         </button>
       </div>
     </main>
+
+    <!-- Modal de Criação de Novo Canal Corporativo (Fase 3) -->
+    <Teleport to="body">
+      <div v-if="showNewChannelModal" class="modal-overlay" @click.self="closeNewChannelModal">
+        <div class="channel-modal-card">
+          <div class="channel-modal-header">
+            <div>
+              <h3 class="channel-modal-title">Novo Canal Corporativo</h3>
+              <p class="channel-modal-subtitle">Crie um canal de comunicação para equipes, projetos ou setores</p>
+            </div>
+            <button type="button" class="btn-modal-close" @click="closeNewChannelModal">
+              <i class="ri-close-line"></i>
+            </button>
+          </div>
+
+          <form @submit.prevent="submitCreateChannel" class="channel-modal-body">
+            <div class="channel-form-group">
+              <label class="channel-form-label">Nome do Canal</label>
+              <div class="channel-name-input-wrapper">
+                <span class="hashtag-prefix">#</span>
+                <input
+                  v-model="newChannelForm.name"
+                  type="text"
+                  placeholder="ex: financeiro, projetos-2026, avisos"
+                  class="channel-input"
+                  required
+                  maxlength="40"
+                />
+              </div>
+              <span class="channel-input-hint">Use letras, números e hífens.</span>
+            </div>
+
+            <div class="channel-form-group">
+              <label class="channel-form-label">Tipo de Canal</label>
+              <div class="channel-type-selector">
+                <label
+                  class="type-option-card"
+                  :class="{ selected: newChannelForm.type === 'general' }"
+                >
+                  <input
+                    type="radio"
+                    value="general"
+                    v-model="newChannelForm.type"
+                    style="display: none"
+                  />
+                  <div class="type-icon-box">
+                    <i class="ri-global-line"></i>
+                  </div>
+                  <div class="type-text-box">
+                    <span class="type-title">Público da Empresa</span>
+                    <span class="type-desc">Todos os colaboradores têm acesso automático</span>
+                  </div>
+                </label>
+
+                <label
+                  class="type-option-card"
+                  :class="{ selected: newChannelForm.type === 'group' }"
+                >
+                  <input
+                    type="radio"
+                    value="group"
+                    v-model="newChannelForm.type"
+                    style="display: none"
+                  />
+                  <div class="type-icon-box">
+                    <i class="ri-lock-line"></i>
+                  </div>
+                  <div class="type-text-box">
+                    <span class="type-title">Grupo Privado / Equipe</span>
+                    <span class="type-desc">Apenas colaboradores selecionados participam</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Seleção de Membros se for Grupo Privado -->
+            <div v-if="newChannelForm.type === 'group'" class="channel-form-group">
+              <div class="member-select-header">
+                <label class="channel-form-label mb-0">Adicionar Participantes</label>
+                <span class="selected-counter">{{ newChannelForm.participant_ids.length }} selecionado(s)</span>
+              </div>
+              <div class="channel-member-picker">
+                <div
+                  v-for="member in chatStore.teamMembers.filter(m => m.id !== auth.user?.id)"
+                  :key="member.id"
+                  class="picker-member-row"
+                  :class="{ selected: newChannelForm.participant_ids.includes(member.id) }"
+                  @click="toggleChannelMember(member.id)"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="newChannelForm.participant_ids.includes(member.id)"
+                    @click.stop="toggleChannelMember(member.id)"
+                    class="member-checkbox"
+                  />
+                  <div class="member-avatar drawer-small-avatar" :style="getAvatarStyle(member)">
+                    <img v-if="member.avatar_url" :src="member.avatar_url" :alt="member.name" />
+                    <span v-else>{{ getInitials(member.name) }}</span>
+                  </div>
+                  <div class="picker-member-info">
+                    <span class="picker-name">{{ member.name }}</span>
+                    <span class="picker-role">{{ member.role || 'Colaborador' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="channel-modal-footer">
+              <button type="button" class="btn-modal-cancel" @click="closeNewChannelModal">
+                Cancelar
+              </button>
+              <button type="submit" class="btn-modal-submit" :disabled="isSubmittingChannel">
+                <i v-if="isSubmittingChannel" class="ri-loader-4-line spin-icon"></i>
+                <span v-else>Criar Canal</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Modal Lightbox de Imagem Ampliada -->
     <Teleport to="body">
@@ -451,6 +850,7 @@ const ui = useUiStore()
 const { socket } = useSocket()
 
 const searchTerm = ref('')
+const activeFilter = ref('all') // 'all' | 'channels' | 'direct' | 'unread'
 const inputMessage = ref('')
 const messagesContainerRef = ref(null)
 const inputTextareaRef = ref(null)
@@ -459,6 +859,26 @@ const fileInputRef = ref(null)
 const replyingTo = ref(null)
 const previewImageUrl = ref(null)
 
+// ─── Busca Textual na Conversa Ativa ──────────────────────────────────────────
+const showMessageSearch = ref(false)
+const messageSearchQuery = ref('')
+const messageSearchInputRef = ref(null)
+const currentSearchIndex = ref(0)
+
+// ─── Painel Lateral de Detalhes da Conversa ───────────────────────────────────
+const showDetailsDrawer = ref(false)
+const detailsTab = ref('members') // 'members' | 'media'
+
+// ─── Modal de Criação de Canal ────────────────────────────────────────────────
+const showNewChannelModal = ref(false)
+const isSubmittingChannel = ref(false)
+const newChannelForm = ref({
+  name: '',
+  type: 'general',
+  participant_ids: []
+})
+
+// ─── Gravação de Áudio ────────────────────────────────────────────────────────
 const isRecordingAudio = ref(false)
 const recordingSeconds = ref(0)
 let audioTimer = null
@@ -487,11 +907,16 @@ watch(() => chatStore.messages.length, () => {
   scrollToBottom()
 })
 
-watch(() => chatStore.activeConversation?.id, () => {
+watch(() => chatStore.activeConversation?.id, async (newId) => {
   scrollToBottom()
   nextTick(() => {
     inputTextareaRef.value?.focus()
   })
+
+  // Se o drawer de detalhes estiver aberto, carrega os dados da nova conversa
+  if (newId && showDetailsDrawer.value) {
+    await chatStore.fetchConversationDetails(newId)
+  }
 })
 
 function scrollToBottom() {
@@ -502,11 +927,26 @@ function scrollToBottom() {
   })
 }
 
-// ─── Computeds ────────────────────────────────────────────────────────────────
+// ─── Computeds de Conversas e Filtros ──────────────────────────────────────────
 const onlineCount = computed(() => ui.onlineUsersCount || 1)
 
 const channelConversations = computed(() => {
-  return chatStore.conversations.filter(c => c.type === 'general' || c.type === 'department')
+  return chatStore.conversations.filter(c => c.type === 'general' || c.type === 'department' || c.type === 'group')
+})
+
+const unreadChannelConversations = computed(() => {
+  return channelConversations.value.filter(c => (c.unread_count || 0) > 0)
+})
+
+const displayedChannels = computed(() => {
+  let list = channelConversations.value
+  if (activeFilter.value === 'unread') {
+    list = unreadChannelConversations.value
+  }
+
+  const term = searchTerm.value.toLowerCase().trim()
+  if (!term) return list
+  return list.filter(c => c.name?.toLowerCase().includes(term))
 })
 
 const filteredMembers = computed(() => {
@@ -517,6 +957,20 @@ const filteredMembers = computed(() => {
     m.role?.toLowerCase().includes(term) ||
     m.email?.toLowerCase().includes(term)
   )
+})
+
+const unreadDirectMembers = computed(() => {
+  return filteredMembers.value.filter(m => {
+    const conv = getDirectConv(m.id)
+    return conv && (conv.unread_count || 0) > 0
+  })
+})
+
+const displayedMembers = computed(() => {
+  if (activeFilter.value === 'unread') {
+    return unreadDirectMembers.value
+  }
+  return filteredMembers.value
 })
 
 const activeDirectUser = computed(() => {
@@ -539,6 +993,175 @@ const typingLabel = computed(() => {
   return ''
 })
 
+// ─── Helpers de Canais e Ícones ───────────────────────────────────────────────
+function getChannelIcon(type) {
+  if (type === 'general') return 'ri-megaphone-line'
+  if (type === 'group') return 'ri-team-line'
+  if (type === 'department') return 'ri-building-line'
+  return 'ri-hashtag'
+}
+
+function getConversationTypeLabel(conv) {
+  if (!conv) return ''
+  if (conv.type === 'general') return 'Canal Geral da Empresa'
+  if (conv.type === 'group') return 'Grupo Privado de Equipe'
+  if (conv.type === 'department') return 'Canal de Setor'
+  return 'Mensagem Direta'
+}
+
+// ─── Busca Textual na Conversa Ativa ──────────────────────────────────────────
+const searchMatches = computed(() => {
+  const query = messageSearchQuery.value.trim().toLowerCase()
+  if (!query) return []
+  return chatStore.messages.filter(m => m.text && m.text.toLowerCase().includes(query))
+})
+
+watch(searchMatches, (newMatches) => {
+  if (newMatches.length > 0) {
+    currentSearchIndex.value = 0
+    scrollToMessage(newMatches[0].id)
+  }
+})
+
+function toggleMessageSearch() {
+  showMessageSearch.value = !showMessageSearch.value
+  if (showMessageSearch.value) {
+    nextTick(() => {
+      messageSearchInputRef.value?.focus()
+    })
+  } else {
+    messageSearchQuery.value = ''
+  }
+}
+
+function closeMessageSearch() {
+  showMessageSearch.value = false
+  messageSearchQuery.value = ''
+}
+
+function nextSearchMatch() {
+  if (searchMatches.value.length === 0) return
+  currentSearchIndex.value = (currentSearchIndex.value + 1) % searchMatches.value.length
+  scrollToMessage(searchMatches.value[currentSearchIndex.value].id)
+}
+
+function prevSearchMatch() {
+  if (searchMatches.value.length === 0) return
+  currentSearchIndex.value = (currentSearchIndex.value - 1 + searchMatches.value.length) % searchMatches.value.length
+  scrollToMessage(searchMatches.value[currentSearchIndex.value].id)
+}
+
+function isMessageSearchMatched(msgId) {
+  if (!messageSearchQuery.value.trim() || searchMatches.value.length === 0) return false
+  const activeMatch = searchMatches.value[currentSearchIndex.value]
+  return activeMatch?.id === msgId
+}
+
+// ─── Drawer de Detalhes da Conversa ───────────────────────────────────────────
+async function toggleDetailsDrawer() {
+  showDetailsDrawer.value = !showDetailsDrawer.value
+  if (showDetailsDrawer.value && chatStore.activeConversation) {
+    await chatStore.fetchConversationDetails(chatStore.activeConversation.id)
+  }
+}
+
+async function selectConversationWithDetails(conv) {
+  await chatStore.selectConversation(conv)
+  if (showDetailsDrawer.value && conv?.id) {
+    await chatStore.fetchConversationDetails(conv.id)
+  }
+}
+
+async function openDirectChatWithDetails(userId) {
+  const conv = await chatStore.startDirectChatWith(userId)
+  if (showDetailsDrawer.value && conv?.id) {
+    await chatStore.fetchConversationDetails(conv.id)
+  }
+}
+
+const conversationParticipants = computed(() => {
+  if (chatStore.activeConversation?.type === 'direct') {
+    const list = []
+    if (auth.user) list.push({ id: auth.user.id, name: auth.user.name, role: auth.user.role, avatar_url: auth.user.avatar_url })
+    if (activeDirectUser.value) list.push(activeDirectUser.value)
+    return list
+  }
+  if (chatStore.conversationDetails?.participants?.length) {
+    return chatStore.conversationDetails.participants
+  }
+  // Se for canal geral e ainda não carregou, exibe toda a equipe
+  if (chatStore.activeConversation?.type === 'general') {
+    return chatStore.teamMembers
+  }
+  return []
+})
+
+const sharedMediaFiles = computed(() => {
+  if (chatStore.conversationDetails?.media?.length) {
+    return chatStore.conversationDetails.media
+  }
+  // Fallback para mensagens locais se houver anexos
+  return chatStore.messages.filter(m => m.media_url)
+})
+
+const sharedImages = computed(() => {
+  return sharedMediaFiles.value.filter(m => m.media_type === 'image' || isImageUrl(m.media_url))
+})
+
+const sharedDocs = computed(() => {
+  return sharedMediaFiles.value.filter(m => m.media_type !== 'image' && !isImageUrl(m.media_url))
+})
+
+// ─── Criação de Novos Canais Corporativos ─────────────────────────────────────
+function openNewChannelModal() {
+  newChannelForm.value = {
+    name: '',
+    type: 'general',
+    participant_ids: []
+  }
+  showNewChannelModal.value = true
+}
+
+function closeNewChannelModal() {
+  showNewChannelModal.value = false
+  isSubmittingChannel.value = false
+}
+
+function toggleChannelMember(memberId) {
+  const index = newChannelForm.value.participant_ids.indexOf(memberId)
+  if (index === -1) {
+    newChannelForm.value.participant_ids.push(memberId)
+  } else {
+    newChannelForm.value.participant_ids.splice(index, 1)
+  }
+}
+
+async function submitCreateChannel() {
+  let rawName = newChannelForm.value.name.trim().replace(/^#+/, '').replace(/\s+/g, '-').toLowerCase()
+  if (!rawName) {
+    ui.showToast('Informe um nome para o canal.', 'error')
+    return
+  }
+
+  isSubmittingChannel.value = true
+  try {
+    const created = await chatStore.createChannel({
+      name: `#${rawName}`,
+      type: newChannelForm.value.type,
+      participant_ids: newChannelForm.value.participant_ids
+    })
+
+    if (created) {
+      closeNewChannelModal()
+      if (showDetailsDrawer.value) {
+        await chatStore.fetchConversationDetails(created.id)
+      }
+    }
+  } finally {
+    isSubmittingChannel.value = false
+  }
+}
+
 // ─── Helpers de Status e Conversas ───────────────────────────────────────────
 function isUserOnline(userId) {
   if (!userId) return false
@@ -555,10 +1178,6 @@ function getDirectConv(userId) {
 function isDirectActive(userId) {
   if (chatStore.activeConversation?.type !== 'direct') return false
   return String(chatStore.activeConversation.other_user?.id) === String(userId)
-}
-
-async function openDirectChat(targetUserId) {
-  await chatStore.startDirectChatWith(targetUserId)
 }
 
 function selectGeneralChannel() {
@@ -960,10 +1579,103 @@ function formatMessageTime(dateStr) {
   padding: 2px;
 }
 
+/* Pílulas de Filtro da Sidebar */
+.sidebar-filter-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sidebar-filter-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.filter-pill:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+  border-color: #cbd5e1;
+}
+
+.filter-pill.active {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+  font-weight: 700;
+}
+
+.filter-unread-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  padding: 0 4px;
+  line-height: 1;
+}
+
 .sidebar-scrollable {
   flex: 1;
   overflow-y: auto;
   padding: 10px 8px;
+}
+
+.section-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px 4px 8px;
+}
+
+.section-label-text {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.5px;
+}
+
+.btn-new-channel {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-new-channel:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
 }
 
 .section-label {
@@ -1135,9 +1847,20 @@ function formatMessageTime(dateStr) {
 
 .chat-main-container {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100%;
   min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.chat-conversation-pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  flex: 1;
+  min-width: 0;
+  position: relative;
 }
 
 .chat-header {
@@ -1191,6 +1914,12 @@ function formatMessageTime(dateStr) {
   color: #cbd5e1;
 }
 
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .secure-internal-badge {
   display: inline-flex;
   align-items: center;
@@ -1202,6 +1931,157 @@ function formatMessageTime(dateStr) {
   border: 1px solid #a7f3d0;
   padding: 4px 10px;
   border-radius: 12px;
+}
+
+.header-action-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.header-action-btn:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+  border-color: #cbd5e1;
+}
+
+.header-action-btn.active {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+
+/* Barra Retrátil de Busca Textual */
+.conversation-search-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.search-bar-input-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  max-width: 420px;
+}
+
+.search-bar-input-box i {
+  position: absolute;
+  left: 10px;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.conv-search-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 30px 0 32px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: #1e293b;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.conv-search-input:focus {
+  background: #ffffff;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.btn-clear-query {
+  position: absolute;
+  right: 6px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+}
+
+.search-bar-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.search-count-label {
+  font-size: 12px;
+  color: #64748b;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.search-nav-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.search-nav-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.search-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.search-close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.search-close-btn:hover {
+  color: #ef4444;
+  background: #fee2e2;
+}
+
+.search-target-matched .message-bubble-box {
+  outline: 2px solid #3b82f6 !important;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.4) !important;
 }
 
 /* ─── MENSAGENS ─────────────────────────────────────────────────────────────── */
@@ -1964,10 +2844,661 @@ function formatMessageTime(dateStr) {
   transform: translateY(-1px);
 }
 
+/* ─── PAINEL LATERAL DE DETALHES DA CONVERSA (DRAWER) ───────────────────────── */
+.conversation-details-drawer {
+  width: 310px;
+  background: #ffffff;
+  border-left: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  height: 100%;
+  animation: slideDrawer 0.2s ease-out;
+}
+
+@keyframes slideDrawer {
+  from { width: 0; opacity: 0; }
+  to { width: 310px; opacity: 1; }
+}
+
+.drawer-header {
+  height: 58px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+
+.drawer-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.drawer-close-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.drawer-close-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.drawer-content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.drawer-profile-card {
+  padding: 20px 16px;
+  text-align: center;
+  background: #f8fafc;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.drawer-big-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  margin: 0 auto 10px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 700;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.drawer-big-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.drawer-big-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 10px auto;
+  border: 1px solid #dbeafe;
+}
+
+.drawer-conv-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 6px 0;
+}
+
+.drawer-conv-type-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  background: #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.drawer-tabs {
+  display: flex;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+}
+
+.drawer-tab {
+  flex: 1;
+  padding: 10px 4px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.drawer-tab:hover {
+  color: #1e293b;
+}
+
+.drawer-tab.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+  font-weight: 700;
+}
+
+.drawer-badge-count {
+  font-size: 10px;
+  background: #f1f5f9;
+  color: #475569;
+  padding: 1px 5px;
+  border-radius: 8px;
+}
+
+.drawer-tab.active .drawer-badge-count {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.drawer-tab-pane {
+  padding: 14px 12px;
+  flex: 1;
+}
+
+.drawer-loading {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 12px;
+  padding: 24px 0;
+}
+
+.drawer-members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drawer-member-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+.drawer-member-card:hover {
+  background: #f8fafc;
+}
+
+.drawer-small-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 11px;
+}
+
+.drawer-member-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.drawer-member-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drawer-member-sub {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.btn-quick-direct {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-quick-direct:hover {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+
+.drawer-empty-media {
+  text-align: center;
+  padding: 30px 10px;
+  color: #94a3b8;
+}
+
+.drawer-empty-media i {
+  font-size: 32px;
+  margin-bottom: 6px;
+  display: inline-block;
+}
+
+.drawer-empty-media p {
+  font-size: 12px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.drawer-media-section {
+  margin-bottom: 16px;
+}
+
+.drawer-section-heading {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.drawer-images-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.drawer-image-thumb {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.drawer-image-thumb:hover {
+  transform: scale(1.03);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.drawer-image-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.drawer-docs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.drawer-doc-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #1e293b;
+  transition: all 0.15s ease;
+}
+
+.drawer-doc-item:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.drawer-doc-icon {
+  font-size: 20px;
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+.drawer-doc-details {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.drawer-doc-name {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drawer-doc-date {
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+/* ─── MODAL DE NOVO CANAL ────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.channel-modal-card {
+  background: #ffffff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  animation: popIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.channel-modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.channel-modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 4px 0;
+}
+
+.channel-modal-subtitle {
+  font-size: 12.5px;
+  color: #64748b;
+  margin: 0;
+}
+
+.btn-modal-close {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn-modal-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.channel-modal-body {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.channel-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.channel-form-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.mb-0 {
+  margin-bottom: 0;
+}
+
+.channel-name-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.hashtag-prefix {
+  position: absolute;
+  left: 12px;
+  color: #64748b;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.channel-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px 0 28px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: #1e293b;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.channel-input:focus {
+  background: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.channel-input-hint {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.channel-type-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.type-option-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  background: #f8fafc;
+  transition: all 0.15s ease;
+}
+
+.type-option-card:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+}
+
+.type-option-card.selected {
+  background: #eff6ff;
+  border-color: #2563eb;
+}
+
+.type-icon-box {
+  font-size: 18px;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.type-option-card.selected .type-icon-box {
+  color: #2563eb;
+}
+
+.type-text-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.type-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.type-desc {
+  font-size: 10.5px;
+  color: #64748b;
+  line-height: 1.3;
+  margin-top: 2px;
+}
+
+.member-select-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.selected-counter {
+  font-size: 11px;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.channel-member-picker {
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.picker-member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.picker-member-row:hover {
+  background: #f1f5f9;
+}
+
+.picker-member-row.selected {
+  background: #eff6ff;
+}
+
+.member-checkbox {
+  cursor: pointer;
+}
+
+.picker-member-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.picker-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.picker-role {
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+.channel-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.btn-modal-cancel {
+  padding: 9px 16px;
+  background: #f1f5f9;
+  border: none;
+  border-radius: 8px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-modal-cancel:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.btn-modal-submit {
+  padding: 9px 20px;
+  background: #2563eb;
+  border: none;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-modal-submit:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-modal-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* ─── RESPONSIVIDADE ────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .internal-chat-layout {
     grid-template-columns: 1fr;
+  }
+  .conversation-details-drawer {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 20;
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
   }
 }
 </style>

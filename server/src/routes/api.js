@@ -161,6 +161,8 @@ router.post(
   (req, res) => internalChatController.sendMedia(req, res)
 );
 router.post('/internal-chat/direct/:targetUserId', requireAuth, (req, res) => internalChatController.startDirectChat(req, res));
+router.post('/internal-chat/channels', requireAuth, (req, res) => internalChatController.createChannel(req, res));
+router.get('/internal-chat/conversations/:id/details', requireAuth, (req, res) => internalChatController.getConversationDetails(req, res));
 router.post('/internal-chat/conversations/:id/read', requireAuth, (req, res) => internalChatController.markAsRead(req, res));
 
 module.exports = router;

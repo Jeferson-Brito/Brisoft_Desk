@@ -216,6 +216,11 @@ export function useSocket() {
       const internalChat = useInternalChatStore()
       internalChat.handleUserTyping(data)
     })
+
+    socket.on('internal_conversation_created', (conv) => {
+      const internalChat = useInternalChatStore()
+      internalChat.handleConversationCreated(conv)
+    })
   }
 
   function disconnect() {

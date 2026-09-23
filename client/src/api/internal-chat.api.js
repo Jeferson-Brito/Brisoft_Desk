@@ -20,6 +20,8 @@ export const internalChatApi = {
     }
   ),
   startDirectChat: (targetUserId) => http.post(`/internal-chat/direct/${targetUserId}`),
+  createChannel: (payload) => http.post('/internal-chat/channels', payload),
+  getConversationDetails: (conversationId) => http.get(`/internal-chat/conversations/${conversationId}/details`),
   markAsRead: (conversationId) => http.post(`/internal-chat/conversations/${conversationId}/read`)
 }
 
