@@ -1,6 +1,8 @@
 <template>
   <div class="atendimentos-view-layout">
+    <!-- VISUALIZAÇÃO 1: Fila e Chat do WhatsApp -->
     <div
+      v-if="ui.activeChatModuleTab === 'atendimentos'"
       class="atendimentos-main-grid"
       :class="{
         'details-open': isDetailsOpen && !!ticketStore.activeTicket,
@@ -28,11 +30,19 @@
         @close="isDetailsOpen = false"
       />
 
-      <!-- Coluna 4: Gaveta Lateral do Chat Interno da Equipe -->
+      <!-- Gaveta Lateral Rápida do Chat Interno (se acionada no modo atendimento) -->
       <InternalChatDrawer
         v-if="ui.isInternalChatOpen"
         @close="ui.closeInternalChat"
       />
+    </div>
+
+    <!-- VISUALIZAÇÃO 2: Chat Interno Completo da Equipe (Duas Colunas) -->
+    <div
+      v-else-if="ui.activeChatModuleTab === 'conversas_internas'"
+      class="internal-chat-full-container"
+    >
+      <InternalChatView />
     </div>
 
     <!-- Modal Nova Conversa -->
@@ -63,6 +73,7 @@ import ContactDrawer      from '@/components/atendimentos/ContactDrawer.vue'
 import ModalEncerrar      from '@/components/modals/ModalEncerrar.vue'
 import NewConversationModal from '@/components/atendimentos/NewConversationModal.vue'
 import InternalChatDrawer from '@/components/chat-interno/InternalChatDrawer.vue'
+import InternalChatView   from '@/components/chat-interno/InternalChatView.vue'
 
 import { useNotepadStore } from '@/stores/notepad.store'
 
@@ -275,6 +286,16 @@ onBeforeUnmount(() => {
 .atendimentos-main-grid {
   display: flex;
   flex: 1;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.internal-chat-full-container {
+  display: flex;
+  flex: 1;
+  width: 100%;
   height: 100%;
   min-height: 0;
   min-width: 0;

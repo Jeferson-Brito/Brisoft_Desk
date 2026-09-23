@@ -1,47 +1,128 @@
 <template>
   <Teleport to="body">
     <div class="modal-overlay active" id="modalEncerrarAtendimento" @click.self="$emit('close')">
-      <div class="modal-container" style="max-width:440px;">
-        <div class="modal-header">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <div style="width:32px;height:32px;border-radius:50%;background:#fee2e2;color:#ef4444;display:flex;align-items:center;justify-content:center;font-size:14px;">
-              <i class="fa-solid fa-triangle-exclamation"></i>
+      <div class="modal-container close-ticket-modal">
+        <!-- Header Moderno -->
+        <div class="modal-header close-modal-header">
+          <div class="header-title-group">
+            <div class="header-icon-box">
+              <i class="ri-checkbox-circle-fill"></i>
             </div>
-            <span class="modal-title">Encerrar Atendimento</span>
+            <div>
+              <h3 class="modal-title">Encerrar Atendimento</h3>
+              <p class="modal-subtitle">Revise as informações antes de concluir esta conversa.</p>
+            </div>
           </div>
-          <button type="button" class="btn-icon" @click="$emit('close')">
-            <i class="fa-solid fa-xmark"></i>
+          <button type="button" class="btn-close-modal" title="Cancelar e fechar" @click="$emit('close')">
+            <i class="ri-close-line"></i>
           </button>
         </div>
 
-        <div class="modal-body">
-          <p style="font-size:13px;color:#475569;margin:0 0 16px 0;line-height:1.5;">
-            Deseja realmente encerrar o atendimento de <strong>{{ normalizePersonName(ticket?.clientName || ticket?.client_name || 'Cliente') }}</strong>?
-            A pesquisa de satisfação será enviada automaticamente via WhatsApp.
-          </p>
+        <div class="modal-body close-modal-body">
+          <!-- Card de Identificação do Atendimento -->
+          <div class="ticket-summary-card">
+            <div class="client-hero-row">
+              <div class="client-avatar" :style="{ background: clientAvatarColor }">
+                <img
+                  v-if="ticket?.avatar_url && !avatarFailed"
+                  :src="ticket.avatar_url"
+                  :alt="clientName"
+                  @error="avatarFailed = true"
+                />
+                <span v-else>{{ clientInitials }}</span>
+              </div>
+              <div class="client-hero-text">
+                <div class="client-name-line">
+                  <h4 class="client-name">{{ clientName }}</h4>
+                  <span
+                    class="client-role-badge"
+                    :class="{ employee: ticket?.is_employee }"
+                  >
+                    <i :class="ticket?.is_employee ? 'ri-shield-user-line' : 'ri-user-smile-line'"></i>
+                    {{ ticket?.is_employee ? 'Funcionário' : 'Cliente' }}
+                  </span>
+                </div>
+                <span v-if="ticket?.phone" class="client-phone">
+                  <i class="ri-whatsapp-line"></i> {{ formatPhone(ticket.phone) }}
+                </span>
+              </div>
+            </div>
 
-          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:6px;font-size:12px;">
-            <div style="display:flex;justify-content:space-between;">
-              <span style="color:#64748b;">Departamento:</span>
-              <strong>{{ ticket?.department || 'Geral' }}</strong>
+            <!-- Grid de Metadados -->
+            <div class="ticket-meta-grid">
+              <div class="meta-cell">
+                <span class="meta-label">Protocolo</span>
+                <button
+                  type="button"
+                  class="protocol-copy-badge"
+                  :title="copiedId ? 'Copiado para a área de transferência!' : 'Clique para copiar o ID completo'"
+                  @click="copyProtocol"
+                >
+                  <code>#{{ shortId }}</code>
+                  <i :class="copiedId ? 'ri-check-line text-success' : 'ri-file-copy-line'"></i>
+                </button>
+              </div>
+
+              <div class="meta-cell">
+                <span class="meta-label">Departamento</span>
+                <span class="dept-badge">
+                  <i class="ri-building-line"></i>
+                  {{ ticket?.department || 'Geral' }}
+                </span>
+              </div>
+
+              <div class="meta-cell">
+                <span class="meta-label">Duração</span>
+                <span class="duration-badge">
+                  <i class="ri-time-line"></i>
+                  {{ durationStr }}
+                </span>
+              </div>
             </div>
-            <div style="display:flex;justify-content:space-between;">
-              <span style="color:#64748b;">Protocolo:</span>
-              <span style="font-family:monospace;">{{ ticket?.id }}</span>
-            </div>
+          </div>
+
+          <!-- Controle da Pesquisa de Satisfação -->
+          <div v-if="!ticket?.is_employee" class="survey-option-card" :class="{ disabled: !sendSurvey }">
+            <label class="survey-option-label">
+              <div class="survey-icon-box">
+                <i class="ri-star-smile-fill"></i>
+              </div>
+              <div class="survey-text-content">
+                <span class="survey-title">Enviar pesquisa de satisfação</span>
+                <span class="survey-desc">
+                  Dispara a avaliação de qualidade no WhatsApp do cliente após o encerramento.
+                </span>
+              </div>
+              <div class="custom-switch-wrap">
+                <input
+                  v-model="sendSurvey"
+                  type="checkbox"
+                  class="custom-switch-input"
+                />
+                <span class="custom-switch-slider"></span>
+              </div>
+            </label>
+          </div>
+
+          <div v-else class="internal-ticket-note">
+            <i class="ri-information-line"></i>
+            <span>Atendimento interno com funcionário da empresa. Nenhuma pesquisa será enviada.</span>
           </div>
         </div>
 
-        <div class="modal-footer">
-          <button type="button" class="btn-secondary" @click="$emit('close')">Cancelar</button>
+        <div class="modal-footer close-modal-footer">
+          <button type="button" class="btn-cancel" @click="$emit('close')">
+            Voltar ao chat
+          </button>
           <button
             type="button"
-            class="btn-primary"
-            style="background:#ef4444;border-color:#ef4444;"
+            class="btn-confirm-close"
             :disabled="loading"
             @click="confirmClose"
           >
-            <i class="fa-solid fa-check" :class="{ 'fa-spin': loading }"></i> Confirmar Encerramento
+            <i v-if="loading" class="ri-loader-4-line spin-icon"></i>
+            <i v-else class="ri-check-line"></i>
+            <span>{{ loading ? 'Concluindo...' : 'Concluir Atendimento' }}</span>
           </button>
         </div>
       </div>
@@ -50,10 +131,11 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useTicketStore } from '@/stores/tickets.store'
 import { useUiStore } from '@/stores/ui.store'
-import { normalizePersonName } from '@/utils/person-display'
+import { normalizePersonName, getInitials } from '@/utils/person-display'
+import { formatPhone } from '@/utils/formatters'
 
 const props = defineProps({
   ticket: {
@@ -67,15 +149,55 @@ const emit = defineEmits(['close'])
 const ticketStore = useTicketStore()
 const ui = useUiStore()
 const loading = ref(false)
+const copiedId = ref(false)
+const avatarFailed = ref(false)
+const sendSurvey = ref(true)
+
+const clientName = computed(() => {
+  return normalizePersonName(props.ticket?.clientName || props.ticket?.client_name || 'Cliente')
+})
+
+const clientInitials = computed(() => {
+  return getInitials(clientName.value)
+})
+
+const clientAvatarColor = computed(() => {
+  return props.ticket?.avatarColor || '#059669'
+})
+
+const shortId = computed(() => {
+  if (!props.ticket?.id) return '————'
+  return String(props.ticket.id).slice(0, 8)
+})
+
+const durationStr = computed(() => {
+  const start = props.ticket?.assumed_at || props.ticket?.started_at || props.ticket?.created_at
+  if (!start) return '00:00:00'
+  const diffSec = Math.max(0, Math.floor((Date.now() - new Date(start).getTime()) / 1000))
+  const hrs = Math.floor(diffSec / 3600)
+  const mins = Math.floor((diffSec % 3600) / 60)
+  const secs = diffSec % 60
+  return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+})
+
+function copyProtocol() {
+  if (!props.ticket?.id) return
+  navigator.clipboard.writeText(String(props.ticket.id))
+  copiedId.value = true
+  setTimeout(() => {
+    copiedId.value = false
+  }, 2000)
+}
 
 async function confirmClose() {
   if (!props.ticket) return
   loading.value = true
   try {
-    const clientName = props.ticket.clientName || 'Cliente'
-    const res = await ticketStore.close(props.ticket.id)
+    const res = await ticketStore.close(props.ticket.id, {
+      sendSurvey: sendSurvey.value
+    })
     if (res.success) {
-      ui.showToast(`✅ Atendimento de ${clientName} encerrado com sucesso!`)
+      ui.showToast(`✅ Atendimento de ${clientName.value} encerrado com sucesso!`)
       emit('close')
     } else {
       ui.showToast(`⚠️ ${res.error}`, 'error')
@@ -85,3 +207,468 @@ async function confirmClose() {
   }
 }
 </script>
+
+<style scoped>
+.close-ticket-modal {
+  max-width: 460px;
+  width: 92%;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
+  animation: modalEnter 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Header */
+.close-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+}
+
+.header-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1px solid #a7f3d0;
+  color: #059669;
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 16.5px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.modal-subtitle {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.btn-close-modal {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 19px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btn-close-modal:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+/* Body */
+.close-modal-body {
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Card do Atendimento */
+.ticket-summary-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.client-hero-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.client-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.client-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.client-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.client-name-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.client-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 750;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.client-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.client-role-badge.employee {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: #fed7aa;
+}
+
+.client-phone {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: #059669;
+  font-weight: 600;
+}
+
+.client-phone i {
+  font-size: 13px;
+  color: #25d366;
+}
+
+/* Metadados */
+.ticket-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #eef2f6;
+}
+
+.meta-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.meta-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.protocol-copy-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 3px 8px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  font-size: 11px;
+}
+
+.protocol-copy-badge:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.protocol-copy-badge code {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.protocol-copy-badge i {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.text-success {
+  color: #059669 !important;
+}
+
+.dept-badge,
+.duration-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 650;
+  color: #334155;
+  padding: 3px 6px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dept-badge i,
+.duration-badge i {
+  font-size: 11px;
+  color: #059669;
+}
+
+/* Pesquisa de Satisfação */
+.survey-option-card {
+  background: #ffffff;
+  border: 1px solid #d1fae5;
+  border-radius: 12px;
+  padding: 12px 14px;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.05);
+}
+
+.survey-option-card.disabled {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  box-shadow: none;
+}
+
+.survey-option-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+  margin: 0;
+}
+
+.survey-icon-box {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #fef3c7;
+  color: #d97706;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.survey-option-card.disabled .survey-icon-box {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.survey-text-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+}
+
+.survey-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.survey-desc {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+/* Switch */
+.custom-switch-wrap {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.custom-switch-input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.custom-switch-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e1;
+  transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 34px;
+}
+
+.custom-switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.custom-switch-input:checked + .custom-switch-slider {
+  background-color: #059669;
+}
+
+.custom-switch-input:checked + .custom-switch-slider:before {
+  transform: translateX(16px);
+}
+
+/* Nota Interna */
+.internal-ticket-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  font-size: 11.5px;
+  color: #475569;
+}
+
+.internal-ticket-note i {
+  font-size: 15px;
+  color: #64748b;
+}
+
+/* Footer */
+.close-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 22px;
+  border-top: 1px solid #f1f5f9;
+  background: #f8fafc;
+}
+
+.btn-cancel {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 650;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btn-cancel:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.btn-confirm-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 750;
+  padding: 8px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.28);
+  transition: all 0.15s ease;
+}
+
+.btn-confirm-close:hover:not(:disabled) {
+  background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(5, 150, 105, 0.35);
+}
+
+.btn-confirm-close:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.spin-icon {
+  animation: spin 1s infinite linear;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+</style>

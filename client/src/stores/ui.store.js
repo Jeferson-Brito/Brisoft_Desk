@@ -52,11 +52,14 @@ export const useUiStore = defineStore('ui', () => {
     isNavigating.value = Boolean(val)
   }
 
-  // Subaba do Módulo de Atendimentos ('fila' | 'conversas')
-  const atendimentosSubTab = ref('fila')
+  // Aba do Módulo de Atendimentos ('atendimentos' | 'conversas_internas')
+  const activeChatModuleTab = ref('atendimentos')
 
-  function setAtendimentosSubTab(val) {
-    atendimentosSubTab.value = val
+  function setChatModuleTab(tab) {
+    activeChatModuleTab.value = tab
+    if (tab === 'conversas_internas') {
+      isInternalChatOpen.value = false
+    }
   }
 
   // Estado do Painel/Gaveta do Chat Interno da Equipe
@@ -79,6 +82,7 @@ export const useUiStore = defineStore('ui', () => {
     onlineUsersCount, onlineUsersList, isMobileChatOpen, setMobileChatOpen,
     isNavigating, setNavigating,
     atendimentosSubTab, setAtendimentosSubTab,
+    activeChatModuleTab, setChatModuleTab,
     isInternalChatOpen, toggleInternalChat, openInternalChat, closeInternalChat,
     switchView, showToast, openModal, closeModal, isModalOpen
   }

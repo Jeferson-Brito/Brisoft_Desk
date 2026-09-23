@@ -320,7 +320,7 @@ export const useTicketStore = defineStore('tickets', () => {
     }
   }
 
-  async function close(ticketId) {
+  async function close(ticketId, options = {}) {
     const ticket = queue.value.find(t => t.id === ticketId)
     if (!ticket) return { success: false, error: 'Ticket não encontrado' }
 
@@ -335,7 +335,7 @@ export const useTicketStore = defineStore('tickets', () => {
     }
 
     try {
-      const { data } = await ticketsApi.close(ticketId)
+      const { data } = await ticketsApi.close(ticketId, options)
       if (data.success) return { success: true }
       // Rollback: reinsere na posição original
       queue.value.splice(ticketIdx, 0, snapshot)

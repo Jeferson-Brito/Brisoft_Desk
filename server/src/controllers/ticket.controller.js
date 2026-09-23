@@ -196,14 +196,15 @@ class TicketController {
 
   async closeTicket(req, res) {
     try {
-      const { ticketId } = req.body;
+      const { ticketId, sendSurvey } = req.body;
       if (!ticketId) return res.status(400).json({ success: false, error: 'ticketId é obrigatório' });
       console.log(`Encerrando atendimento: Ticket ${ticketId} por ${req.user.name}`);
       const result = await ticketService.closeTicket(
         ticketId,
         req.user,
         req.app.get('io'),
-        whatsappService
+        whatsappService,
+        { sendSurvey: sendSurvey !== false }
       );
       if (!result || result.success === false) return res.status(400).json({ success: false, error: result?.error || 'Falha ao encerrar atendimento' });
       return res.json({ success: true, result });

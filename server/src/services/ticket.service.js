@@ -3785,12 +3785,13 @@ ${rendered}`,
     }
   }
 
-  async closeTicket(ticketId, currentUser, io, whatsappService) {
+  async closeTicket(ticketId, currentUser, io, whatsappService, options = {}) {
     if (!isSupabaseConfigured()) return { success: false, error: 'Supabase nao configurado' };
     try {
       const agentName = currentUser.name || 'Atendente';
       const now = new Date();
       const encerradoEm = makeTimeStr(now);
+      const shouldSendSurvey = options?.sendSurvey !== false;
 
       const { data: ticket } = await supabase
         .from('tickets')
@@ -3807,7 +3808,7 @@ ${rendered}`,
         encerrado_em: encerradoEm,
         encerrado_por: agentName,
         closed_at: now.toISOString(),
-        awaiting_rating: !ticket.is_employee,
+        awaiting_rating: !ticket.is_employee && shouldSendSurvey,
         updated_at: now.toISOString()
       }).eq('id', ticketId), 'Falha ao encerrar ticket');
 
@@ -3832,7 +3833,7 @@ ${rendered}`,
       if (whatsappService && ticket) {
         const botConfig = await getBotConfig();
         const targetJid = preferredWhatsAppJid(ticket.phone, ticket.jid || ticket.raw_jid);
-        if (targetJid && !ticket.is_employee && botConfig.send_rating_request) {
+        if (targetJid && !ticket.is_employee && botConfig.send_rating_request && shouldSendSurvey) {
           const ratingMsg = renderBotMessage(botConfig.rating_request_message, {
             nome: ticket.client_name || 'Cliente',
             departamento: ticket.department || '',

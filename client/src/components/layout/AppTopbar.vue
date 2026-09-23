@@ -17,28 +17,30 @@
 
     <!-- Trilho de Navegação de Abas (Exibido exclusivamente no módulo de Atendimentos) -->
     <div v-if="currentModule === 'atendimentos'" class="topbar-tabs-track" aria-label="Navegação do módulo">
+      <!-- Aba: Atendimentos (Central de WhatsApp) -->
+      <div
+        class="topbar-nav-pill"
+        :class="{ active: ui.activeChatModuleTab === 'atendimentos' }"
+        title="Fila de Atendimento do WhatsApp"
+        @click="ui.setChatModuleTab('atendimentos')"
+      >
+        <span class="pill-icon-box"><i class="ri-customer-service-2-line"></i></span>
+        <span class="pill-label">Atendimentos</span>
+        <span class="pill-count-badge">{{ waitingCount || totalTicketsCount || 0 }}</span>
+      </div>
+
       <!-- Aba: Conversas Internas (Chat da Equipe) -->
       <div
         class="topbar-nav-pill"
-        :class="{ active: ui.isInternalChatOpen }"
+        :class="{ active: ui.activeChatModuleTab === 'conversas_internas' }"
         title="Chat Interno da Equipe (Conversas internas)"
-        @click="ui.toggleInternalChat()"
+        @click="ui.setChatModuleTab('conversas_internas')"
       >
         <span class="pill-icon-box"><i class="ri-chat-3-line"></i></span>
         <span>Conversas internas</span>
         <span v-if="internalChat.totalUnreadCount > 0" class="pill-count-badge unread-internal-badge">
           {{ internalChat.totalUnreadCount }}
         </span>
-      </div>
-
-      <!-- Aba Ativa: Fila de Atendimento com Badge de Contagem -->
-      <div
-        class="topbar-nav-pill active"
-        title="Fila de Atendimento do WhatsApp"
-      >
-        <span class="pill-icon-box"><i class="ri-folder-line"></i></span>
-        <span class="pill-label">Fila de Atendimento</span>
-        <span class="pill-count-badge">{{ waitingCount || totalTicketsCount || 0 }}</span>
       </div>
 
       <!-- Aba: Chatbot -->

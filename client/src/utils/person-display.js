@@ -23,3 +23,12 @@ export function splitPersonLabel(value) {
     role: clean.slice(separator + match[0].length).trim()
   }
 }
+
+export function getInitials(name) {
+  if (!name) return 'U'
+  const parts = String(name).trim().split(/\s+/)
+  if (!parts[0]) return 'U'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+

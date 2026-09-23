@@ -483,7 +483,7 @@ function formatMessageTime(dateStr) {
 .internal-chat-layout {
   display: grid;
   grid-template-columns: 340px 1fr;
-  height: calc(100vh - 54px);
+  height: 100%;
   width: 100%;
   background: #f8fafc;
   overflow: hidden;

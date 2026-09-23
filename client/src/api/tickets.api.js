@@ -10,7 +10,7 @@ export const ticketsApi = {
   getClientHistory: (ticketId, params = {}) => http.get(`/tickets/${ticketId}/client-history`, { params }),
   assume:        (ticketId)                        => http.post('/tickets/assume',           { ticketId }),
   transfer:      (ticketId, transferData)          => http.post('/tickets/transfer',         { ticketId, ...transferData }),
-  close:         (ticketId)                        => http.post('/tickets/close',            { ticketId }),
+  close:         (ticketId, payload = {})          => http.post('/tickets/close',            { ticketId, ...payload }),
   updateContact: (ticketId, contactData)           => http.put(`/tickets/${ticketId}/contact`, contactData),
   startConversation: (contactId, departmentId)     => http.post('/tickets/start-conversation', { contactId, departmentId }),
   sendMessage:   (ticketId, text, replyToMessageId = null) => http.post('/tickets/send-message', { ticketId, text, replyToMessageId }),
