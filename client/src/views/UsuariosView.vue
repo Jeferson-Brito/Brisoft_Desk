@@ -1,7 +1,7 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h2 class="page-title">Usuários & Acesso</h2>
+      <h2 class="page-title">Usuários</h2>
       <div class="header-actions">
         <div v-if="showSearchInput" class="search-box">
           <i class="fa-solid fa-magnifying-glass"></i>
@@ -83,8 +83,8 @@
                 {{ u.is_active !== false ? 'Ativo' : 'Inativo' }}
               </span>
             </td>
-            <td style="text-align:right;">
-              <button class="btn-icon" style="color:#059669;margin-right:4px;" title="Editar" @click="editUser(u)">
+            <td class="actions-cell">
+              <button class="btn-icon" style="color:#059669;" title="Editar" @click="editUser(u)">
                 <i class="fa-solid fa-pen"></i>
               </button>
               <button class="btn-icon" style="color:#ef4444;" title="Excluir" @click="deleteUser(u)">
@@ -272,6 +272,35 @@ onMounted(() => {
   box-shadow: none;
   overflow-x: auto;
   margin-bottom: 24px;
+}
+.data-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+}
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  text-align: left;
+  padding: 12px 10px;
+  font-weight: 700;
+  color: #334155;
+  border-bottom: 1px solid var(--border-color);
+}
+.data-table tbody td {
+  padding: 12px 10px;
+  border-bottom: 1px solid #eef2f7;
+  vertical-align: middle;
+}
+.actions-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 120px;
+  text-align: right;
 }
 .badge {
   display: inline-flex;
