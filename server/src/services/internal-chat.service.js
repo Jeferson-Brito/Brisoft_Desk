@@ -269,6 +269,10 @@ class InternalChatService {
             media_type,
             file_name,
             reply_to_id,
+            reactions,
+            is_pinned,
+            is_edited,
+            is_deleted,
             created_at,
             sender:users!sender_id (id, name, avatar_url, role)
           `)
@@ -277,7 +281,13 @@ class InternalChatService {
           .limit(limit);
 
         if (!error && Array.isArray(data)) {
-          return data;
+          return data.map(m => ({
+            ...m,
+            reactions: m.reactions || [],
+            is_pinned: !!m.is_pinned,
+            is_edited: !!m.is_edited,
+            is_deleted: !!m.is_deleted
+          }));
         }
       } catch (err) {
         console.warn('Erro ao carregar mensagens no Supabase:', err.message);
@@ -302,6 +312,10 @@ class InternalChatService {
       media_type: media_type || null,
       file_name: file_name || null,
       reply_to_id: reply_to_id || null,
+      reactions: [],
+      is_pinned: false,
+      is_edited: false,
+      is_deleted: false,
       created_at: new Date().toISOString(),
       sender: {
         id: currentUser.id,
@@ -582,6 +596,282 @@ class InternalChatService {
       mediaCount: mediaMessages.length,
       mediaMessages
     };
+  }
+
+  // Emite evento para os participantes da conversa
+  async broadcastEvent(conversationId, eventName, payload) {
+    if (!this.io) return;
+
+    let convType = 'general';
+    let deptId = null;
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data } = await supabase
+          .from('internal_conversations')
+          .select('type, department_id')
+          .eq('id', conversationId)
+          .maybeSingle();
+        if (data) {
+          convType = data.type;
+          deptId = data.department_id;
+        }
+      } catch (_) {}
+    } else {
+      const conv = memoryConversations.find(c => c.id === conversationId);
+      if (conv) {
+        convType = conv.type;
+        deptId = conv.department_id;
+      }
+    }
+
+    if (convType === 'general') {
+      this.io.emit(eventName, payload);
+    } else if (convType === 'department' && deptId) {
+      this.io.to(`department:${deptId}`).emit(eventName, payload);
+    } else {
+      // Para conversas diretas ou grupos, busca todos os participantes
+      let participantIds = [];
+      if (isSupabaseConfigured()) {
+        try {
+          const { data } = await supabase
+            .from('internal_conversation_participants')
+            .select('user_id')
+            .eq('conversation_id', conversationId);
+          if (data) participantIds = data.map(p => p.user_id);
+        } catch (_) {}
+      }
+      if (participantIds.length === 0) {
+        participantIds = memoryParticipants.filter(p => p.conversation_id === conversationId).map(p => p.user_id);
+      }
+
+      participantIds.forEach(uid => {
+        this.io.to(`user:${uid}`).emit(eventName, payload);
+      });
+    }
+  }
+
+  // Alterna reação com emoji na mensagem
+  async toggleReaction(currentUser, messageId, emoji) {
+    if (!currentUser?.id || !messageId || !emoji) {
+      throw new Error('Parâmetros inválidos');
+    }
+
+    let msg = memoryMessages.find(m => m.id === messageId);
+    if (!msg && isSupabaseConfigured()) {
+      try {
+        const { data } = await supabase
+          .from('internal_messages')
+          .select('*')
+          .eq('id', messageId)
+          .maybeSingle();
+        if (data) msg = data;
+      } catch (_) {}
+    }
+
+    if (!msg) {
+      throw new Error('Mensagem não encontrada');
+    }
+
+    let reactions = Array.isArray(msg.reactions) ? [...msg.reactions] : [];
+    const existingIndex = reactions.findIndex(r => r.emoji === emoji && r.user_id === currentUser.id);
+
+    if (existingIndex >= 0) {
+      reactions.splice(existingIndex, 1);
+    } else {
+      reactions.push({
+        emoji,
+        user_id: currentUser.id,
+        user_name: currentUser.name
+      });
+    }
+
+    msg.reactions = reactions;
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase
+          .from('internal_messages')
+          .update({ reactions })
+          .eq('id', messageId);
+      } catch (err) {
+        console.warn('Supabase reactions update skipped:', err.message);
+      }
+    }
+
+    const payload = {
+      messageId,
+      conversationId: msg.conversation_id,
+      reactions
+    };
+
+    await this.broadcastEvent(msg.conversation_id, 'internal_reaction_updated', payload);
+    return payload;
+  }
+
+  // Alterna fixação da mensagem
+  async togglePinMessage(currentUser, messageId) {
+    if (!currentUser?.id || !messageId) {
+      throw new Error('Parâmetros inválidos');
+    }
+
+    let msg = memoryMessages.find(m => m.id === messageId);
+    if (!msg && isSupabaseConfigured()) {
+      try {
+        const { data } = await supabase
+          .from('internal_messages')
+          .select('*')
+          .eq('id', messageId)
+          .maybeSingle();
+        if (data) msg = data;
+      } catch (_) {}
+    }
+
+    if (!msg) {
+      throw new Error('Mensagem não encontrada');
+    }
+
+    const isPinned = !msg.is_pinned;
+    msg.is_pinned = isPinned;
+    msg.pinned_by = isPinned ? currentUser.id : null;
+    msg.pinned_at = isPinned ? new Date().toISOString() : null;
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase
+          .from('internal_messages')
+          .update({
+            is_pinned: msg.is_pinned,
+            pinned_by: msg.pinned_by,
+            pinned_at: msg.pinned_at
+          })
+          .eq('id', messageId);
+      } catch (err) {
+        console.warn('Supabase pin update skipped:', err.message);
+      }
+    }
+
+    const payload = {
+      messageId,
+      conversationId: msg.conversation_id,
+      is_pinned: msg.is_pinned,
+      pinned_by: msg.pinned_by,
+      pinned_at: msg.pinned_at,
+      message: msg
+    };
+
+    await this.broadcastEvent(msg.conversation_id, 'internal_message_pinned', payload);
+    return payload;
+  }
+
+  // Edita texto da mensagem (somente o autor)
+  async editMessage(currentUser, messageId, newText) {
+    const text = String(newText || '').trim();
+    if (!text) {
+      throw new Error('Texto da mensagem não pode ser vazio');
+    }
+
+    let msg = memoryMessages.find(m => m.id === messageId);
+    if (!msg && isSupabaseConfigured()) {
+      try {
+        const { data } = await supabase
+          .from('internal_messages')
+          .select('*')
+          .eq('id', messageId)
+          .maybeSingle();
+        if (data) msg = data;
+      } catch (_) {}
+    }
+
+    if (!msg) {
+      throw new Error('Mensagem não encontrada');
+    }
+
+    if (msg.sender_id !== currentUser.id) {
+      throw new Error('Apenas o autor pode editar a mensagem');
+    }
+
+    msg.text = text;
+    msg.is_edited = true;
+    msg.edited_at = new Date().toISOString();
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase
+          .from('internal_messages')
+          .update({
+            text: msg.text,
+            is_edited: true,
+            edited_at: msg.edited_at
+          })
+          .eq('id', messageId);
+      } catch (err) {
+        console.warn('Supabase edit update skipped:', err.message);
+      }
+    }
+
+    const payload = {
+      messageId,
+      conversationId: msg.conversation_id,
+      text: msg.text,
+      is_edited: true,
+      edited_at: msg.edited_at
+    };
+
+    await this.broadcastEvent(msg.conversation_id, 'internal_message_edited', payload);
+    return payload;
+  }
+
+  // Exclui mensagem (autor ou admin)
+  async deleteMessage(currentUser, messageId) {
+    let msg = memoryMessages.find(m => m.id === messageId);
+    if (!msg && isSupabaseConfigured()) {
+      try {
+        const { data } = await supabase
+          .from('internal_messages')
+          .select('*')
+          .eq('id', messageId)
+          .maybeSingle();
+        if (data) msg = data;
+      } catch (_) {}
+    }
+
+    if (!msg) {
+      throw new Error('Mensagem não encontrada');
+    }
+
+    const isAuthor = msg.sender_id === currentUser.id;
+    const isAdmin = currentUser.role === 'admin';
+    if (!isAuthor && !isAdmin) {
+      throw new Error('Você não tem permissão para excluir esta mensagem');
+    }
+
+    msg.is_deleted = true;
+    msg.text = 'Esta mensagem foi apagada';
+    msg.media_url = null;
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase
+          .from('internal_messages')
+          .update({
+            is_deleted: true,
+            text: msg.text,
+            media_url: null
+          })
+          .eq('id', messageId);
+      } catch (err) {
+        console.warn('Supabase delete update skipped:', err.message);
+      }
+    }
+
+    const payload = {
+      messageId,
+      conversationId: msg.conversation_id
+    };
+
+    await this.broadcastEvent(msg.conversation_id, 'internal_message_deleted', payload);
+    return { success: true, messageId };
   }
 }
 

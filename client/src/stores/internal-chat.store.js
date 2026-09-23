@@ -242,6 +242,114 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     }
   }
 
+  // ─── Fase 4: Reações, Fixação e Edição/Exclusão ──────────────────────────────
+  const pinnedMessages = computed(() => {
+    return messages.value.filter(m => m.is_pinned && !m.is_deleted)
+  })
+
+  async function toggleReaction(messageId, emoji) {
+    try {
+      // Otimista
+      const msg = messages.value.find(m => m.id === messageId)
+      if (msg) {
+        msg.reactions = Array.isArray(msg.reactions) ? [...msg.reactions] : []
+        const idx = msg.reactions.findIndex(r => r.emoji === emoji && r.user_id === auth.user?.id)
+        if (idx >= 0) {
+          msg.reactions.splice(idx, 1)
+        } else {
+          msg.reactions.push({ emoji, user_id: auth.user?.id, user_name: auth.user?.name })
+        }
+      }
+      await internalChatApi.toggleReaction(messageId, emoji)
+    } catch (err) {
+      console.warn('Erro ao alternar reação:', err)
+    }
+  }
+
+  async function togglePinMessage(messageId) {
+    try {
+      const msg = messages.value.find(m => m.id === messageId)
+      if (msg) {
+        msg.is_pinned = !msg.is_pinned
+      }
+      const { data } = await internalChatApi.togglePinMessage(messageId)
+      if (data?.success) {
+        ui.showToast(data.is_pinned ? '📌 Mensagem fixada!' : 'Mensagem desafixada.')
+      }
+    } catch (err) {
+      ui.showToast('Erro ao fixar mensagem: ' + (err.response?.data?.error || err.message), 'error')
+    }
+  }
+
+  async function editMessage(messageId, newText) {
+    try {
+      const { data } = await internalChatApi.editMessage(messageId, newText)
+      if (data?.success && data.message) {
+        const msg = messages.value.find(m => m.id === messageId)
+        if (msg) {
+          msg.text = data.message.text
+          msg.is_edited = true
+          msg.edited_at = data.message.edited_at
+        }
+        ui.showToast('Mensagem editada com sucesso!')
+      }
+    } catch (err) {
+      ui.showToast('Erro ao editar mensagem: ' + (err.response?.data?.error || err.message), 'error')
+    }
+  }
+
+  async function deleteMessage(messageId) {
+    try {
+      const { data } = await internalChatApi.deleteMessage(messageId)
+      if (data?.success) {
+        const msg = messages.value.find(m => m.id === messageId)
+        if (msg) {
+          msg.is_deleted = true
+          msg.text = 'Esta mensagem foi apagada'
+          msg.media_url = null
+        }
+        ui.showToast('Mensagem apagada.')
+      }
+    } catch (err) {
+      ui.showToast('Erro ao excluir mensagem: ' + (err.response?.data?.error || err.message), 'error')
+    }
+  }
+
+  // Handlers para eventos de WebSocket em tempo real (Fase 4)
+  function handleReactionUpdated({ messageId, reactions }) {
+    const msg = messages.value.find(m => m.id === messageId)
+    if (msg) {
+      msg.reactions = reactions || []
+    }
+  }
+
+  function handleMessagePinned({ messageId, is_pinned, pinned_by, pinned_at }) {
+    const msg = messages.value.find(m => m.id === messageId)
+    if (msg) {
+      msg.is_pinned = is_pinned
+      msg.pinned_by = pinned_by
+      msg.pinned_at = pinned_at
+    }
+  }
+
+  function handleMessageEdited({ messageId, text, is_edited, edited_at }) {
+    const msg = messages.value.find(m => m.id === messageId)
+    if (msg) {
+      msg.text = text
+      msg.is_edited = is_edited
+      msg.edited_at = edited_at
+    }
+  }
+
+  function handleMessageDeleted({ messageId }) {
+    const msg = messages.value.find(m => m.id === messageId)
+    if (msg) {
+      msg.is_deleted = true
+      msg.text = 'Esta mensagem foi apagada'
+      msg.media_url = null
+    }
+  }
+
   return {
     conversations,
     teamMembers,
@@ -249,6 +357,7 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     conversationDetails,
     isLoadingDetails,
     messages,
+    pinnedMessages,
     isLoading,
     isSending,
     typingUsers,
@@ -263,6 +372,14 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     sendMessage,
     sendMedia,
     handleIncomingInternalMessage,
-    handleUserTyping
+    handleUserTyping,
+    toggleReaction,
+    togglePinMessage,
+    editMessage,
+    deleteMessage,
+    handleReactionUpdated,
+    handleMessagePinned,
+    handleMessageEdited,
+    handleMessageDeleted
   }
 })

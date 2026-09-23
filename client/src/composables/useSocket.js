@@ -221,6 +221,26 @@ export function useSocket() {
       const internalChat = useInternalChatStore()
       internalChat.handleConversationCreated(conv)
     })
+
+    socket.on('internal_reaction_updated', (data) => {
+      const internalChat = useInternalChatStore()
+      internalChat.handleReactionUpdated(data)
+    })
+
+    socket.on('internal_message_pinned', (data) => {
+      const internalChat = useInternalChatStore()
+      internalChat.handleMessagePinned(data)
+    })
+
+    socket.on('internal_message_edited', (data) => {
+      const internalChat = useInternalChatStore()
+      internalChat.handleMessageEdited(data)
+    })
+
+    socket.on('internal_message_deleted', (data) => {
+      const internalChat = useInternalChatStore()
+      internalChat.handleMessageDeleted(data)
+    })
   }
 
   function disconnect() {

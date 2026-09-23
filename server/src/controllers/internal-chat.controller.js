@@ -146,6 +146,52 @@ class InternalChatController {
       return res.status(500).json({ success: false, error: error.message });
     }
   }
+
+  async toggleReaction(req, res) {
+    try {
+      const { id } = req.params;
+      const { emoji } = req.body;
+      const result = await internalChatService.toggleReaction(req.user, id, emoji);
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      console.error('Erro ao alternar reação:', error);
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async togglePinMessage(req, res) {
+    try {
+      const { id } = req.params;
+      const result = await internalChatService.togglePinMessage(req.user, id);
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      console.error('Erro ao fixar/desafixar mensagem:', error);
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async editMessage(req, res) {
+    try {
+      const { id } = req.params;
+      const { text } = req.body;
+      const message = await internalChatService.editMessage(req.user, id, text);
+      return res.json({ success: true, message });
+    } catch (error) {
+      console.error('Erro ao editar mensagem:', error);
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async deleteMessage(req, res) {
+    try {
+      const { id } = req.params;
+      const result = await internalChatService.deleteMessage(req.user, id);
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      console.error('Erro ao excluir mensagem:', error);
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
 }
 
 module.exports = new InternalChatController();

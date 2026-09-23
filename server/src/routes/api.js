@@ -164,5 +164,9 @@ router.post('/internal-chat/direct/:targetUserId', requireAuth, (req, res) => in
 router.post('/internal-chat/channels', requireAuth, (req, res) => internalChatController.createChannel(req, res));
 router.get('/internal-chat/conversations/:id/details', requireAuth, (req, res) => internalChatController.getConversationDetails(req, res));
 router.post('/internal-chat/conversations/:id/read', requireAuth, (req, res) => internalChatController.markAsRead(req, res));
+router.post('/internal-chat/messages/:id/reactions', requireAuth, (req, res) => internalChatController.toggleReaction(req, res));
+router.post('/internal-chat/messages/:id/pin', requireAuth, (req, res) => internalChatController.togglePinMessage(req, res));
+router.put('/internal-chat/messages/:id', requireAuth, (req, res) => internalChatController.editMessage(req, res));
+router.delete('/internal-chat/messages/:id', requireAuth, (req, res) => internalChatController.deleteMessage(req, res));
 
 module.exports = router;

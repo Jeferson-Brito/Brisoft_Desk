@@ -299,6 +299,25 @@
             </div>
           </div>
 
+          <!-- Banner de Mensagens Fixadas (Fase 4) -->
+          <div v-if="latestPinnedMessage" class="pinned-message-banner">
+            <div class="pinned-banner-content" @click="scrollToMessage(latestPinnedMessage.id)">
+              <i class="ri-pushpin-2-fill pin-icon"></i>
+              <div class="pinned-text-box">
+                <span class="pinned-label">Mensagem Fixada</span>
+                <span class="pinned-snippet">{{ getMessageSnippet(latestPinnedMessage) }}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="btn-unpin-banner"
+              title="Desafixar mensagem"
+              @click="chatStore.togglePinMessage(latestPinnedMessage.id)"
+            >
+              <i class="ri-close-line"></i>
+            </button>
+          </div>
+
           <!-- Área de Rolagem das Mensagens -->
           <div class="chat-messages-area" ref="messagesContainerRef">
             <div v-if="chatStore.isLoading" class="messages-loading">
@@ -330,7 +349,8 @@
                   :class="{
                     'message-mine': msg.sender_id === auth.user?.id,
                     'message-other': msg.sender_id !== auth.user?.id,
-                    'search-target-matched': isMessageSearchMatched(msg.id)
+                    'search-target-matched': isMessageSearchMatched(msg.id),
+                    'message-is-pinned': msg.is_pinned
                   }"
                 >
                   <!-- Avatar do colega nas mensagens recebidas -->
@@ -345,16 +365,74 @@
                   </div>
 
                   <div class="message-bubble-wrapper">
-                    <div class="message-bubble-box">
-                      <!-- Botão de Ação Rápida: Responder -->
+                    <!-- Barra de Ações Rápidas (Fase 4) -->
+                    <div v-if="!msg.is_deleted" class="msg-actions-bar">
+                      <!-- Reação Rápida com Popover -->
+                      <div class="msg-action-item">
+                        <button
+                          type="button"
+                          class="msg-action-trigger"
+                          title="Reagir com emoji"
+                          @click.stop="toggleReactionPopover(msg.id)"
+                        >
+                          <i class="ri-emotion-line"></i>
+                        </button>
+                        <div v-if="activeReactionPopoverId === msg.id" class="reactions-quick-popover" @click.stop>
+                          <button
+                            v-for="em in ['👍', '❤️', '😂', '🎉', '🚀', '👀']"
+                            :key="em"
+                            type="button"
+                            class="quick-emoji-btn"
+                            @click="addReaction(msg.id, em)"
+                          >
+                            {{ em }}
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- Responder -->
                       <button
                         type="button"
-                        class="msg-reply-trigger"
+                        class="msg-action-trigger"
                         title="Responder mensagem"
                         @click="setReplyTo(msg)"
                       >
                         <i class="ri-reply-line"></i>
                       </button>
+
+                      <!-- Mais Opções (...) -->
+                      <div class="msg-action-item">
+                        <button
+                          type="button"
+                          class="msg-action-trigger"
+                          title="Mais opções"
+                          @click.stop="toggleMoreMenu(msg.id)"
+                        >
+                          <i class="ri-more-2-fill"></i>
+                        </button>
+                        <div v-if="activeMoreMenuId === msg.id" class="msg-dropdown-menu" @click.stop>
+                          <button type="button" class="dropdown-item" @click="chatStore.togglePinMessage(msg.id); activeMoreMenuId = null">
+                            <i :class="msg.is_pinned ? 'ri-pushpin-line' : 'ri-pushpin-2-fill'"></i>
+                            {{ msg.is_pinned ? 'Desafixar mensagem' : 'Fixar mensagem' }}
+                          </button>
+                          <button v-if="msg.text" type="button" class="dropdown-item" @click="copyMessageText(msg.text); activeMoreMenuId = null">
+                            <i class="ri-file-copy-line"></i> Copiar texto
+                          </button>
+                          <button v-if="msg.sender_id === auth.user?.id && !msg.is_deleted && msg.text" type="button" class="dropdown-item" @click="startEditMessage(msg); activeMoreMenuId = null">
+                            <i class="ri-edit-line"></i> Editar mensagem
+                          </button>
+                          <button v-if="(msg.sender_id === auth.user?.id || auth.user?.role === 'admin') && !msg.is_deleted" type="button" class="dropdown-item text-danger" @click="confirmDeleteMessage(msg.id); activeMoreMenuId = null">
+                            <i class="ri-delete-bin-line"></i> Excluir mensagem
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="message-bubble-box" :class="{ 'is-deleted-bubble': msg.is_deleted }">
+                      <!-- Tag de Mensagem Fixada -->
+                      <div v-if="msg.is_pinned" class="msg-pinned-tag">
+                        <i class="ri-pushpin-2-fill"></i> Fixada
+                      </div>
 
                       <!-- Nome do remetente (apenas em canais ou se for de outro usuário) -->
                       <span
@@ -377,54 +455,80 @@
                         </div>
                       </div>
 
-                      <!-- Mídia: Imagem -->
-                      <div
-                        v-if="msg.media_type === 'image' || isImageUrl(msg.media_url)"
-                        class="message-media-image"
-                        @click="openImagePreview(msg.media_url)"
-                      >
-                        <img :src="msg.media_url" :alt="msg.file_name || 'Imagem'" loading="lazy" />
+                      <!-- Mensagem Apagada -->
+                      <div v-if="msg.is_deleted" class="deleted-msg-content">
+                        <i class="ri-forbid-line"></i> Esta mensagem foi apagada
                       </div>
 
-                      <!-- Mídia: Áudio -->
-                      <div
-                        v-else-if="msg.media_type === 'audio'"
-                        class="message-media-audio"
-                      >
-                        <audio :src="msg.media_url" controls controlsList="nodownload"></audio>
-                      </div>
+                      <template v-else>
+                        <!-- Mídia: Imagem -->
+                        <div
+                          v-if="msg.media_type === 'image' || isImageUrl(msg.media_url)"
+                          class="message-media-image"
+                          @click="openImagePreview(msg.media_url)"
+                        >
+                          <img :src="msg.media_url" :alt="msg.file_name || 'Imagem'" loading="lazy" />
+                        </div>
 
-                      <!-- Mídia: Documento / Arquivo -->
-                      <div
-                        v-else-if="msg.media_type === 'document' || msg.media_url"
-                        class="message-media-doc"
-                      >
-                        <a :href="msg.media_url" target="_blank" download class="doc-attachment-card">
-                          <div class="doc-icon-box">
-                            <i class="ri-file-text-line"></i>
-                          </div>
-                          <div class="doc-info-box">
-                            <span class="doc-title">{{ msg.file_name || 'Documento anexo' }}</span>
-                            <span class="doc-action">Clique para baixar</span>
-                          </div>
-                          <i class="ri-download-2-line doc-download-icon"></i>
-                        </a>
-                      </div>
+                        <!-- Mídia: Áudio -->
+                        <div
+                          v-else-if="msg.media_type === 'audio'"
+                          class="message-media-audio"
+                        >
+                          <audio :src="msg.media_url" controls controlsList="nodownload"></audio>
+                        </div>
 
-                      <!-- Texto da Mensagem -->
-                      <div
-                        v-if="msg.text"
-                        class="message-text-content"
-                        v-html="formatMessageBody(msg.text)"
-                      ></div>
+                        <!-- Mídia: Documento / Arquivo -->
+                        <div
+                          v-else-if="msg.media_type === 'document' || msg.media_url"
+                          class="message-media-doc"
+                        >
+                          <a :href="msg.media_url" target="_blank" download class="doc-attachment-card">
+                            <div class="doc-icon-box">
+                              <i class="ri-file-text-line"></i>
+                            </div>
+                            <div class="doc-info-box">
+                              <span class="doc-title">{{ msg.file_name || 'Documento anexo' }}</span>
+                              <span class="doc-action">Clique para baixar</span>
+                            </div>
+                            <i class="ri-download-2-line doc-download-icon"></i>
+                          </a>
+                        </div>
+
+                        <!-- Texto da Mensagem -->
+                        <div
+                          v-if="msg.text"
+                          class="message-text-content"
+                          v-html="formatMessageBody(msg.text)"
+                        ></div>
+                      </template>
 
                       <div class="message-meta-row">
+                        <span v-if="msg.is_edited && !msg.is_deleted" class="msg-edited-badge" title="Mensagem editada">
+                          (editada)
+                        </span>
                         <span class="message-timestamp">{{ formatMessageTime(msg.created_at) }}</span>
                         <i
                           v-if="msg.sender_id === auth.user?.id"
                           class="ri-check-double-line message-check-read"
                         ></i>
                       </div>
+                    </div>
+
+                    <!-- Pílulas de Reações Agregadas (Fase 4) -->
+                    <div v-if="msg.reactions && msg.reactions.length > 0" class="message-reactions-row">
+                      <button
+                        v-for="grp in groupReactions(msg.reactions)"
+                        :key="grp.emoji"
+                        type="button"
+                        class="reaction-pill"
+                        :class="{ 'user-reacted': grp.userReacted }"
+                        :title="grp.tooltip"
+                        @click="chatStore.toggleReaction(msg.id, grp.emoji)"
+                      >
+                        <span class="reaction-emoji">{{ grp.emoji }}</span>
+                        <span class="reaction-count">{{ grp.count }}</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -444,8 +548,22 @@
 
           <!-- Barra Inferior de Envio de Mensagem -->
           <footer class="chat-input-footer">
+            <!-- Barra de Edição Ativa (Fase 4) -->
+            <div v-if="editingMessage" class="active-editing-banner">
+              <div class="editing-banner-bar"></div>
+              <div class="editing-banner-info">
+                <span class="editing-banner-title">
+                  <i class="ri-edit-line"></i> Editando sua mensagem
+                </span>
+                <span class="editing-banner-snippet">{{ editingMessage.text }}</span>
+              </div>
+              <button type="button" class="btn-cancel-edit" title="Cancelar edição (Esc)" @click="cancelEditMessage">
+                <i class="ri-close-line"></i>
+              </button>
+            </div>
+
             <!-- Barra de Resposta Ativa -->
-            <div v-if="replyingTo" class="active-reply-banner">
+            <div v-else-if="replyingTo" class="active-reply-banner">
               <div class="reply-banner-bar"></div>
               <div class="reply-banner-info">
                 <span class="reply-banner-title">
@@ -476,6 +594,27 @@
 
             <!-- Formulário Normal de Envio -->
             <form v-else class="chat-input-form" @submit.prevent="handleSend">
+              <!-- Dropdown de Autocomplete de Menções (@mentions) (Fase 4) -->
+              <div v-if="showMentionSuggestions && mentionCandidates.length > 0" class="mention-suggestions-popover">
+                <div class="mention-suggestions-header">Mencionar colega</div>
+                <button
+                  v-for="member in mentionCandidates"
+                  :key="member.id"
+                  type="button"
+                  class="mention-item-btn"
+                  @click="selectMentionMember(member)"
+                >
+                  <div class="member-avatar drawer-small-avatar" :style="getAvatarStyle(member)">
+                    <img v-if="member.avatar_url" :src="member.avatar_url" :alt="member.name" />
+                    <span v-else>{{ getInitials(member.name) }}</span>
+                  </div>
+                  <div class="mention-item-info">
+                    <span class="mention-name">{{ member.name }}</span>
+                    <span class="mention-role">{{ member.role || 'Colaborador' }}</span>
+                  </div>
+                </button>
+              </div>
+
               <input
                 ref="fileInputRef"
                 type="file"
@@ -506,7 +645,7 @@
                 ref="inputTextareaRef"
                 v-model="inputMessage"
                 rows="1"
-                placeholder="Digite sua mensagem interna... (Enter para enviar, Shift+Enter para quebrar linha)"
+                placeholder="Digite sua mensagem interna... (@ para mencionar, Enter para enviar)"
                 class="chat-textarea"
                 @keydown="onKeyDown"
                 @input="onInputTyping"
@@ -527,9 +666,10 @@
                 type="submit"
                 class="send-message-btn"
                 :disabled="chatStore.isSending"
-                title="Enviar mensagem"
+                :title="editingMessage ? 'Salvar alteração' : 'Enviar mensagem'"
               >
                 <i v-if="chatStore.isSending" class="ri-loader-4-line spin-icon"></i>
+                <i v-else-if="editingMessage" class="ri-check-line"></i>
                 <i v-else class="ri-send-plane-2-fill"></i>
               </button>
             </form>
@@ -562,7 +702,7 @@
               </span>
             </div>
 
-            <!-- Abas do Drawer: Membros / Arquivos -->
+            <!-- Abas do Drawer: Membros / Arquivos / Fixadas -->
             <div class="drawer-tabs">
               <button
                 type="button"
@@ -584,6 +724,17 @@
                 <i class="ri-attachment-line"></i> Mídias
                 <span v-if="sharedMediaFiles.length" class="drawer-badge-count">
                   {{ sharedMediaFiles.length }}
+                </span>
+              </button>
+              <button
+                type="button"
+                class="drawer-tab"
+                :class="{ active: detailsTab === 'pinned' }"
+                @click="detailsTab = 'pinned'"
+              >
+                <i class="ri-pushpin-2-line"></i> Fixadas
+                <span v-if="chatStore.pinnedMessages.length" class="drawer-badge-count">
+                  {{ chatStore.pinnedMessages.length }}
                 </span>
               </button>
             </div>
@@ -672,6 +823,36 @@
                       <i class="ri-download-2-line"></i>
                     </a>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Aba Mensagens Fixadas (Fase 4) -->
+            <div v-else-if="detailsTab === 'pinned'" class="drawer-tab-pane">
+              <div v-if="chatStore.pinnedMessages.length === 0" class="drawer-empty-media">
+                <i class="ri-pushpin-line"></i>
+                <p>Nenhuma mensagem fixada nesta conversa ainda.</p>
+              </div>
+              <div v-else class="drawer-pinned-list">
+                <div
+                  v-for="pmsg in chatStore.pinnedMessages"
+                  :key="pmsg.id"
+                  class="drawer-pinned-card"
+                  @click="scrollToMessage(pmsg.id)"
+                >
+                  <div class="drawer-pinned-card-header">
+                    <span class="pmsg-author">{{ pmsg.sender?.name || 'Colega' }}</span>
+                    <span class="pmsg-date">{{ formatMessageTime(pmsg.created_at) }}</span>
+                  </div>
+                  <p class="drawer-pinned-card-text">{{ getMessageSnippet(pmsg) }}</p>
+                  <button
+                    type="button"
+                    class="btn-unpin-card"
+                    title="Desafixar mensagem"
+                    @click.stop="chatStore.togglePinMessage(pmsg.id)"
+                  >
+                    <i class="ri-close-line"></i> Desafixar
+                  </button>
                 </div>
               </div>
             </div>
@@ -838,7 +1019,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useInternalChatStore } from '@/stores/internal-chat.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -867,7 +1048,7 @@ const currentSearchIndex = ref(0)
 
 // ─── Painel Lateral de Detalhes da Conversa ───────────────────────────────────
 const showDetailsDrawer = ref(false)
-const detailsTab = ref('members') // 'members' | 'media'
+const detailsTab = ref('members') // 'members' | 'media' | 'pinned'
 
 // ─── Modal de Criação de Canal ────────────────────────────────────────────────
 const showNewChannelModal = ref(false)
@@ -877,6 +1058,13 @@ const newChannelForm = ref({
   type: 'general',
   participant_ids: []
 })
+
+// ─── Fase 4: Reações, Menções, Fixadas e Edição ──────────────────────────────
+const activeReactionPopoverId = ref(null)
+const activeMoreMenuId = ref(null)
+const editingMessage = ref(null)
+const showMentionSuggestions = ref(false)
+const mentionSearchTerm = ref('')
 
 // ─── Gravação de Áudio ────────────────────────────────────────────────────────
 const isRecordingAudio = ref(false)
@@ -888,6 +1076,7 @@ let typingTimeout = null
 
 // ─── Inicialização ────────────────────────────────────────────────────────────
 onMounted(async () => {
+  window.addEventListener('click', closeAllPopovers)
   await Promise.all([
     chatStore.fetchConversations(),
     chatStore.fetchTeamMembers()
@@ -901,6 +1090,17 @@ onMounted(async () => {
     }
   }
 })
+
+onUnmounted(() => {
+  window.removeEventListener('click', closeAllPopovers)
+  clearInterval(audioTimer)
+})
+
+function closeAllPopovers() {
+  activeReactionPopoverId.value = null
+  activeMoreMenuId.value = null
+  showMentionSuggestions.value = false
+}
 
 // Rola para a mensagem mais recente ao carregar ou receber novas mensagens
 watch(() => chatStore.messages.length, () => {
@@ -991,6 +1191,19 @@ const typingLabel = computed(() => {
   if (names.length === 1) return `${names[0]} está digitando...`
   if (names.length > 1) return `${names[0]} e outros estão digitando...`
   return ''
+})
+
+// ─── Fase 4: Mensagens Fixadas e Menções ──────────────────────────────────────
+const latestPinnedMessage = computed(() => {
+  const list = chatStore.pinnedMessages || []
+  return list.length > 0 ? list[list.length - 1] : null
+})
+
+const mentionCandidates = computed(() => {
+  const term = mentionSearchTerm.value.toLowerCase().trim()
+  const members = chatStore.teamMembers.filter(m => m.id !== auth.user?.id)
+  if (!term) return members.slice(0, 5)
+  return members.filter(m => m.name?.toLowerCase().includes(term)).slice(0, 5)
 })
 
 // ─── Helpers de Canais e Ícones ───────────────────────────────────────────────
@@ -1162,6 +1375,93 @@ async function submitCreateChannel() {
   }
 }
 
+// ─── Fase 4: Reações com Emojis ──────────────────────────────────────────────
+function toggleReactionPopover(msgId) {
+  if (activeReactionPopoverId.value === msgId) {
+    activeReactionPopoverId.value = null
+  } else {
+    activeReactionPopoverId.value = msgId
+    activeMoreMenuId.value = null
+  }
+}
+
+function addReaction(msgId, emoji) {
+  activeReactionPopoverId.value = null
+  chatStore.toggleReaction(msgId, emoji)
+}
+
+function groupReactions(reactions) {
+  if (!Array.isArray(reactions) || reactions.length === 0) return []
+  const map = {}
+  reactions.forEach(r => {
+    if (!map[r.emoji]) {
+      map[r.emoji] = { emoji: r.emoji, count: 0, userReacted: false, names: [] }
+    }
+    map[r.emoji].count++
+    if (r.user_id === auth.user?.id) {
+      map[r.emoji].userReacted = true
+    }
+    if (r.user_name) {
+      map[r.emoji].names.push(r.user_name)
+    }
+  })
+  return Object.values(map).map(g => ({
+    ...g,
+    tooltip: `${g.names.join(', ')} reagiu com ${g.emoji}`
+  }))
+}
+
+// ─── Fase 4: Menu de Mais Ações e Edição/Exclusão ─────────────────────────────
+function toggleMoreMenu(msgId) {
+  if (activeMoreMenuId.value === msgId) {
+    activeMoreMenuId.value = null
+  } else {
+    activeMoreMenuId.value = msgId
+    activeReactionPopoverId.value = null
+  }
+}
+
+function startEditMessage(msg) {
+  editingMessage.value = msg
+  inputMessage.value = msg.text || ''
+  nextTick(() => {
+    inputTextareaRef.value?.focus()
+  })
+}
+
+function cancelEditMessage() {
+  editingMessage.value = null
+  inputMessage.value = ''
+}
+
+async function confirmDeleteMessage(msgId) {
+  if (confirm('Tem certeza que deseja apagar esta mensagem para todos?')) {
+    await chatStore.deleteMessage(msgId)
+  }
+}
+
+function copyMessageText(text) {
+  if (!text) return
+  navigator.clipboard.writeText(text).then(() => {
+    ui.showToast('Texto copiado para a área de transferência!')
+  }).catch(() => {})
+}
+
+// ─── Fase 4: Autocomplete de Menções (@mentions) ──────────────────────────────
+function selectMentionMember(member) {
+  const val = inputMessage.value
+  const atIdx = val.lastIndexOf('@')
+  if (atIdx >= 0) {
+    inputMessage.value = val.slice(0, atIdx) + `@${member.name} `
+  } else {
+    inputMessage.value += `@${member.name} `
+  }
+  showMentionSuggestions.value = false
+  nextTick(() => {
+    inputTextareaRef.value?.focus()
+  })
+}
+
 // ─── Helpers de Status e Conversas ───────────────────────────────────────────
 function isUserOnline(userId) {
   if (!userId) return false
@@ -1190,9 +1490,19 @@ async function handleSend() {
   const text = inputMessage.value.trim()
   if (!text) return
 
+  // Se estiver em modo de edição
+  if (editingMessage.value) {
+    const editId = editingMessage.value.id
+    editingMessage.value = null
+    inputMessage.value = ''
+    await chatStore.editMessage(editId, text)
+    return
+  }
+
   const replyId = replyingTo.value?.id || null
   inputMessage.value = ''
   replyingTo.value = null
+  showMentionSuggestions.value = false
 
   if (chatStore.activeConversation) {
     socket?.emit('internal_typing', {
@@ -1206,13 +1516,44 @@ async function handleSend() {
 }
 
 function onKeyDown(e) {
+  if (e.key === 'Escape') {
+    if (editingMessage.value) {
+      cancelEditMessage()
+      return
+    }
+    if (showMentionSuggestions.value) {
+      showMentionSuggestions.value = false
+      return
+    }
+  }
+
   if (e.key === 'Enter' && !e.shiftKey) {
+    if (showMentionSuggestions.value && mentionCandidates.value.length > 0) {
+      e.preventDefault()
+      selectMentionMember(mentionCandidates.value[0])
+      return
+    }
     e.preventDefault()
     handleSend()
   }
 }
 
 function onInputTyping() {
+  // Detecção de menção ativa (@...)
+  const val = inputMessage.value
+  const atIdx = val.lastIndexOf('@')
+  if (atIdx >= 0) {
+    const textAfterAt = val.slice(atIdx + 1)
+    if (!textAfterAt.includes(' ') && textAfterAt.length < 25) {
+      showMentionSuggestions.value = true
+      mentionSearchTerm.value = textAfterAt
+    } else {
+      showMentionSuggestions.value = false
+    }
+  } else {
+    showMentionSuggestions.value = false
+  }
+
   if (chatStore.activeConversation) {
     socket?.emit('internal_typing', {
       conversationId: chatStore.activeConversation.id,
@@ -1380,6 +1721,7 @@ function formatMessageBody(text) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+    .replace(/@([A-Za-zÀ-ÿ0-9_\-\.]+)/g, '<span class="mention-tag">@$1</span>')
     .replace(/\*([^*\n]+)\*/g, '<strong>$1</strong>')
     .replace(/_([^_\n]+)_/g, '<em>$1</em>')
     .replace(/~([^~\n]+)~/g, '<del>$1</del>')
@@ -3485,6 +3827,518 @@ function formatMessageTime(dateStr) {
 .btn-modal-submit:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* ─── FASE 4: MENSAGENS FIXADAS, REAÇÕES, EDIÇÃO E MENÇÕES ───────────────── */
+/* Banner de mensagem fixada no topo do chat */
+.pinned-message-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f0fdf4;
+  border-bottom: 1px solid #bbf7d0;
+  padding: 8px 16px;
+  z-index: 10;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.pinned-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+}
+
+.pinned-banner-content .pin-icon {
+  font-size: 16px;
+  color: #16a34a;
+  flex-shrink: 0;
+}
+
+.pinned-text-box {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pinned-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #15803d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.pinned-snippet {
+  font-size: 12px;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-unpin-banner {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.btn-unpin-banner:hover {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+/* Barra de Ações Rápidas na Mensagem */
+.msg-actions-bar {
+  position: absolute;
+  top: -14px;
+  right: 12px;
+  display: none;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 2px 4px;
+  z-index: 20;
+  gap: 2px;
+}
+
+.message-mine .msg-actions-bar {
+  right: auto;
+  left: 12px;
+}
+
+.message-row:hover .msg-actions-bar,
+.msg-actions-bar:has(.reactions-quick-popover),
+.msg-actions-bar:has(.msg-dropdown-menu) {
+  display: flex;
+}
+
+.msg-action-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.msg-action-trigger {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.msg-action-trigger:hover {
+  background: #f1f5f9;
+  color: #2563eb;
+  transform: scale(1.1);
+}
+
+/* Popover Rápido de Emojis */
+.reactions-quick-popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  padding: 3px 6px;
+  z-index: 30;
+}
+
+.quick-emoji-btn {
+  background: none;
+  border: none;
+  font-size: 17px;
+  cursor: pointer;
+  padding: 3px 4px;
+  border-radius: 6px;
+  line-height: 1;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.quick-emoji-btn:hover {
+  transform: scale(1.35);
+  background: #f8fafc;
+}
+
+/* Dropdown Menu de Mais Ações */
+.msg-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 165px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.message-mine .msg-dropdown-menu {
+  right: auto;
+  left: 0;
+}
+
+.msg-dropdown-menu .dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: #334155;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.msg-dropdown-menu .dropdown-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.msg-dropdown-menu .dropdown-item.text-danger {
+  color: #ef4444;
+}
+
+.msg-dropdown-menu .dropdown-item.text-danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.msg-dropdown-menu .dropdown-item i {
+  font-size: 14px;
+}
+
+/* Tag de Mensagem Fixada no Balão */
+.msg-pinned-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #16a34a;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-bottom: 5px;
+}
+
+.message-mine .msg-pinned-tag {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+}
+
+/* Mensagem Apagada */
+.deleted-msg-content {
+  font-size: 12px;
+  font-style: italic;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.message-mine .deleted-msg-content {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.is-deleted-bubble {
+  opacity: 0.85;
+}
+
+/* Badge de Editada */
+.msg-edited-badge {
+  font-size: 9.5px;
+  opacity: 0.75;
+  margin-right: 4px;
+  font-style: italic;
+}
+
+/* Pílulas de Reações Agregadas */
+.message-reactions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.reaction-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 12px;
+  font-size: 11px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.reaction-pill:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.reaction-pill.user-reacted {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.reaction-emoji {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.reaction-count {
+  font-size: 10.5px;
+}
+
+/* Banner de Edição Ativa no Footer */
+.active-editing-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fefce8;
+  border-top: 1px solid #fef08a;
+  padding: 8px 16px;
+  position: relative;
+}
+
+.editing-banner-bar {
+  width: 3px;
+  height: 28px;
+  background: #ca8a04;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.editing-banner-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.editing-banner-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #854d0e;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.editing-banner-snippet {
+  font-size: 11.5px;
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-cancel-edit {
+  background: none;
+  border: none;
+  color: #854d0e;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.btn-cancel-edit:hover {
+  background: #fef08a;
+}
+
+/* Popover Flutuante de Menções (@mentions) */
+.mention-suggestions-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 16px;
+  width: 260px;
+  max-height: 220px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.14);
+  z-index: 50;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.mention-suggestions-header {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.mention-item-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+  width: 100%;
+}
+
+.mention-item-btn:hover {
+  background: #eff6ff;
+}
+
+.mention-item-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mention-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.mention-role {
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+/* Tag de Menção no Corpo da Mensagem */
+:deep(.mention-tag) {
+  display: inline-block;
+  color: #2563eb;
+  font-weight: 600;
+  background: rgba(37, 99, 235, 0.08);
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.message-mine :deep(.mention-tag) {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.25);
+  text-decoration: underline;
+}
+
+/* Aba "Fixadas" no Drawer Lateral de Detalhes */
+.drawer-pinned-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.drawer-pinned-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.drawer-pinned-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.drawer-pinned-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.pmsg-author {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.pmsg-date {
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+.drawer-pinned-card-text {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.4;
+  margin: 0 0 8px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.btn-unpin-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ef4444;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.15s ease;
+}
+
+.btn-unpin-card:hover {
+  opacity: 0.8;
+  text-decoration: underline;
 }
 
 /* ─── RESPONSIVIDADE ────────────────────────────────────────────────────────── */

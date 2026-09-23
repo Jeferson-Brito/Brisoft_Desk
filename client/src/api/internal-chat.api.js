@@ -22,6 +22,10 @@ export const internalChatApi = {
   startDirectChat: (targetUserId) => http.post(`/internal-chat/direct/${targetUserId}`),
   createChannel: (payload) => http.post('/internal-chat/channels', payload),
   getConversationDetails: (conversationId) => http.get(`/internal-chat/conversations/${conversationId}/details`),
-  markAsRead: (conversationId) => http.post(`/internal-chat/conversations/${conversationId}/read`)
+  markAsRead: (conversationId) => http.post(`/internal-chat/conversations/${conversationId}/read`),
+  toggleReaction: (messageId, emoji) => http.post(`/internal-chat/messages/${messageId}/reactions`, { emoji }),
+  togglePinMessage: (messageId) => http.post(`/internal-chat/messages/${messageId}/pin`),
+  editMessage: (messageId, text) => http.put(`/internal-chat/messages/${messageId}`, { text }),
+  deleteMessage: (messageId) => http.delete(`/internal-chat/messages/${messageId}`)
 }
 
