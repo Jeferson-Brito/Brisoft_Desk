@@ -82,7 +82,14 @@
           </div>
 
           <!-- Controle da Pesquisa de Satisfação -->
-          <div v-if="!ticket?.is_employee" class="survey-option-card" :class="{ disabled: !sendSurvey }">
+          <!-- CASO 1: É Funcionário da Empresa (nunca recebe pesquisa) -->
+          <div v-if="ticket?.is_employee" class="internal-ticket-note">
+            <i class="ri-information-line"></i>
+            <span>Atendimento interno com funcionário da empresa. Nenhuma pesquisa será enviada.</span>
+          </div>
+
+          <!-- CASO 2: É Cliente E Administrador PERMITIU que o atendente escolha -->
+          <div v-else-if="allowAgentToggle" class="survey-option-card" :class="{ disabled: !sendSurvey }">
             <label class="survey-option-label">
               <div class="survey-icon-box">
                 <i class="ri-star-smile-fill"></i>
@@ -104,9 +111,26 @@
             </label>
           </div>
 
+          <!-- CASO 3: É Cliente E Administrador NÃO PERMITIU escolha (Decisão automática pelo sistema) -->
+          <div v-else-if="isRatingGloballyEnabled" class="survey-auto-card">
+            <div class="survey-icon-box auto-icon">
+              <i class="ri-shield-star-line"></i>
+            </div>
+            <div class="survey-text-content">
+              <div class="survey-auto-header">
+                <span class="survey-title">Pesquisa de satisfação</span>
+                <span class="auto-badge">Automática</span>
+              </div>
+              <span class="survey-desc">
+                A avaliação será enviada automaticamente ao cliente via WhatsApp pelo bot da empresa.
+              </span>
+            </div>
+          </div>
+
+          <!-- CASO 4: É Cliente, escolha desativada e avaliação desativada no sistema -->
           <div v-else class="internal-ticket-note">
             <i class="ri-information-line"></i>
-            <span>Atendimento interno com funcionário da empresa. Nenhuma pesquisa será enviada.</span>
+            <span>Envio de pesquisa de satisfação desativado nas configurações gerais.</span>
           </div>
         </div>
 
@@ -131,8 +155,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useTicketStore } from '@/stores/tickets.store'
+import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { normalizePersonName, getInitials } from '@/utils/person-display'
 import { formatPhone } from '@/utils/formatters'
@@ -147,11 +172,22 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const ticketStore = useTicketStore()
+const settingsStore = useSettingsStore()
 const ui = useUiStore()
 const loading = ref(false)
 const copiedId = ref(false)
 const avatarFailed = ref(false)
 const sendSurvey = ref(true)
+
+const botConfig = computed(() => settingsStore.settings?.bot_config || {})
+const allowAgentToggle = computed(() => Boolean(botConfig.value.allow_agent_toggle_rating))
+const isRatingGloballyEnabled = computed(() => botConfig.value.send_rating_request !== false)
+
+onMounted(() => {
+  if (!settingsStore.settings?.bot_config) {
+    settingsStore.fetchSettings().catch(() => {})
+  }
+})
 
 const clientName = computed(() => {
   return normalizePersonName(props.ticket?.clientName || props.ticket?.client_name || 'Cliente')
@@ -194,7 +230,7 @@ async function confirmClose() {
   loading.value = true
   try {
     const res = await ticketStore.close(props.ticket.id, {
-      sendSurvey: sendSurvey.value
+      sendSurvey: allowAgentToggle.value ? sendSurvey.value : isRatingGloballyEnabled.value
     })
     if (res.success) {
       ui.showToast(`✅ Atendimento de ${clientName.value} encerrado com sucesso!`)
@@ -586,6 +622,40 @@ async function confirmClose() {
 
 .custom-switch-input:checked + .custom-switch-slider:before {
   transform: translateX(16px);
+}
+
+/* Card de Envio Automático */
+.survey-auto-card {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.05);
+}
+
+.survey-icon-box.auto-icon {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.survey-auto-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auto-badge {
+  background: #bbf7d0;
+  color: #166534;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
 }
 
 /* Nota Interna */

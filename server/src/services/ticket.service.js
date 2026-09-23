@@ -3791,7 +3791,13 @@ ${rendered}`,
       const agentName = currentUser.name || 'Atendente';
       const now = new Date();
       const encerradoEm = makeTimeStr(now);
-      const shouldSendSurvey = options?.sendSurvey !== false;
+
+      const botConfig = await getBotConfig();
+      const allowAgentToggle = Boolean(botConfig.allow_agent_toggle_rating);
+      // Se allow_agent_toggle_rating estiver desativado, o envio é automático respeitando send_rating_request
+      const shouldSendSurvey = allowAgentToggle
+        ? Boolean(options?.sendSurvey !== false && botConfig.send_rating_request)
+        : Boolean(botConfig.send_rating_request);
 
       const { data: ticket } = await supabase
         .from('tickets')
@@ -3808,7 +3814,7 @@ ${rendered}`,
         encerrado_em: encerradoEm,
         encerrado_por: agentName,
         closed_at: now.toISOString(),
-        awaiting_rating: !ticket.is_employee && shouldSendSurvey,
+        awaiting_rating: Boolean(!ticket.is_employee && shouldSendSurvey),
         updated_at: now.toISOString()
       }).eq('id', ticketId), 'Falha ao encerrar ticket');
 
@@ -3831,9 +3837,8 @@ ${rendered}`,
 
       // Envia pesquisa de satisfação via WhatsApp em background (não atrasa a resposta)
       if (whatsappService && ticket) {
-        const botConfig = await getBotConfig();
         const targetJid = preferredWhatsAppJid(ticket.phone, ticket.jid || ticket.raw_jid);
-        if (targetJid && !ticket.is_employee && botConfig.send_rating_request && shouldSendSurvey) {
+        if (targetJid && !ticket.is_employee && shouldSendSurvey) {
           const ratingMsg = renderBotMessage(botConfig.rating_request_message, {
             nome: ticket.client_name || 'Cliente',
             departamento: ticket.department || '',

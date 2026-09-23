@@ -455,6 +455,7 @@ const botConfig = ref({
   send_queue_confirmation: true,
   send_transfer_notice: true,
   send_rating_request: true,
+  allow_agent_toggle_rating: false,
   accept_media_during_routing: true,
   human_handoff_enabled: true,
   allow_customer_cancel: true,
@@ -480,7 +481,8 @@ const botBehaviorOptions = [
   { key: 'require_customer_last_name', label: 'Exigir nome e sobrenome', help: 'Reduz cadastros imprecisos exigindo pelo menos duas palavras.' },
   { key: 'send_queue_confirmation', label: 'Confirmar entrada na fila', help: 'Envia uma mensagem após escolher o departamento.' },
   { key: 'send_transfer_notice', label: 'Avisar sobre transferências', help: 'Notifica o cliente quando o setor for alterado.' },
-  { key: 'send_rating_request', label: 'Solicitar avaliação', help: 'Envia a pesquisa ao encerrar atendimentos manualmente.' }
+  { key: 'send_rating_request', label: 'Solicitar avaliação', help: 'Envia a pesquisa ao encerrar atendimentos manualmente.' },
+  { key: 'allow_agent_toggle_rating', label: 'Permitir escolha do atendente no encerramento', help: 'Exibe a opção no popup para o atendente escolher se envia ou não a avaliação. Se desativado, o envio é automático (quando a solicitação de avaliação estiver ativa).' }
 ]
 
 const botSections = [

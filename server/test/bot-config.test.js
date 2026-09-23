@@ -15,6 +15,7 @@ test('normalizeBotConfig aplica limites e preserva valores válidos', () => {
     rapid_message_grace_seconds: 99,
     external_service_idle_minutes: 9999,
     send_rating_on_external_inactivity: false,
+    allow_agent_toggle_rating: true,
     greeting_message: 'Olá, {nome}'
   });
   assert.equal(config.enabled, false);
@@ -27,6 +28,7 @@ test('normalizeBotConfig aplica limites e preserva valores válidos', () => {
   assert.equal(config.rapid_message_grace_seconds, 15);
   assert.equal(config.external_service_idle_minutes, 1440);
   assert.equal(config.send_rating_on_external_inactivity, false);
+  assert.equal(config.allow_agent_toggle_rating, true);
   assert.equal(config.greeting_message, 'Olá, {nome}');
 });
 

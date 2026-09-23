@@ -22,6 +22,7 @@ const DEFAULT_BOT_CONFIG = Object.freeze({
   send_queue_confirmation: true,
   send_transfer_notice: true,
   send_rating_request: true,
+  allow_agent_toggle_rating: false,
   accept_media_during_routing: true,
   human_handoff_enabled: true,
   allow_customer_cancel: true,
@@ -94,7 +95,7 @@ const LEGACY_FORMATTED_MESSAGE_VARIANTS = Object.freeze({
 const BOOLEAN_FIELDS = [
   'enabled', 'show_department_menu', 'accept_department_name', 'resume_recent_enabled',
   'auto_route_after_invalid', 'send_queue_confirmation', 'send_transfer_notice',
-  'send_rating_request', 'accept_media_during_routing', 'human_handoff_enabled',
+  'send_rating_request', 'allow_agent_toggle_rating', 'accept_media_during_routing', 'human_handoff_enabled',
   'allow_customer_cancel', 'collect_customer_name', 'require_customer_last_name',
   'auto_close_external_service', 'send_rating_on_external_inactivity'
 ];
