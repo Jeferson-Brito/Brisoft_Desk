@@ -81,7 +81,6 @@ export const useUiStore = defineStore('ui', () => {
     activeView, toasts, openModals, whatsappStatus, whatsappQrCode, whatsappAccounts, serverOnline,
     onlineUsersCount, onlineUsersList, isMobileChatOpen, setMobileChatOpen,
     isNavigating, setNavigating,
-    atendimentosSubTab, setAtendimentosSubTab,
     activeChatModuleTab, setChatModuleTab,
     isInternalChatOpen, toggleInternalChat, openInternalChat, closeInternalChat,
     switchView, showToast, openModal, closeModal, isModalOpen

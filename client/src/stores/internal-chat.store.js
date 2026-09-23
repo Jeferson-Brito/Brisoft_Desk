@@ -122,6 +122,30 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     }
   }
 
+  async function sendMedia(file, metadata = {}) {
+    if (!activeConversation.value || !file) return
+    isSending.value = true
+    try {
+      const { data } = await internalChatApi.sendMedia(activeConversation.value.id, file, metadata)
+      if (data?.success && data.message) {
+        if (!messages.value.some(m => m.id === data.message.id)) {
+          messages.value.push(data.message)
+        }
+        const conv = conversations.value.find(c => c.id === activeConversation.value.id)
+        if (conv) {
+          conv.last_message_text = data.message.text || (metadata.mediaType === 'audio' ? 'Mensagem de voz' : 'Arquivo compartilhado')
+          conv.last_message_at = data.message.created_at
+          conversations.value = [conv, ...conversations.value.filter(c => c.id !== conv.id)]
+        }
+        return data.message
+      }
+    } catch (err) {
+      ui.showToast('Erro ao enviar arquivo: ' + (err.response?.data?.error || err.message), 'error')
+    } finally {
+      isSending.value = false
+    }
+  }
+
   // Recebe mensagem em tempo real do Socket.io
   function handleIncomingInternalMessage(message) {
     if (!message || !message.conversation_id) return
@@ -188,6 +212,7 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     selectConversation,
     startDirectChatWith,
     sendMessage,
+    sendMedia,
     handleIncomingInternalMessage,
     handleUserTyping
   }

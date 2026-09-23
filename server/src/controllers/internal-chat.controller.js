@@ -1,4 +1,10 @@
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
 const internalChatService = require('../services/internal-chat.service');
+const cloudStorage = require('../services/cloud-storage.service');
+
+const MEDIA_DIR = path.join(__dirname, '../../public/media');
 
 class InternalChatController {
   async listConversations(req, res) {
@@ -50,6 +56,48 @@ class InternalChatController {
     }
   }
 
+  async sendMedia(req, res) {
+    try {
+      const { id } = req.params;
+      if (!id || !Buffer.isBuffer(req.body) || req.body.length === 0) {
+        return res.status(400).json({ success: false, error: 'Arquivo e conversa são obrigatórios.' });
+      }
+
+      let fileName = 'arquivo';
+      let caption = '';
+      try { fileName = decodeURIComponent(String(req.get('x-file-name') || 'arquivo')); } catch (_) {}
+      try { caption = decodeURIComponent(String(req.get('x-media-caption') || '')); } catch (_) {}
+      const mimeType = req.get('x-file-type') || 'application/octet-stream';
+      const mediaType = req.get('x-media-type') || 'document';
+      const replyToId = req.get('x-reply-to-id') || null;
+
+      const extension = path.extname(fileName) || ({ audio: '.ogg', image: '.jpg', video: '.mp4', document: '.bin' }[mediaType] || '.bin');
+      const storedName = `internal_${Date.now()}_${crypto.randomUUID().replace(/-/g, '')}${extension}`;
+
+      await fs.promises.mkdir(MEDIA_DIR, { recursive: true });
+      const storedPath = path.join(MEDIA_DIR, storedName);
+      await fs.promises.writeFile(storedPath, req.body);
+
+      cloudStorage.uploadMedia(storedName, req.body, mimeType)
+        .catch(err => console.warn(`Mídia do chat interno salva apenas localmente: ${err.message}`));
+
+      const mediaUrl = `/api/media/${storedName}`;
+
+      const message = await internalChatService.sendMessage(req.user, id, {
+        text: caption,
+        media_url: mediaUrl,
+        media_type: mediaType,
+        file_name: fileName,
+        reply_to_id: replyToId
+      });
+
+      return res.json({ success: true, message });
+    } catch (error) {
+      console.error('Erro ao enviar mídia no chat interno:', error);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
   async startDirectChat(req, res) {
     try {
       const { targetUserId } = req.params;
@@ -74,3 +122,4 @@ class InternalChatController {
 }
 
 module.exports = new InternalChatController();
+

@@ -5,6 +5,21 @@ export const internalChatApi = {
   listTeamMembers: () => http.get('/internal-chat/members'),
   getMessages: (conversationId) => http.get(`/internal-chat/conversations/${conversationId}/messages`),
   sendMessage: (conversationId, payload) => http.post(`/internal-chat/conversations/${conversationId}/messages`, payload),
+  sendMedia: (conversationId, file, metadata = {}) => http.post(
+    `/internal-chat/conversations/${conversationId}/media`,
+    file,
+    {
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'x-file-name': encodeURIComponent(metadata.fileName || file.name || 'arquivo'),
+        'x-file-type': file.type || 'application/octet-stream',
+        'x-media-type': metadata.mediaType || 'document',
+        'x-media-caption': encodeURIComponent(metadata.caption || ''),
+        'x-reply-to-id': metadata.replyToId || ''
+      }
+    }
+  ),
   startDirectChat: (targetUserId) => http.post(`/internal-chat/direct/${targetUserId}`),
   markAsRead: (conversationId) => http.post(`/internal-chat/conversations/${conversationId}/read`)
 }
+

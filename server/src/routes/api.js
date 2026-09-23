@@ -154,6 +154,12 @@ router.get('/internal-chat/conversations', requireAuth, (req, res) => internalCh
 router.get('/internal-chat/members', requireAuth, (req, res) => internalChatController.listTeamMembers(req, res));
 router.get('/internal-chat/conversations/:id/messages', requireAuth, (req, res) => internalChatController.getMessages(req, res));
 router.post('/internal-chat/conversations/:id/messages', requireAuth, (req, res) => internalChatController.sendMessage(req, res));
+router.post(
+  '/internal-chat/conversations/:id/media',
+  requireAuth,
+  express.raw({ type: 'application/octet-stream', limit: '25mb' }),
+  (req, res) => internalChatController.sendMedia(req, res)
+);
 router.post('/internal-chat/direct/:targetUserId', requireAuth, (req, res) => internalChatController.startDirectChat(req, res));
 router.post('/internal-chat/conversations/:id/read', requireAuth, (req, res) => internalChatController.markAsRead(req, res));
 

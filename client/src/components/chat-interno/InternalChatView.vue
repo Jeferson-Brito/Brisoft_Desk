@@ -180,48 +180,119 @@
           </div>
 
           <div v-else class="messages-flow">
-            <div
+            <template
               v-for="(msg, index) in chatStore.messages"
               :key="msg.id || index"
-              class="message-row"
-              :class="{
-                'message-mine': msg.sender_id === auth.user?.id,
-                'message-other': msg.sender_id !== auth.user?.id
-              }"
             >
-              <!-- Avatar do colega nas mensagens recebidas -->
+              <!-- Divisor de Data -->
+              <div v-if="shouldShowDateDivider(chatStore.messages, index)" class="chat-date-divider">
+                <span class="date-badge">{{ formatDateDivider(msg.created_at) }}</span>
+              </div>
+
               <div
-                v-if="msg.sender_id !== auth.user?.id"
-                class="message-sender-avatar"
-                :style="getAvatarStyle(msg.sender)"
-                :title="msg.sender?.name"
+                :id="`msg-${msg.id}`"
+                class="message-row"
+                :class="{
+                  'message-mine': msg.sender_id === auth.user?.id,
+                  'message-other': msg.sender_id !== auth.user?.id
+                }"
               >
-                <img v-if="msg.sender?.avatar_url" :src="msg.sender.avatar_url" :alt="msg.sender.name" />
-                <span v-else>{{ getInitials(msg.sender?.name) }}</span>
-              </div>
-
-              <div class="message-bubble-box">
-                <!-- Nome do remetente (apenas em canais ou se for de outro usuário) -->
-                <span
-                  v-if="msg.sender_id !== auth.user?.id && chatStore.activeConversation.type !== 'direct'"
-                  class="bubble-sender-name"
+                <!-- Avatar do colega nas mensagens recebidas -->
+                <div
+                  v-if="msg.sender_id !== auth.user?.id"
+                  class="message-sender-avatar"
+                  :style="getAvatarStyle(msg.sender)"
+                  :title="msg.sender?.name"
                 >
-                  {{ msg.sender?.name || 'Colega' }}
-                </span>
-
-                <div class="message-text-content">
-                  {{ msg.text }}
+                  <img v-if="msg.sender?.avatar_url" :src="msg.sender.avatar_url" :alt="msg.sender.name" />
+                  <span v-else>{{ getInitials(msg.sender?.name) }}</span>
                 </div>
 
-                <div class="message-meta-row">
-                  <span class="message-timestamp">{{ formatMessageTime(msg.created_at) }}</span>
-                  <i
-                    v-if="msg.sender_id === auth.user?.id"
-                    class="ri-check-double-line message-check-read"
-                  ></i>
+                <div class="message-bubble-wrapper">
+                  <div class="message-bubble-box">
+                    <!-- Botão de Ação Rápida: Responder -->
+                    <button
+                      type="button"
+                      class="msg-reply-trigger"
+                      title="Responder mensagem"
+                      @click="setReplyTo(msg)"
+                    >
+                      <i class="ri-reply-line"></i>
+                    </button>
+
+                    <!-- Nome do remetente (apenas em canais ou se for de outro usuário) -->
+                    <span
+                      v-if="msg.sender_id !== auth.user?.id && chatStore.activeConversation.type !== 'direct'"
+                      class="bubble-sender-name"
+                    >
+                      {{ msg.sender?.name || 'Colega' }}
+                    </span>
+
+                    <!-- Citação da Mensagem Respondida (se houver) -->
+                    <div
+                      v-if="msg.reply_to_id && findMessageById(msg.reply_to_id)"
+                      class="quoted-reply-box"
+                      @click="scrollToMessage(msg.reply_to_id)"
+                    >
+                      <div class="quoted-bar"></div>
+                      <div class="quoted-content">
+                        <span class="quoted-sender">{{ findMessageById(msg.reply_to_id)?.sender?.name || 'Colega' }}</span>
+                        <span class="quoted-snippet">{{ getMessageSnippet(findMessageById(msg.reply_to_id)) }}</span>
+                      </div>
+                    </div>
+
+                    <!-- Mídia: Imagem -->
+                    <div
+                      v-if="msg.media_type === 'image' || isImageUrl(msg.media_url)"
+                      class="message-media-image"
+                      @click="openImagePreview(msg.media_url)"
+                    >
+                      <img :src="msg.media_url" :alt="msg.file_name || 'Imagem'" loading="lazy" />
+                    </div>
+
+                    <!-- Mídia: Áudio -->
+                    <div
+                      v-else-if="msg.media_type === 'audio'"
+                      class="message-media-audio"
+                    >
+                      <audio :src="msg.media_url" controls controlsList="nodownload"></audio>
+                    </div>
+
+                    <!-- Mídia: Documento / Arquivo -->
+                    <div
+                      v-else-if="msg.media_type === 'document' || msg.media_url"
+                      class="message-media-doc"
+                    >
+                      <a :href="msg.media_url" target="_blank" download class="doc-attachment-card">
+                        <div class="doc-icon-box">
+                          <i class="ri-file-text-line"></i>
+                        </div>
+                        <div class="doc-info-box">
+                          <span class="doc-title">{{ msg.file_name || 'Documento anexo' }}</span>
+                          <span class="doc-action">Clique para baixar</span>
+                        </div>
+                        <i class="ri-download-2-line doc-download-icon"></i>
+                      </a>
+                    </div>
+
+                    <!-- Texto da Mensagem -->
+                    <div
+                      v-if="msg.text"
+                      class="message-text-content"
+                      v-html="formatMessageBody(msg.text)"
+                    ></div>
+
+                    <div class="message-meta-row">
+                      <span class="message-timestamp">{{ formatMessageTime(msg.created_at) }}</span>
+                      <i
+                        v-if="msg.sender_id === auth.user?.id"
+                        class="ri-check-double-line message-check-read"
+                      ></i>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            </template>
           </div>
 
           <!-- Indicador de Digitação -->
@@ -237,7 +308,55 @@
 
         <!-- Barra Inferior de Envio de Mensagem -->
         <footer class="chat-input-footer">
-          <form class="chat-input-form" @submit.prevent="handleSend">
+          <!-- Barra de Resposta Ativa -->
+          <div v-if="replyingTo" class="active-reply-banner">
+            <div class="reply-banner-bar"></div>
+            <div class="reply-banner-info">
+              <span class="reply-banner-title">
+                Respondendo a <strong>{{ replyingTo.sender?.name || 'Colega' }}</strong>
+              </span>
+              <span class="reply-banner-snippet">{{ getMessageSnippet(replyingTo) }}</span>
+            </div>
+            <button type="button" class="btn-cancel-reply" title="Cancelar resposta" @click="cancelReply">
+              <i class="ri-close-line"></i>
+            </button>
+          </div>
+
+          <!-- Barra de Gravação de Áudio Ativa -->
+          <div v-if="isRecordingAudio" class="audio-recording-bar">
+            <div class="recording-indicator">
+              <span class="rec-pulse-dot"></span>
+              <span class="rec-timer">Gravando {{ formatRecordingTime(recordingSeconds) }}</span>
+            </div>
+            <div class="recording-actions">
+              <button type="button" class="btn-cancel-rec" title="Cancelar gravação" @click="cancelAudioRecording">
+                <i class="ri-delete-bin-line"></i> Cancelar
+              </button>
+              <button type="button" class="btn-send-rec" title="Enviar áudio" @click="stopAndSendAudioRecording">
+                <i class="ri-send-plane-fill"></i> Enviar Áudio
+              </button>
+            </div>
+          </div>
+
+          <!-- Formulário Normal de Envio -->
+          <form v-else class="chat-input-form" @submit.prevent="handleSend">
+            <input
+              ref="fileInputRef"
+              type="file"
+              style="display: none"
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+              @change="onFileSelected"
+            />
+
+            <button
+              type="button"
+              class="tool-btn"
+              title="Anexar imagem ou documento"
+              @click="triggerFileInput"
+            >
+              <i class="ri-attachment-line"></i>
+            </button>
+
             <button
               type="button"
               class="tool-btn"
@@ -258,9 +377,20 @@
             ></textarea>
 
             <button
+              v-if="!inputMessage.trim()"
+              type="button"
+              class="tool-btn mic-btn"
+              title="Gravar mensagem de voz"
+              @click="startAudioRecording"
+            >
+              <i class="ri-mic-line"></i>
+            </button>
+
+            <button
+              v-else
               type="submit"
               class="send-message-btn"
-              :disabled="!inputMessage.trim() || chatStore.isSending"
+              :disabled="chatStore.isSending"
               title="Enviar mensagem"
             >
               <i v-if="chatStore.isSending" class="ri-loader-4-line spin-icon"></i>
@@ -288,6 +418,23 @@
         </button>
       </div>
     </main>
+
+    <!-- Modal Lightbox de Imagem Ampliada -->
+    <Teleport to="body">
+      <div v-if="previewImageUrl" class="image-lightbox-overlay" @click.self="closeImagePreview">
+        <div class="lightbox-container">
+          <img :src="previewImageUrl" alt="Visualização ampliada" class="lightbox-img" />
+          <div class="lightbox-controls">
+            <a :href="previewImageUrl" download target="_blank" class="lightbox-btn" title="Baixar imagem">
+              <i class="ri-download-line"></i> Baixar
+            </a>
+            <button type="button" class="lightbox-btn close-btn" title="Fechar" @click="closeImagePreview">
+              <i class="ri-close-line"></i> Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -296,15 +443,27 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useInternalChatStore } from '@/stores/internal-chat.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useSocket } from '@/composables/useSocket'
 
 const chatStore = useInternalChatStore()
 const auth = useAuthStore()
 const ui = useUiStore()
+const { socket } = useSocket()
 
 const searchTerm = ref('')
 const inputMessage = ref('')
 const messagesContainerRef = ref(null)
 const inputTextareaRef = ref(null)
+const fileInputRef = ref(null)
+
+const replyingTo = ref(null)
+const previewImageUrl = ref(null)
+
+const isRecordingAudio = ref(false)
+const recordingSeconds = ref(0)
+let audioTimer = null
+let mediaRecorder = null
+let audioChunks = []
 let typingTimeout = null
 
 // ─── Inicialização ────────────────────────────────────────────────────────────
@@ -412,8 +571,18 @@ async function handleSend() {
   const text = inputMessage.value.trim()
   if (!text) return
 
+  const replyId = replyingTo.value?.id || null
   inputMessage.value = ''
-  await chatStore.sendMessage(text)
+  replyingTo.value = null
+
+  if (chatStore.activeConversation) {
+    socket?.emit('internal_typing', {
+      conversationId: chatStore.activeConversation.id,
+      isTyping: false
+    })
+  }
+
+  await chatStore.sendMessage(text, { reply_to_id: replyId })
   scrollToBottom()
 }
 
@@ -425,13 +594,197 @@ function onKeyDown(e) {
 }
 
 function onInputTyping() {
+  if (chatStore.activeConversation) {
+    socket?.emit('internal_typing', {
+      conversationId: chatStore.activeConversation.id,
+      isTyping: true
+    })
+  }
   clearTimeout(typingTimeout)
-  typingTimeout = setTimeout(() => {}, 1500)
+  typingTimeout = setTimeout(() => {
+    if (chatStore.activeConversation) {
+      socket?.emit('internal_typing', {
+        conversationId: chatStore.activeConversation.id,
+        isTyping: false
+      })
+    }
+  }, 2000)
 }
 
 function insertEmoji(emoji) {
   inputMessage.value += emoji
   inputTextareaRef.value?.focus()
+}
+
+// ─── Citação e Resposta (Reply) ──────────────────────────────────────────────
+function setReplyTo(msg) {
+  replyingTo.value = msg
+  nextTick(() => {
+    inputTextareaRef.value?.focus()
+  })
+}
+
+function cancelReply() {
+  replyingTo.value = null
+}
+
+function findMessageById(id) {
+  if (!id) return null
+  return chatStore.messages.find(m => m.id === id)
+}
+
+function getMessageSnippet(msg) {
+  if (!msg) return ''
+  if (msg.text) return msg.text.slice(0, 60) + (msg.text.length > 60 ? '...' : '')
+  if (msg.media_type === 'image') return '📷 Imagem'
+  if (msg.media_type === 'audio') return '🎤 Mensagem de voz'
+  return '📎 Arquivo'
+}
+
+function scrollToMessage(msgId) {
+  nextTick(() => {
+    const el = document.getElementById(`msg-${msgId}`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('highlight-pulse')
+      setTimeout(() => {
+        el.classList.remove('highlight-pulse')
+      }, 1500)
+    }
+  })
+}
+
+// ─── Anexos e Upload de Mídia ────────────────────────────────────────────────
+function triggerFileInput() {
+  fileInputRef.value?.click()
+}
+
+async function onFileSelected(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  event.target.value = ''
+
+  let mediaType = 'document'
+  if (file.type.startsWith('image/')) mediaType = 'image'
+  else if (file.type.startsWith('audio/')) mediaType = 'audio'
+  else if (file.type.startsWith('video/')) mediaType = 'video'
+
+  const caption = inputMessage.value.trim()
+  const replyId = replyingTo.value?.id || null
+
+  inputMessage.value = ''
+  replyingTo.value = null
+
+  await chatStore.sendMedia(file, {
+    fileName: file.name,
+    mediaType,
+    caption,
+    replyToId: replyId
+  })
+  scrollToBottom()
+}
+
+// ─── Gravação de Áudio ───────────────────────────────────────────────────────
+async function startAudioRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    audioChunks = []
+    mediaRecorder = new MediaRecorder(stream)
+    mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) audioChunks.push(e.data)
+    }
+    mediaRecorder.start()
+    isRecordingAudio.value = true
+    recordingSeconds.value = 0
+    audioTimer = setInterval(() => {
+      recordingSeconds.value++
+    }, 1000)
+  } catch (err) {
+    ui.showToast('Permissão de microfone negada ou indisponível.', 'error')
+  }
+}
+
+function cancelAudioRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop()
+  }
+  clearInterval(audioTimer)
+  isRecordingAudio.value = false
+  audioChunks = []
+}
+
+async function stopAndSendAudioRecording() {
+  if (!mediaRecorder || mediaRecorder.state === 'inactive') return
+  clearInterval(audioTimer)
+  
+  mediaRecorder.onstop = async () => {
+    const blob = new Blob(audioChunks, { type: 'audio/webm' })
+    const file = new File([blob], `audio_${Date.now()}.webm`, { type: 'audio/webm' })
+    const replyId = replyingTo.value?.id || null
+    replyingTo.value = null
+    await chatStore.sendMedia(file, {
+      fileName: file.name,
+      mediaType: 'audio',
+      replyToId: replyId
+    })
+    scrollToBottom()
+  }
+  mediaRecorder.stop()
+  isRecordingAudio.value = false
+}
+
+function formatRecordingTime(sec) {
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+// ─── Lightbox / Visualização de Imagem ───────────────────────────────────────
+function isImageUrl(url) {
+  if (!url) return false
+  return /\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(url)
+}
+
+function openImagePreview(url) {
+  if (!url) return
+  previewImageUrl.value = url
+}
+
+function closeImagePreview() {
+  previewImageUrl.value = null
+}
+
+// ─── Formatação de Texto e Separadores de Data ──────────────────────────────
+function formatMessageBody(text) {
+  if (!text) return ''
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*([^*\n]+)\*/g, '<strong>$1</strong>')
+    .replace(/_([^_\n]+)_/g, '<em>$1</em>')
+    .replace(/~([^~\n]+)~/g, '<del>$1</del>')
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+    .replace(/\n/g, '<br />')
+}
+
+function shouldShowDateDivider(messages, index) {
+  if (index === 0) return true
+  const prevDate = new Date(messages[index - 1].created_at).toDateString()
+  const currDate = new Date(messages[index].created_at).toDateString()
+  return prevDate !== currDate
+}
+
+function formatDateDivider(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  const now = new Date()
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+
+  if (d.toDateString() === now.toDateString()) return 'Hoje'
+  if (d.toDateString() === yesterday.toDateString()) return 'Ontem'
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
 }
 
 // ─── Estilos de Avatar e Formatação de Data ──────────────────────────────────
@@ -945,12 +1298,72 @@ function formatMessageTime(dateStr) {
   object-fit: cover;
 }
 
+.chat-date-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 16px 0 10px 0;
+  width: 100%;
+}
+
+.date-badge {
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 12px;
+  border-radius: 12px;
+  text-transform: capitalize;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.message-bubble-wrapper {
+  position: relative;
+  max-width: 75%;
+}
+
 .message-bubble-box {
+  position: relative;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   padding: 8px 12px;
   border-radius: 12px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.msg-reply-trigger {
+  position: absolute;
+  top: 4px;
+  right: -28px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.15s ease;
+}
+
+.message-row:hover .msg-reply-trigger {
+  display: flex;
+}
+
+.message-mine .msg-reply-trigger {
+  right: auto;
+  left: -28px;
+}
+
+.msg-reply-trigger:hover {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #93c5fd;
+  transform: scale(1.1);
 }
 
 .message-mine .message-bubble-box {
@@ -970,6 +1383,164 @@ function formatMessageTime(dateStr) {
   font-weight: 700;
   color: #4f46e5;
   margin-bottom: 3px;
+}
+
+/* Citação / Quote */
+.quoted-reply-box {
+  display: flex;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+
+.message-mine .quoted-reply-box {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.quoted-bar {
+  width: 3px;
+  background: #2563eb;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.message-mine .quoted-bar {
+  background: #ffffff;
+}
+
+.quoted-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.quoted-sender {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.message-mine .quoted-sender {
+  color: #ffffff;
+}
+
+.quoted-snippet {
+  font-size: 11px;
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message-mine .quoted-snippet {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Mídias */
+.message-media-image {
+  margin-bottom: 6px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  max-width: 320px;
+}
+
+.message-media-image img {
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  display: block;
+  border-radius: 8px;
+  transition: transform 0.2s ease;
+}
+
+.message-media-image img:hover {
+  transform: scale(1.02);
+}
+
+.message-media-audio {
+  margin: 4px 0 6px 0;
+}
+
+.message-media-audio audio {
+  width: 240px;
+  height: 36px;
+}
+
+.doc-attachment-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  margin-bottom: 6px;
+  transition: background 0.15s ease;
+}
+
+.message-mine .doc-attachment-card {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.doc-attachment-card:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.message-mine .doc-attachment-card:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.doc-icon-box {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.doc-info-box {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.doc-title {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-action {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.doc-download-icon {
+  font-size: 16px;
+  opacity: 0.8;
+}
+
+.highlight-pulse {
+  animation: pulse-border 1.5s ease-in-out;
+}
+
+@keyframes pulse-border {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+  50% { transform: scale(1.02); box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
+  100% { transform: scale(1); }
 }
 
 .message-text-content {
@@ -1112,6 +1683,216 @@ function formatMessageTime(dateStr) {
 .send-message-btn:disabled {
   background: #cbd5e1;
   cursor: not-allowed;
+}
+
+/* Banner de Resposta Ativa */
+.active-reply-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+}
+
+.reply-banner-bar {
+  width: 3px;
+  height: 28px;
+  background: #2563eb;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.reply-banner-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.reply-banner-title {
+  font-size: 11px;
+  color: #2563eb;
+}
+
+.reply-banner-snippet {
+  font-size: 12px;
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-cancel-reply {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-cancel-reply:hover {
+  background: #e2e8f0;
+  color: #ef4444;
+}
+
+/* Gravação de Áudio */
+.audio-recording-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 8px 14px;
+}
+
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rec-pulse-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+  animation: pulse-rec 1s infinite;
+}
+
+@keyframes pulse-rec {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.6; }
+}
+
+.rec-timer {
+  font-size: 13px;
+  font-weight: 700;
+  color: #b91c1c;
+}
+
+.recording-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-cancel-rec {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-cancel-rec:hover {
+  background: #f8fafc;
+  color: #ef4444;
+  border-color: #fca5a5;
+}
+
+.btn-send-rec {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  background: #ef4444;
+  border: none;
+  color: #ffffff;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-send-rec:hover {
+  background: #dc2626;
+}
+
+.mic-btn:hover {
+  color: #ef4444;
+  background: #fee2e2;
+}
+
+/* Lightbox Modal */
+.image-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.lightbox-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 90vw;
+  max-height: 90vh;
+}
+
+.lightbox-img {
+  max-width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.lightbox-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lightbox-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lightbox-btn:hover {
+  background: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+}
+
+.lightbox-btn.close-btn {
+  background: rgba(239, 68, 68, 0.8);
+  border-color: transparent;
+}
+
+.lightbox-btn.close-btn:hover {
+  background: #dc2626;
 }
 
 .spin-icon {
