@@ -2847,7 +2847,7 @@ ${rendered}`,
     if (!isSupabaseConfigured()) return [];
     try {
       const currentTicket = await this.getFullTicket(ticketId, user);
-      if (!currentTicket) throw new Error('Atendimento não encontrado ou sem permissão de acesso.');
+      if (!currentTicket) return [];
 
       const phone = currentTicket.phone;
       const contactId = currentTicket.contact_id;

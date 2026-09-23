@@ -109,7 +109,9 @@ test('calcula atendimentos e média de avaliação diária por atendente', () =>
 test('permite invalidar o cache de desempenho em memória', () => {
   assert.doesNotThrow(() => {
     performanceService.clearCache();
+    performanceService.clearCurrentMonthCache();
     performanceService._test.clearPerformanceCache();
+    performanceService._test.clearCurrentMonthCache();
   });
 });
 

@@ -6,15 +6,31 @@
         <div v-if="showSearchInput" class="search-box">
           <i class="fa-solid fa-magnifying-glass"></i>
           <input
+            ref="searchInputRef"
             v-model="searchTerm"
             type="text"
             placeholder="Buscar usuário..."
             class="search-input"
-            @keydown.esc="showSearchInput = false"
+            @keydown.esc="closeSearch"
           />
+          <button
+            v-if="searchTerm"
+            type="button"
+            class="btn-clear-search"
+            title="Limpar pesquisa"
+            @click="clearSearch"
+          >
+            <i class="fa-solid fa-xmark"></i>
+          </button>
         </div>
-        <button class="btn-search" type="button" @click="toggleSearch" title="Buscar usuário">
-          <i class="fa-solid fa-magnifying-glass"></i>
+        <button
+          class="btn-search"
+          type="button"
+          :class="{ active: showSearchInput }"
+          @click="toggleSearch"
+          :title="showSearchInput ? 'Fechar busca' : 'Buscar usuário'"
+        >
+          <i :class="showSearchInput ? 'fa-solid fa-xmark' : 'fa-solid fa-magnifying-glass'"></i>
         </button>
         <button class="btn-primary" @click="openNewUserModal">
           <i class="fa-solid fa-user-plus"></i> Novo Usuário
@@ -107,7 +123,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { usersApi } from '@/api/users.api'
@@ -122,6 +138,7 @@ const showModalUser = ref(false)
 const selectedUserForEdit = ref(null)
 const searchTerm = ref('')
 const showSearchInput = ref(false)
+const searchInputRef = ref(null)
 
 const filteredUsers = computed(() => {
   const list = [...usersList.value].sort((a, b) => {
@@ -163,9 +180,21 @@ async function loadUsers() {
 
 function toggleSearch() {
   showSearchInput.value = !showSearchInput.value
-  if (!showSearchInput.value) {
+  if (showSearchInput.value) {
+    nextTick(() => searchInputRef.value?.focus())
+  } else {
     searchTerm.value = ''
   }
+}
+
+function closeSearch() {
+  showSearchInput.value = false
+  searchTerm.value = ''
+}
+
+function clearSearch() {
+  searchTerm.value = ''
+  nextTick(() => searchInputRef.value?.focus())
 }
 
 function openNewUserModal() {
@@ -252,6 +281,23 @@ onMounted(() => {
 .search-input::placeholder {
   color: #94a3b8;
 }
+.btn-clear-search {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0;
+}
+.btn-clear-search:hover {
+  color: #475569;
+  background: #f1f5f9;
+}
 .btn-search {
   display: inline-flex;
   align-items: center;
@@ -263,6 +309,12 @@ onMounted(() => {
   background: #fff;
   color: #475569;
   cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-search.active {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #cbd5e1;
 }
 .settings-section-card {
   background: #ffffff;

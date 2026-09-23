@@ -256,20 +256,42 @@ function formatDurationSeconds(totalSeconds) {
 }
 
 const durationStr = computed(() => {
-  // Trigger on every second
-  const _ = nowTick.value
   const start = props.ticket?.assumed_at || props.ticket?.started_at || props.ticket?.created_at
   if (!start) return '00:00:00'
+
+  // Se o atendimento já foi encerrado, calcula a duração fixa final
+  const end = props.ticket?.closed_at || props.ticket?.finished_at
+  if (end || props.ticket?.status === 'finalizado') {
+    const endTimestamp = end ? new Date(end).getTime() : (props.ticket?.updated_at ? new Date(props.ticket.updated_at).getTime() : Date.now())
+    const diffSec = Math.max(0, Math.floor((endTimestamp - new Date(start).getTime()) / 1000))
+    return formatDurationSeconds(diffSec)
+  }
+
+  // Se estiver em andamento, atualiza a cada segundo
+  const _ = nowTick.value
   const diffSec = Math.max(0, Math.floor((Date.now() - new Date(start).getTime()) / 1000))
   return formatDurationSeconds(diffSec)
 })
 
 const tmeStr = computed(() => {
-  const createdAt = props.ticket?.created_at
+  const queueStart = props.ticket?.queued_at || props.ticket?.created_at
+  if (!queueStart) return '—'
+
+  // Se já foi assumido, exibe o tempo total que esperou na fila até o atendimento humano
   const assumedAt = props.ticket?.assumed_at
-  if (!createdAt || !assumedAt) return '—'
-  const diffSec = Math.max(0, Math.floor((new Date(assumedAt).getTime() - new Date(createdAt).getTime()) / 1000))
-  return formatDurationSeconds(diffSec)
+  if (assumedAt) {
+    const diffSec = Math.max(0, Math.floor((new Date(assumedAt).getTime() - new Date(queueStart).getTime()) / 1000))
+    return formatDurationSeconds(diffSec)
+  }
+
+  // Se ainda estiver aguardando na fila, exibe o tempo de espera corrente
+  if (props.ticket?.status === 'aguardando') {
+    const _ = nowTick.value
+    const diffSec = Math.max(0, Math.floor((Date.now() - new Date(queueStart).getTime()) / 1000))
+    return formatDurationSeconds(diffSec)
+  }
+
+  return '—'
 })
 
 function copyTicketId() {

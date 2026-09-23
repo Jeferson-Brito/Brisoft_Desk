@@ -511,8 +511,8 @@ class WhatsAppService {
         lastConnectedAt: config.last_connected_at || null,
         lastDisconnectedAt: config.last_disconnected_at || null,
         disconnectReason: config.disconnect_reason || null,
-        reconnectAttempts: Number(config.reconnect_attempts) || 0,
-        nextReconnectAt: config.next_reconnect_at || null,
+        reconnectAttempts: 0,
+        nextReconnectAt: null,
         status: 'disconnected',
         qrCode: null,
         sock: null,
@@ -598,10 +598,13 @@ class WhatsAppService {
     return data;
   }
 
-  async initialize(accountId) {
+  async initialize(accountId, { isAutoReconnect = false } = {}) {
     const account = this.accounts.get(safeAccountId(accountId));
     if (!account) throw new Error('Conta do WhatsApp não encontrada.');
     if (account.initializing || account.status === 'connected') return this.publicAccount(account, true);
+    if (!isAutoReconnect) {
+      account.reconnectAttempts = 0;
+    }
     account.initializing = true;
     account.manualDisconnect = false;
     account.status = 'connecting';
@@ -804,18 +807,21 @@ class WhatsAppService {
           ticketService.handleAccountDisconnected(account.id, 'connection_lost', this.io).catch(() => {});
           account.reconnectAttempts += 1;
           const maxAttempts = envInteger('WHATSAPP_RECONNECT_MAX_ATTEMPTS', 8, 1);
-          if (account.reconnectAttempts <= maxAttempts) {
-            const delay = reconnectDelay(account.reconnectAttempts);
-            account.nextReconnectAt = new Date(Date.now() + delay).toISOString();
-            clearTimeout(account.reconnectTimer);
-            account.reconnectTimer = setTimeout(() => {
-              account.nextReconnectAt = null;
-              this.initialize(account.id).catch(() => {});
-            }, delay);
-            account.reconnectTimer.unref?.();
-          } else {
+          const slowRetryInterval = envInteger('WHATSAPP_RECONNECT_MAX_MS', 300000, 60000);
+          const delay = account.reconnectAttempts <= maxAttempts
+            ? reconnectDelay(account.reconnectAttempts)
+            : slowRetryInterval;
+
+          account.nextReconnectAt = new Date(Date.now() + delay).toISOString();
+          clearTimeout(account.reconnectTimer);
+          account.reconnectTimer = setTimeout(() => {
             account.nextReconnectAt = null;
-            console.error(`[WhatsApp:${account.name}] limite de reconexões atingido (${maxAttempts}).`);
+            this.initialize(account.id, { isAutoReconnect: true }).catch(() => {});
+          }, delay);
+          account.reconnectTimer.unref?.();
+
+          if (account.reconnectAttempts === maxAttempts + 1) {
+            console.warn(`[WhatsApp:${account.name}] limite de tentativas rápidas atingido (${maxAttempts}). Mantendo tentativas periódicas automáticas a cada ${Math.round(delay / 1000)}s.`);
           }
           this.saveConfigs().catch(() => {});
           this.emitAccounts();

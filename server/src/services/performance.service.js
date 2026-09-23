@@ -461,6 +461,10 @@ class PerformanceService {
   clearCache() {
     clearPerformanceCache();
   }
+
+  clearCurrentMonthCache() {
+    clearCurrentMonthCache();
+  }
 }
 
 const performanceService = new PerformanceService();
@@ -473,7 +477,8 @@ performanceService._test = {
   localDateKey,
   isCustomerTicket,
   fetchAll,
-  clearPerformanceCache
+  clearPerformanceCache,
+  clearCurrentMonthCache
 };
 
 module.exports = performanceService;
