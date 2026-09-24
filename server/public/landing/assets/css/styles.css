@@ -129,6 +129,9 @@ a {
 .main-nav a:hover {
   transform: translateY(-1px);
 }
+.nav-mobile-actions {
+  display: none;
+}
 .header-actions {
   margin-left: auto;
   display: flex;
@@ -616,8 +619,9 @@ h2 em {
   color: #fff;
   font-size: 8px;
   font-weight: 800;
-  display: none;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .user-status-dot {
   position: absolute;
@@ -731,11 +735,13 @@ h2 em {
 .client-avatar .avatar-fallback {
   width: 100%;
   height: 100%;
-  display: none;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #fff;
-  font-size: 7px;
+  font-size: 7.5px;
   font-weight: 800;
+  letter-spacing: 0.02em;
 }
 .queue-search {
   overflow: hidden;
@@ -780,12 +786,12 @@ h2 em {
   font-style: normal;
   font-weight: 800;
 }
-.avatar-a { background: #0d9270; }
-.avatar-b { background: #3177c9; }
-.avatar-c { background: #e68137; }
-.avatar-d { background: #7758c8; }
-.avatar-e { background: #df5970; }
-.avatar-f { background: #5d8b83; }
+.avatar-a { background: linear-gradient(135deg, #0d9270, #087f52); }
+.avatar-b { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+.avatar-c { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.avatar-d { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+.avatar-e { background: linear-gradient(135deg, #ec4899, #be185d); }
+.avatar-f { background: linear-gradient(135deg, #14b8a6, #0f766e); }
 .queue-chat > span {
   min-width: 0;
   flex: 1;
@@ -2415,16 +2421,50 @@ h2 em {
   .site-header {
     height: 66px;
     padding: 0 16px;
+    display: flex;
+    align-items: center;
+  }
+  .brand {
+    order: 1;
   }
   .brand img {
     width: 96px;
+  }
+  .header-actions {
+    display: flex;
+    order: 2;
+    margin-left: auto;
+    margin-right: 8px;
+    align-items: center;
+    gap: 8px;
+  }
+  .header-actions .button {
+    display: none;
+  }
+  .header-actions .login-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 13px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--green);
+    background: #e8f7f0;
+    border: 1px solid #c9ecdd;
+    border-radius: 6px;
+    text-decoration: none;
+    transition: background 0.2s, color 0.2s;
+  }
+  .header-actions .login-link:hover {
+    background: #d4f2e3;
+    color: #056440;
   }
   .menu-toggle {
     display: flex;
     flex-direction: column;
     gap: 5px;
-    width: 31px;
-    margin-left: auto;
+    width: 32px;
+    order: 3;
+    margin-left: 0;
     padding: 7px;
     border: 0;
     background: transparent;
@@ -2443,11 +2483,12 @@ h2 em {
     flex-direction: column;
     gap: 0;
     margin: 0;
-    padding: 7px;
+    padding: 10px 8px;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: 12px;
     background: #fff;
     box-shadow: 0 12px 30px rgba(4, 45, 32, 0.12);
+    z-index: 100;
   }
   .main-nav.open {
     display: flex;
@@ -2455,8 +2496,19 @@ h2 em {
   .main-nav a {
     padding: 11px;
   }
-  .header-actions {
-    display: none;
+  .nav-mobile-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+  }
+  .nav-mobile-actions a {
+    text-align: center;
+    justify-content: center;
+    padding: 11px 14px !important;
+    border-radius: 8px;
   }
   .hero {
     min-height: auto;
