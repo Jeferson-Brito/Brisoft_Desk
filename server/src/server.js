@@ -109,35 +109,8 @@ if (!fs.existsSync(mediaStoragePath)) {
 }
 
 // Serve o frontend Vue 3 (build de produção)
-  // Caminhos dos frontends: Landing Page e Sistema Vue 3
-  const clientDistPath = path.join(__dirname, '../../client/dist');
-  const landingPath = path.join(__dirname, '../public/landing');
-
-  // Serve arquivos estáticos da Landing Page (CSS, JS, imagens)
-  if (fs.existsSync(landingPath)) {
-    app.use(express.static(landingPath));
-  }
-
-  // Rota raiz: Serve a Landing Page comercial do Brisoft Desk
-  app.get('/', (req, res) => {
-    const landingIndex = path.join(landingPath, 'index.html');
-    if (fs.existsSync(landingIndex)) {
-      return res.sendFile(landingIndex);
-    }
-    return res.sendFile(path.join(clientDistPath, 'index.html'));
-  });
-
-  // Rota de contato da Landing Page
-  app.get(['/contato', '/contato.html'], (req, res) => {
-    const landingContact = path.join(landingPath, 'contato.html');
-    if (fs.existsSync(landingContact)) {
-      return res.sendFile(landingContact);
-    }
-    return res.redirect('/');
-  });
-
-  // Serve o frontend Vue 3 (build de produção - sem index na raiz)
-  app.use(express.static(clientDistPath, { index: false }));
+const clientDistPath = path.join(__dirname, '../../client/dist');
+app.use(express.static(clientDistPath));
 
 // Guarda instância do Socket.io no app Express
 app.set('io', io);
