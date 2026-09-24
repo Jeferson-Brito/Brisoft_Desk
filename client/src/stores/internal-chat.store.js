@@ -398,6 +398,21 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     }
   }
 
+  // Alternar sub-responsável do canal
+  async function toggleSubOwner(conversationId, targetUserId) {
+    try {
+      const { data } = await internalChatApi.toggleSubOwner(conversationId, targetUserId)
+      if (data?.success) {
+        if (data.details) conversationDetails.value = data.details
+        ui.showToast(data.is_sub_owner ? 'Membro promovido a sub-responsável!' : 'Membro rebaixado.')
+        return data
+      }
+    } catch (err) {
+      ui.showToast('Erro: ' + (err.response?.data?.error || err.message), 'error')
+      throw err
+    }
+  }
+
   // Notificação de novo canal criado em tempo real
   function handleConversationCreated(conv) {
     if (!conv || !conv.id) return
@@ -558,6 +573,7 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     updateChannel,
     deleteChannel,
     leaveChannel,
+    toggleSubOwner,
     fetchConversationDetails,
     handleConversationCreated,
     handleConversationUpdated,

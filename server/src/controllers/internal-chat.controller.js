@@ -230,6 +230,17 @@ class InternalChatController {
       return res.status(400).json({ success: false, error: error.message });
     }
   }
+
+  async toggleSubOwner(req, res) {
+    try {
+      const { id, targetUserId } = req.params;
+      const result = await internalChatService.toggleSubOwner(req.user, id, targetUserId);
+      return res.json(result);
+    } catch (error) {
+      console.error('Erro ao alternar sub-responsável do canal:', error);
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
 }
 
 module.exports = new InternalChatController();

@@ -16,6 +16,7 @@ const memoryConversations = [
 ];
 const memoryParticipants = [];
 const memoryMessages = [];
+const memorySubOwners = new Map(); // conversationId -> Set<userId>
 
 class InternalChatService {
   constructor() {
@@ -71,6 +72,78 @@ class InternalChatService {
       last_seen_at: this.lastSeenMap?.[userId] || null
     };
     return fallbackUser;
+  }
+
+  async getUserName(userId) {
+    if (!userId) return 'Alguém';
+    const user = await this.getUserById(userId);
+    return user?.name || 'Colega';
+  }
+
+  async sendSystemMessage(conversationId, text, actorUser = null) {
+    if (!conversationId || !text) return null;
+
+    const messageData = {
+      id: crypto.randomUUID(),
+      conversation_id: conversationId,
+      sender_id: actorUser ? actorUser.id : null,
+      text: `[SYS]: ${text.trim()}`,
+      is_system: true,
+      reactions: [],
+      is_pinned: false,
+      is_edited: false,
+      is_deleted: false,
+      created_at: new Date().toISOString(),
+      sender: actorUser ? {
+        id: actorUser.id,
+        name: actorUser.name,
+        avatar_url: actorUser.avatar_url || null,
+        role: actorUser.role || 'Sistema'
+      } : {
+        id: 'system',
+        name: 'Sistema',
+        avatar_url: null,
+        role: 'Sistema'
+      }
+    };
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('internal_messages').insert({
+          id: messageData.id,
+          conversation_id: conversationId,
+          sender_id: actorUser ? actorUser.id : null,
+          text: messageData.text,
+          created_at: messageData.created_at
+        });
+
+        await supabase
+          .from('internal_conversations')
+          .update({
+            last_message_text: text.trim(),
+            last_message_at: messageData.created_at,
+            updated_at: messageData.created_at
+          })
+          .eq('id', conversationId);
+      } catch (err) {
+        console.warn('Erro ao salvar mensagem de sistema no Supabase:', err.message);
+      }
+    }
+
+    const convMem = memoryConversations.find(c => c.id === conversationId);
+    if (convMem) {
+      convMem.last_message_text = text.trim();
+      convMem.last_message_at = messageData.created_at;
+      convMem.updated_at = messageData.created_at;
+    }
+
+    memoryMessages.push(messageData);
+
+    if (this.io) {
+      this.broadcastMessage(conversationId, messageData, actorUser);
+    }
+
+    return messageData;
   }
 
   // Retorna todas as conversas pertinentes ao usuário de forma ultra-rápida (batch queries)
@@ -757,6 +830,16 @@ class InternalChatService {
       throw new Error('Conversas diretas não podem ser editadas');
     }
 
+    // Validação de Permissão: Apenas o criador/responsável, sub-responsável ou Admin pode gerenciar
+    const isOwner = conv.created_by === currentUser.id;
+    const subSet = memorySubOwners.get(conversationId);
+    const isSubOwner = subSet && subSet.has(currentUser.id);
+    const isAdmin = currentUser.role === 'Administrador';
+
+    if (!isOwner && !isSubOwner && !isAdmin) {
+      throw new Error('Apenas o responsável pelo canal ou sub-responsáveis podem gerenciar este canal');
+    }
+
     const updates = { updated_at: new Date().toISOString() };
     if (name && typeof name === 'string' && name.trim()) {
       updates.name = name.trim();
@@ -814,6 +897,19 @@ class InternalChatService {
         }
       }
 
+      // Emite avisos de sistema no canal sobre os membros adicionados e removidos
+      for (const uid of toAdd) {
+        const uName = await this.getUserName(uid);
+        await this.sendSystemMessage(conversationId, `${uName} foi adicionado ao canal por ${currentUser.name}`, currentUser);
+      }
+      for (const uid of toRemove) {
+        const uName = await this.getUserName(uid);
+        await this.sendSystemMessage(conversationId, `${uName} foi removido do canal por ${currentUser.name}`, currentUser);
+        if (subSet && subSet.has(uid)) {
+          subSet.delete(uid);
+        }
+      }
+
       if (this.io) {
         toRemove.forEach(uid => {
           this.io.to(`user:${uid}`).emit('internal_conversation_removed', { id: conversationId });
@@ -836,7 +932,7 @@ class InternalChatService {
     return updatedDetails;
   }
 
-  // Exclui grupo ou canal
+  // Exclui grupo ou canal (Apenas o responsável principal ou Admin)
   async deleteChannel(currentUser, conversationId) {
     if (!conversationId) throw new Error('ID do canal é obrigatório');
 
@@ -852,7 +948,7 @@ class InternalChatService {
 
     const isAdminUser = currentUser?.role === 'Administrador';
     if (!isAdminUser && conv.created_by && conv.created_by !== currentUser.id) {
-      throw new Error('Apenas o criador do canal ou administradores podem excluí-lo');
+      throw new Error('Apenas o responsável pelo canal ou administradores podem excluí-lo');
     }
 
     if (this.io) {
@@ -869,6 +965,7 @@ class InternalChatService {
 
     const convIndex = memoryConversations.findIndex(c => c.id === conversationId);
     if (convIndex !== -1) memoryConversations.splice(convIndex, 1);
+    memorySubOwners.delete(conversationId);
 
     return { success: true, id: conversationId };
   }
@@ -905,6 +1002,14 @@ class InternalChatService {
       }
     }
 
+    const subSet = memorySubOwners.get(conversationId);
+    if (subSet && subSet.has(currentUser.id)) {
+      subSet.delete(currentUser.id);
+    }
+
+    // Registra aviso de sistema no canal de que o usuário saiu
+    await this.sendSystemMessage(conversationId, `${currentUser.name} saiu do canal`, currentUser);
+
     if (this.io) {
       this.io.to(`user:${currentUser.id}`).emit('internal_conversation_removed', { id: conversationId });
       this.broadcastEvent(conversationId, 'internal_participant_left', {
@@ -915,6 +1020,57 @@ class InternalChatService {
     }
 
     return { success: true };
+  }
+
+  // Promover ou rebaixar sub-responsável pelo canal (Apenas o responsável principal)
+  async toggleSubOwner(currentUser, conversationId, targetUserId) {
+    if (!conversationId || !targetUserId) throw new Error('Parâmetros inválidos');
+
+    let conv = null;
+    if (isSupabaseConfigured()) {
+      const { data } = await supabase.from('internal_conversations').select('*').eq('id', conversationId).single();
+      conv = data;
+    } else {
+      conv = memoryConversations.find(c => c.id === conversationId);
+    }
+    if (!conv) throw new Error('Canal não encontrado');
+
+    const isOwner = conv.created_by === currentUser.id;
+    const isAdmin = currentUser.role === 'Administrador';
+    if (!isOwner && !isAdmin) {
+      throw new Error('Apenas o responsável pelo canal pode promover ou rebaixar sub-responsáveis');
+    }
+
+    if (targetUserId === conv.created_by) {
+      throw new Error('O criador do canal já é o responsável principal');
+    }
+
+    if (!memorySubOwners.has(conversationId)) {
+      memorySubOwners.set(conversationId, new Set());
+    }
+    const subSet = memorySubOwners.get(conversationId);
+    const targetName = await this.getUserName(targetUserId);
+
+    let isPromoted = false;
+    if (subSet.has(targetUserId)) {
+      subSet.delete(targetUserId);
+      isPromoted = false;
+      await this.sendSystemMessage(conversationId, `${targetName} foi rebaixado a membro por ${currentUser.name}`, currentUser);
+    } else {
+      subSet.add(targetUserId);
+      isPromoted = true;
+      await this.sendSystemMessage(conversationId, `${targetName} foi promovido a sub-responsável por ${currentUser.name}`, currentUser);
+    }
+
+    const updatedDetails = await this.getConversationDetails(conversationId);
+    if (this.io) {
+      this.broadcastEvent(conversationId, 'internal_conversation_updated', {
+        id: conversationId,
+        details: updatedDetails
+      });
+    }
+
+    return { success: true, is_sub_owner: isPromoted, details: updatedDetails };
   }
 
   // Retorna detalhes completos da conversa (membros e galeria de mídia)
@@ -966,16 +1122,32 @@ class InternalChatService {
       }
     }
 
-    if (!conv) {
-      conv = memoryConversations.find(c => c.id === conversationId);
-      const partIds = memoryParticipants.filter(p => p.conversation_id === conversationId).map(p => p.user_id);
-      participants = partIds.map(uid => ({ id: uid, name: 'Colega', role: 'Colaborador' }));
-      mediaMessages = memoryMessages.filter(m => m.conversation_id === conversationId && m.media_url);
-    }
+    const subSet = memorySubOwners.get(conversationId) || new Set();
+    const isCreator = (userId) => conv && conv.created_by === userId;
+
+    const enrichedParticipants = await Promise.all(participants.map(async (p) => {
+      let channel_role = 'member';
+      if (isCreator(p.id)) {
+        channel_role = 'owner';
+      } else if (subSet.has(p.id)) {
+        channel_role = 'sub_owner';
+      }
+      const userCargo = await userCargoService.getUserCargo(p.id);
+      return {
+        ...p,
+        cargo: userCargo || p.role || 'Colaborador',
+        channel_role,
+        is_owner: channel_role === 'owner',
+        is_sub_owner: channel_role === 'sub_owner'
+      };
+    }));
 
     return {
-      conversation: conv,
-      participants,
+      conversation: {
+        ...conv,
+        sub_owners: Array.from(subSet)
+      },
+      participants: enrichedParticipants,
       mediaCount: mediaMessages.length,
       mediaMessages
     };

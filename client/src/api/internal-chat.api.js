@@ -24,6 +24,7 @@ export const internalChatApi = {
   updateChannel: (conversationId, payload) => http.put(`/internal-chat/channels/${conversationId}`, payload),
   deleteChannel: (conversationId) => http.delete(`/internal-chat/channels/${conversationId}`),
   leaveChannel: (conversationId) => http.post(`/internal-chat/channels/${conversationId}/leave`),
+  toggleSubOwner: (conversationId, targetUserId) => http.post(`/internal-chat/channels/${conversationId}/sub-owner/${targetUserId}`),
   getConversationDetails: (conversationId) => http.get(`/internal-chat/conversations/${conversationId}/details`),
   markAsRead: (conversationId) => http.post(`/internal-chat/conversations/${conversationId}/read`),
   toggleReaction: (messageId, emoji) => http.post(`/internal-chat/messages/${messageId}/reactions`, { emoji }),

@@ -111,22 +111,11 @@
               </div>
             </div>
 
-            <!-- Linha 2: Snippet da Mensagem -->
+            <!-- Linha 2: Snippet da Mensagem + Badge de Não Lidos -->
             <div class="queue-row-preview">
               <span class="queue-preview-text" :class="{ 'is-unread': (conv.unread_count || 0) > 0 }">
                 {{ conv.last_message_text || (conv.type === 'direct' ? 'Conversa direta' : 'Canal corporativo') }}
               </span>
-            </div>
-
-            <!-- Linha 3: Tag + Badge de Não Lidos -->
-            <div class="queue-row-tags">
-              <div class="queue-tags-left">
-                <span class="tag-department-chip" :title="getConversationTypeLabel(conv)">
-                  <span class="dept-icon-box"><i :class="getChannelIcon(conv.type)"></i></span>
-                  <span>{{ getConversationTagLabel(conv) }}</span>
-                </span>
-              </div>
-
               <!-- Badge de Mensagens Não Lidas (Círculo Verde) -->
               <span v-if="(conv.unread_count || 0) > 0" class="queue-unread-circle" title="Mensagens não lidas">
                 {{ conv.unread_count }}
@@ -176,7 +165,11 @@
         <div class="chat-conversation-pane">
           <!-- Topo da Conversa -->
           <header class="chat-header">
-            <div class="chat-header-info">
+            <div
+              class="chat-header-info clickable-header-info"
+              title="Clique para ver os detalhes da conversa"
+              @click="openActiveChatDetails"
+            >
               <div
                 v-if="chatStore.activeConversation.type === 'direct'"
                 class="member-avatar-wrapper header-avatar"
@@ -215,12 +208,32 @@
             </div>
 
             <div class="chat-header-actions">
-              <!-- Botão: Configurações e Gerenciamento do Grupo -->
+              <!-- Botão: Ligação de voz (Em desenvolvimento) -->
               <button
-                v-if="chatStore.activeConversation.type !== 'direct'"
+                type="button"
+                class="header-action-btn disabled-feature"
+                title="Ligação de voz (Em breve)"
+                @click="notifyVoiceCall"
+              >
+                <i class="ri-phone-line"></i>
+              </button>
+
+              <!-- Botão: Chamada de vídeo (Em desenvolvimento) -->
+              <button
+                type="button"
+                class="header-action-btn disabled-feature"
+                title="Chamada de vídeo (Em breve)"
+                @click="notifyVideoCall"
+              >
+                <i class="ri-vidicon-line"></i>
+              </button>
+
+              <!-- Botão: Configurações e Gerenciamento do Grupo (Apenas para Responsáveis) -->
+              <button
+                v-if="chatStore.activeConversation.type !== 'direct' && canCurrentUserManageChannel"
                 type="button"
                 class="header-action-btn"
-                title="Configurações e Membros do Grupo"
+                title="Configurações e Membros do Canal"
                 @click="openEditGroupModal"
               >
                 <i class="ri-settings-3-line"></i>
@@ -235,17 +248,6 @@
                 @click="toggleMessageSearch"
               >
                 <i class="ri-search-line"></i>
-              </button>
-
-              <!-- Botão: Detalhes da conversa / Mídias -->
-              <button
-                type="button"
-                class="header-action-btn"
-                :class="{ active: showDetailsDrawer }"
-                title="Ver participantes e mídias da conversa"
-                @click="toggleDetailsDrawer"
-              >
-                <i class="ri-layout-right-line"></i>
               </button>
             </div>
           </header>
@@ -345,7 +347,21 @@
                   <span class="date-badge">{{ formatDateDivider(msg.created_at) }}</span>
                 </div>
 
+                <!-- Mensagem de Sistema / Aviso no Canal -->
                 <div
+                  v-if="isSystemMessage(msg)"
+                  :id="`msg-${msg.id}`"
+                  class="system-message-row"
+                >
+                  <div class="system-message-pill">
+                    <i class="ri-information-line"></i>
+                    <span>{{ getSystemMessageText(msg) }}</span>
+                  </div>
+                </div>
+
+                <!-- Mensagem Comum de Usuário -->
+                <div
+                  v-else
                   :id="`msg-${msg.id}`"
                   class="message-row"
                   :class="{
@@ -709,14 +725,62 @@
                 {{ getConversationTypeLabel(chatStore.activeConversation) }}
               </span>
 
-              <button
-                v-if="chatStore.activeConversation.type !== 'direct'"
-                type="button"
-                class="btn-edit-group-drawer"
-                @click="openEditGroupModal"
-              >
-                <i class="ri-settings-4-line"></i> Gerenciar Grupo
-              </button>
+              <!-- Detalhes do Usuário (Conversa Direta) -->
+              <div v-if="chatStore.activeConversation.type === 'direct'" class="drawer-contact-details-box">
+                <div class="drawer-detail-item">
+                  <i class="ri-briefcase-line"></i>
+                  <div class="detail-texts">
+                    <label>Cargo / Função</label>
+                    <span>{{ activeDirectUser?.cargo || activeDirectUser?.role || 'Colaborador' }}</span>
+                  </div>
+                </div>
+                <div v-if="activeDirectUser?.email" class="drawer-detail-item">
+                  <i class="ri-mail-line"></i>
+                  <div class="detail-texts">
+                    <label>E-mail Corporativo</label>
+                    <span>{{ activeDirectUser.email }}</span>
+                  </div>
+                </div>
+                <div class="drawer-detail-item">
+                  <i class="ri-time-line"></i>
+                  <div class="detail-texts">
+                    <label>Status</label>
+                    <span :class="{ 'text-online': isUserOnline(activeDirectUser?.id) }">
+                      {{ getUserStatusText(activeDirectUser) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Badges de Papel e Botões do Canal -->
+              <div v-else class="drawer-channel-actions-box">
+                <div v-if="isCurrentUserChannelOwner" class="drawer-role-callout owner">
+                  <i class="ri-vip-crown-fill"></i> Você é o Responsável pelo Canal
+                </div>
+                <div v-else-if="isCurrentUserChannelSubOwner" class="drawer-role-callout sub">
+                  <i class="ri-star-fill"></i> Você é Sub-responsável pelo Canal
+                </div>
+
+                <div class="drawer-channel-buttons-row">
+                  <button
+                    v-if="canCurrentUserManageChannel"
+                    type="button"
+                    class="btn-edit-group-drawer"
+                    @click="openEditGroupModal"
+                  >
+                    <i class="ri-settings-4-line"></i> Gerenciar Canal
+                  </button>
+
+                  <button
+                    v-if="chatStore.activeConversation.type !== 'general'"
+                    type="button"
+                    class="btn-leave-channel-drawer"
+                    @click="confirmLeaveActiveChannel"
+                  >
+                    <i class="ri-logout-box-r-line"></i> Sair do Canal
+                  </button>
+                </div>
+              </div>
             </div>
 
             <!-- Abas do Drawer: Membros / Arquivos / Fixadas -->
@@ -762,7 +826,7 @@
                 <i class="ri-loader-4-line spin-icon"></i> Carregando membros...
               </div>
               <div v-else class="drawer-members-list">
-                <div v-if="chatStore.activeConversation.type !== 'direct'" class="drawer-members-header-action">
+                <div v-if="chatStore.activeConversation.type !== 'direct' && canCurrentUserManageChannel" class="drawer-members-header-action">
                   <button type="button" class="btn-manage-members-pill" @click="openEditGroupModal">
                     <i class="ri-user-add-line"></i> Adicionar / Gerenciar Membros
                   </button>
@@ -780,20 +844,54 @@
                     <span class="member-status-dot" :class="{ online: isUserOnline(member.id) }"></span>
                   </div>
                   <div class="drawer-member-info">
-                    <span class="drawer-member-name">{{ member.name }}</span>
+                    <div class="member-name-row">
+                      <span class="drawer-member-name">{{ member.name }}</span>
+                      <span v-if="isMemberChannelOwner(member.id)" class="role-pill owner" title="Responsável pelo canal">
+                        <i class="ri-vip-crown-fill"></i> Responsável
+                      </span>
+                      <span v-else-if="isMemberChannelSubOwner(member.id)" class="role-pill sub" title="Sub-responsável pelo canal">
+                        <i class="ri-star-fill"></i> Sub-responsável
+                      </span>
+                    </div>
                     <span class="drawer-member-sub">
                       {{ isUserOnline(member.id) ? 'Online agora' : 'Offline' }} • {{ member.cargo || member.role || 'Colaborador' }}
                     </span>
                   </div>
-                  <button
-                    v-if="member.id !== auth.user?.id"
-                    type="button"
-                    class="btn-quick-direct"
-                    title="Conversar em particular"
-                    @click="openDirectChatWithDetails(member.id)"
-                  >
-                    <i class="ri-message-3-line"></i>
-                  </button>
+                  <div class="drawer-member-actions">
+                    <!-- Promover / Rebaixar Sub-responsável (Apenas para o Responsável principal) -->
+                    <button
+                      v-if="isCurrentUserChannelOwner && member.id !== chatStore.activeConversation?.created_by"
+                      type="button"
+                      class="btn-member-action-sub"
+                      :class="{ active: isMemberChannelSubOwner(member.id) }"
+                      :title="isMemberChannelSubOwner(member.id) ? 'Rebaixar a membro comum' : 'Promover a sub-responsável'"
+                      @click="handleToggleSubOwner(member)"
+                    >
+                      <i :class="isMemberChannelSubOwner(member.id) ? 'ri-star-fill' : 'ri-star-line'"></i>
+                    </button>
+
+                    <!-- Remover do Canal -->
+                    <button
+                      v-if="(isCurrentUserChannelOwner || (isCurrentUserChannelSubOwner && !isMemberChannelSubOwner(member.id))) && member.id !== chatStore.activeConversation?.created_by && member.id !== auth.user?.id"
+                      type="button"
+                      class="btn-member-action-remove"
+                      title="Remover do canal"
+                      @click="handleRemoveMemberFromChannel(member)"
+                    >
+                      <i class="ri-user-unfollow-line"></i>
+                    </button>
+
+                    <!-- Conversar em particular -->
+                    <button
+                      v-if="member.id !== auth.user?.id"
+                      type="button"
+                      class="btn-quick-direct"
+                      title="Conversar em particular"
+                      @click="openDirectChatWithDetails(member.id)"
+                    >
+                      <i class="ri-message-3-line"></i>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -994,12 +1092,35 @@
 
             <div class="channel-form-group">
               <label class="channel-form-label">Foto / Imagem do Grupo (opcional)</label>
-              <input
-                v-model="newChannelForm.avatar_url"
-                type="url"
-                placeholder="URL da imagem (ex: https://...)"
-                class="channel-input-plain"
-              />
+              <div class="channel-upload-row">
+                <div class="channel-upload-preview" :style="newChannelForm.avatar_url ? `background-image: url('${newChannelForm.avatar_url}')` : ''">
+                  <i v-if="!newChannelForm.avatar_url" class="ri-camera-line"></i>
+                </div>
+                <div class="channel-upload-btns">
+                  <input
+                    ref="newChannelAvatarInput"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    style="display: none"
+                    @change="handleNewChannelAvatarFile"
+                  />
+                  <button
+                    type="button"
+                    class="btn-choose-photo"
+                    @click="newChannelAvatarInput?.click()"
+                  >
+                    <i class="ri-upload-2-line"></i> {{ newChannelForm.avatar_url ? 'Trocar foto' : 'Fazer upload de foto' }}
+                  </button>
+                  <button
+                    v-if="newChannelForm.avatar_url"
+                    type="button"
+                    class="btn-remove-photo"
+                    @click="newChannelForm.avatar_url = ''"
+                  >
+                    <i class="ri-delete-bin-line"></i> Remover
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div class="channel-form-group">
@@ -1118,17 +1239,35 @@
             </div>
 
             <div class="channel-form-group">
-              <label class="channel-form-label">Foto / Imagem do Grupo (URL)</label>
-              <div class="group-photo-preview-row">
-                <div v-if="editGroupForm.avatar_url" class="group-avatar-preview-box">
-                  <img :src="editGroupForm.avatar_url" alt="Prévia" />
+              <label class="channel-form-label">Foto / Imagem do Grupo</label>
+              <div class="channel-upload-row">
+                <div class="channel-upload-preview" :style="editGroupForm.avatar_url ? `background-image: url('${editGroupForm.avatar_url}')` : ''">
+                  <i v-if="!editGroupForm.avatar_url" class="ri-camera-line"></i>
                 </div>
-                <input
-                  v-model="editGroupForm.avatar_url"
-                  type="url"
-                  placeholder="https://exemplo.com/foto.jpg"
-                  class="channel-input-plain"
-                />
+                <div class="channel-upload-btns">
+                  <input
+                    ref="editGroupAvatarInput"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    style="display: none"
+                    @change="handleEditGroupAvatarFile"
+                  />
+                  <button
+                    type="button"
+                    class="btn-choose-photo"
+                    @click="editGroupAvatarInput?.click()"
+                  >
+                    <i class="ri-upload-2-line"></i> {{ editGroupForm.avatar_url ? 'Trocar foto' : 'Fazer upload de foto' }}
+                  </button>
+                  <button
+                    v-if="editGroupForm.avatar_url"
+                    type="button"
+                    class="btn-remove-photo"
+                    @click="editGroupForm.avatar_url = ''"
+                  >
+                    <i class="ri-delete-bin-line"></i> Remover
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1283,6 +1422,7 @@ import { useInternalChatStore } from '@/stores/internal-chat.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useSocket } from '@/composables/useSocket'
+import { prepareAvatar } from '@/utils/avatar-upload'
 
 const chatStore = useInternalChatStore()
 const auth = useAuthStore()
@@ -1490,6 +1630,133 @@ const editGroupForm = ref({
   participant_ids: [],
   memberFilter: ''
 })
+
+const newChannelAvatarInput = ref(null)
+const editGroupAvatarInput = ref(null)
+
+async function handleNewChannelAvatarFile(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  try {
+    const dataUrl = await prepareAvatar(file)
+    newChannelForm.value.avatar_url = dataUrl
+  } catch (err) {
+    ui.showToast(err.message, 'error')
+  } finally {
+    e.target.value = ''
+  }
+}
+
+async function handleEditGroupAvatarFile(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  try {
+    const dataUrl = await prepareAvatar(file)
+    editGroupForm.value.avatar_url = dataUrl
+  } catch (err) {
+    ui.showToast(err.message, 'error')
+  } finally {
+    e.target.value = ''
+  }
+}
+
+function notifyVoiceCall() {
+  ui.showToast('A funcionalidade de ligação de voz está em desenvolvimento e estará disponível em breve!', 'info')
+}
+
+function notifyVideoCall() {
+  ui.showToast('A funcionalidade de chamada de vídeo está em desenvolvimento e estará disponível em breve!', 'info')
+}
+
+async function openActiveChatDetails() {
+  if (!chatStore.activeConversation) return
+  showDetailsDrawer.value = true
+  if (chatStore.activeConversation.id) {
+    await chatStore.fetchConversationDetails(chatStore.activeConversation.id)
+  }
+}
+
+const isCurrentUserChannelOwner = computed(() => {
+  if (!chatStore.activeConversation) return false
+  return chatStore.activeConversation.created_by === auth.user?.id || auth.user?.role === 'Administrador'
+})
+
+const isCurrentUserChannelSubOwner = computed(() => {
+  if (!chatStore.activeConversation) return false
+  const subOwners = chatStore.conversationDetails?.conversation?.sub_owners || chatStore.activeConversation.sub_owners || []
+  return subOwners.includes(auth.user?.id)
+})
+
+const canCurrentUserManageChannel = computed(() => {
+  return isCurrentUserChannelOwner.value || isCurrentUserChannelSubOwner.value
+})
+
+function isMemberChannelOwner(memberId) {
+  return chatStore.activeConversation?.created_by === memberId
+}
+
+function isMemberChannelSubOwner(memberId) {
+  const subOwners = chatStore.conversationDetails?.conversation?.sub_owners || chatStore.activeConversation?.sub_owners || []
+  return subOwners.includes(memberId)
+}
+
+async function handleToggleSubOwner(member) {
+  if (!isCurrentUserChannelOwner.value) {
+    ui.showToast('Apenas o responsável pelo canal pode promover sub-responsáveis.', 'error')
+    return
+  }
+  if (!member || member.id === chatStore.activeConversation?.created_by) return
+  try {
+    await chatStore.toggleSubOwner(chatStore.activeConversation.id, member.id)
+  } catch (err) {
+    // Tratado no store
+  }
+}
+
+async function handleRemoveMemberFromChannel(member) {
+  if (!canCurrentUserManageChannel.value) {
+    ui.showToast('Você não tem permissão para remover membros.', 'error')
+    return
+  }
+  if (member.id === chatStore.activeConversation?.created_by) {
+    ui.showToast('O responsável principal não pode ser removido do canal.', 'error')
+    return
+  }
+  if (confirm(`Remover "${member.name}" deste canal?`)) {
+    try {
+      const currentIds = conversationParticipants.value.map(p => p.id)
+      const newIds = currentIds.filter(id => id !== member.id)
+      await chatStore.updateChannel(chatStore.activeConversation.id, {
+        participant_ids: newIds
+      })
+      ui.showToast(`${member.name} foi removido do canal.`)
+    } catch {
+      ui.showToast('Erro ao remover membro.', 'error')
+    }
+  }
+}
+
+async function confirmLeaveActiveChannel() {
+  if (!chatStore.activeConversation) return
+  if (confirm(`Deseja realmente sair do canal "${chatStore.activeConversation.name}"?`)) {
+    try {
+      await chatStore.leaveChannel(chatStore.activeConversation.id)
+      showDetailsDrawer.value = false
+    } catch {
+      // Tratado no store
+    }
+  }
+}
+
+function isSystemMessage(msg) {
+  if (!msg) return false
+  return msg.is_system || msg.text?.startsWith('[SYS]: ') || !msg.sender_id
+}
+
+function getSystemMessageText(msg) {
+  if (!msg?.text) return ''
+  return msg.text.replace(/^\[SYS\]:\s*/, '')
+}
 
 // ─── Fase 4: Reações, Menções, Fixadas e Edição ──────────────────────────────
 const activeReactionPopoverId = ref(null)
@@ -3410,7 +3677,8 @@ function formatMessageTime(dateStr) {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  max-width: 75%;
+  max-width: min(75%, 720px);
+  width: fit-content;
 }
 
 .message-mine {
@@ -3463,16 +3731,20 @@ function formatMessageTime(dateStr) {
 
 .message-bubble-wrapper {
   position: relative;
-  max-width: 75%;
+  max-width: 100%;
+  min-width: 90px;
 }
 
 .message-bubble-box {
   position: relative;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  padding: 8px 12px;
+  padding: 8px 12px 6px;
   border-radius: 12px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  min-width: 90px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .msg-reply-trigger {
@@ -3692,6 +3964,8 @@ function formatMessageTime(dateStr) {
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: break-word;
+  min-width: 0;
 }
 
 .message-meta-row {
@@ -3700,6 +3974,8 @@ function formatMessageTime(dateStr) {
   justify-content: flex-end;
   gap: 4px;
   margin-top: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .message-timestamp {
@@ -5692,5 +5968,322 @@ function formatMessageTime(dateStr) {
     padding: 12px 10px;
     font-size: 14px;
   }
+}
+
+/* ─── Cabeçalho e Chamadas ─────────────────────────────────────────────────── */
+.clickable-header-info {
+  cursor: pointer;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease;
+}
+
+.clickable-header-info:hover {
+  background-color: #f1f5f9;
+}
+
+.header-action-btn.disabled-feature {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.header-action-btn.disabled-feature:hover {
+  background: transparent;
+  color: #64748b;
+  transform: none;
+}
+
+/* ─── Mensagens de Sistema (Avisos nos Canais) ─────────────────────────────── */
+.system-message-row {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0;
+  width: 100%;
+}
+
+.system-message-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 14px;
+  border-radius: 999px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  text-align: center;
+  max-width: 90%;
+  word-break: break-word;
+}
+
+.system-message-pill i {
+  color: #059669;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+/* ─── Upload de Imagem de Canais ───────────────────────────────────────────── */
+.channel-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.channel-upload-preview {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: #f1f5f9;
+  border: 2px dashed #cbd5e1;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 22px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.channel-upload-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-choose-photo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background-color: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-choose-photo:hover {
+  background-color: #d1fae5;
+}
+
+.btn-remove-photo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 12px;
+  background-color: #fff1f2;
+  color: #e11d48;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-remove-photo:hover {
+  background-color: #ffe4e6;
+}
+
+/* ─── Detalhes do Usuário e Canal no Drawer ────────────────────────────────── */
+.drawer-contact-details-box {
+  width: 100%;
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.drawer-detail-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.drawer-detail-item i {
+  font-size: 15px;
+  color: #059669;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.detail-texts {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.detail-texts label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0;
+}
+
+.detail-texts span {
+  font-size: 12.5px;
+  color: #1e293b;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.detail-texts .text-online {
+  color: #059669;
+  font-weight: 600;
+}
+
+.drawer-channel-actions-box {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.drawer-role-callout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.drawer-role-callout.owner {
+  background-color: #fefce8;
+  color: #854d0e;
+  border: 1px solid #fef08a;
+}
+
+.drawer-role-callout.owner i {
+  color: #eab308;
+}
+
+.drawer-role-callout.sub {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.drawer-role-callout.sub i {
+  color: #3b82f6;
+}
+
+.drawer-channel-buttons-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.btn-leave-channel-drawer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background-color: #fff1f2;
+  color: #e11d48;
+  border: 1px solid #fecdd3;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-leave-channel-drawer:hover {
+  background-color: #ffe4e6;
+}
+
+.member-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.role-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.role-pill.owner {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.role-pill.owner i {
+  color: #ca8a04;
+}
+
+.role-pill.sub {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.role-pill.sub i {
+  color: #2563eb;
+}
+
+.drawer-member-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.btn-member-action-sub,
+.btn-member-action-remove {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-member-action-sub:hover,
+.btn-member-action-sub.active {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #2563eb;
+}
+
+.btn-member-action-remove:hover {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #e11d48;
 }
 </style>
