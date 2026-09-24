@@ -19,16 +19,14 @@ const memoryMessages = [];
 class InternalChatService {
   constructor() {
     this.io = null;
+    this.userCache = new Map();
   }
 
   setIO(ioInstance) {
     this.io = ioInstance;
   }
 
-  // Retorna todas as conversas pertinentes ao usuário:
-  // 1. Canal Geral
-  // 2. Canal do seu Departamento (se tiver)
-  // 3. Conversas Diretas com outros colegas
+  // Retorna todas as conversas pertinentes ao usuário de forma ultra-rápida (batch queries)
   async listConversations(user) {
     if (!user || !user.id) return [];
 
@@ -37,32 +35,23 @@ class InternalChatService {
     // Tenta carregar do Supabase
     if (isSupabaseConfigured()) {
       try {
-        // 1. Busca conversas gerais
-        const { data: generalConvs } = await supabase
-          .from('internal_conversations')
-          .select('*')
-          .eq('type', 'general');
-
-        // 2. Busca conversas de departamento do usuário
-        let deptConvs = [];
         const userDeptIds = [...new Set([...(user.department_ids || []), user.department_id].filter(Boolean))];
-        if (userDeptIds.length > 0) {
-          const { data: depts } = await supabase
-            .from('internal_conversations')
-            .select('*')
-            .eq('type', 'department')
-            .in('department_id', userDeptIds);
-          if (depts) deptConvs = depts;
-        }
 
-        // 3. Busca conversas diretas onde o usuário é participante
-        const { data: userParts } = await supabase
-          .from('internal_conversation_participants')
-          .select('conversation_id, last_read_at')
-          .eq('user_id', user.id);
+        // 1. Busca conversas gerais, de departamento e do usuário em paralelo
+        const [generalRes, deptRes, partsRes] = await Promise.all([
+          supabase.from('internal_conversations').select('*').eq('type', 'general'),
+          userDeptIds.length > 0
+            ? supabase.from('internal_conversations').select('*').eq('type', 'department').in('department_id', userDeptIds)
+            : Promise.resolve({ data: [] }),
+          supabase.from('internal_conversation_participants').select('conversation_id, last_read_at').eq('user_id', user.id)
+        ]);
+
+        const generalConvs = generalRes.data || [];
+        const deptConvs = deptRes.data || [];
+        const userParts = partsRes.data || [];
 
         let directConvs = [];
-        if (userParts && userParts.length > 0) {
+        if (userParts.length > 0) {
           const convIds = userParts.map(p => p.conversation_id);
           const { data: directs } = await supabase
             .from('internal_conversations')
@@ -72,12 +61,110 @@ class InternalChatService {
           if (directs) directConvs = directs;
         }
 
-        // Consolida
-        const rawConvs = [...(generalConvs || []), ...deptConvs, ...directConvs];
+        // Consolida únicas
+        const rawConvs = [...generalConvs, ...deptConvs, ...directConvs];
         const uniqueMap = new Map();
         for (const c of rawConvs) uniqueMap.set(c.id, c);
-
         conversations = Array.from(uniqueMap.values());
+
+        // Batch resolve participants e other_user para conversas diretas
+        const directConvIds = conversations.filter(c => c.type === 'direct').map(c => c.id);
+        const userPartMap = new Map(userParts.map(p => [p.conversation_id, p.last_read_at]));
+
+        let allOtherParts = [];
+        if (directConvIds.length > 0) {
+          const { data: parts } = await supabase
+            .from('internal_conversation_participants')
+            .select('conversation_id, user_id')
+            .in('conversation_id', directConvIds)
+            .neq('user_id', user.id);
+          if (parts) allOtherParts = parts;
+        }
+
+        const otherUserIdByConv = new Map();
+        for (const p of allOtherParts) {
+          otherUserIdByConv.set(p.conversation_id, p.user_id);
+        }
+
+        // Carrega em batch usuários que ainda não estão em cache
+        const missingUserIds = [...new Set(Array.from(otherUserIdByConv.values()))].filter(
+          id => !this.userCache.has(id) || this.userCache.get(id).expiresAt <= Date.now()
+        );
+
+        if (missingUserIds.length > 0) {
+          const { data: fetchedUsers } = await supabase
+            .from('users')
+            .select('id, name, email, role, avatar_url, status')
+            .in('id', missingUserIds);
+
+          if (fetchedUsers) {
+            const exp = Date.now() + 120000;
+            for (const u of fetchedUsers) {
+              this.userCache.set(u.id, { user: u, expiresAt: exp });
+            }
+          }
+        }
+
+        // Checagem otimizada de não lidas apenas nas conversas com mensagens recentes
+        const convsNeedingUnreadCheck = conversations.filter(c => {
+          const lastRead = userPartMap.get(c.id) || '1970-01-01T00:00:00Z';
+          const lastMsg = c.last_message_at || c.updated_at || '';
+          return lastMsg > lastRead;
+        });
+
+        const unreadCountMap = new Map();
+        if (convsNeedingUnreadCheck.length > 0) {
+          await Promise.all(
+            convsNeedingUnreadCheck.map(async (c) => {
+              const lastRead = userPartMap.get(c.id) || '1970-01-01T00:00:00Z';
+              const { count } = await supabase
+                .from('internal_messages')
+                .select('id', { count: 'exact', head: true })
+                .eq('conversation_id', c.id)
+                .neq('sender_id', user.id)
+                .gt('created_at', lastRead);
+              unreadCountMap.set(c.id, count || 0);
+            })
+          );
+        }
+
+        // Mapeia enriquecimento instantâneo em memória
+        const enriched = conversations.map(conv => {
+          let title = conv.name;
+          let otherUser = null;
+
+          if (conv.type === 'direct') {
+            const otherId = otherUserIdByConv.get(conv.id);
+            if (otherId) {
+              const cached = this.userCache.get(otherId);
+              otherUser = cached ? cached.user : { id: otherId, name: 'Colaborador', role: 'Analista' };
+              if (otherUser?.name) title = otherUser.name;
+            }
+          }
+
+          const unreadCount = unreadCountMap.get(conv.id) || 0;
+
+          return {
+            id: conv.id,
+            type: conv.type,
+            name: title,
+            department_id: conv.department_id,
+            created_by: conv.created_by || null,
+            avatar_url: conv.avatar_url || null,
+            other_user: otherUser,
+            unread_count: unreadCount,
+            last_message_text: conv.last_message_text || '',
+            last_message_at: conv.last_message_at || conv.updated_at,
+            created_at: conv.created_at
+          };
+        });
+
+        if (!enriched.some(c => c.type === 'general')) {
+          enriched.unshift(memoryConversations[0]);
+        }
+
+        enriched.sort((a, b) => new Date(b.last_message_at || 0) - new Date(a.last_message_at || 0));
+        return enriched;
       } catch (err) {
         console.warn('⚠️ Falha ao consultar conversas no Supabase (usando fallback):', err.message);
         conversations = [...memoryConversations];
@@ -86,50 +173,10 @@ class InternalChatService {
       conversations = [...memoryConversations];
     }
 
-    // Se estiver vazio (ex: inicialização), garante canal geral
     if (!conversations.some(c => c.type === 'general')) {
       conversations.unshift(memoryConversations[0]);
     }
-
-    // Para cada conversa, enriquece com dados do participante (se direct) e mensagens não lidas
-    const enriched = await Promise.all(
-      conversations.map(async (conv) => {
-        let title = conv.name;
-        let otherUser = null;
-        let unreadCount = 0;
-
-        if (conv.type === 'direct') {
-          // Achar o outro participante
-          const otherUserId = await this.getOtherParticipantId(conv.id, user.id);
-          if (otherUserId) {
-            otherUser = await this.getUserById(otherUserId);
-            if (otherUser) {
-              title = otherUser.name;
-            }
-          }
-        }
-
-        unreadCount = await this.getUnreadCount(conv.id, user.id);
-
-        return {
-          id: conv.id,
-          type: conv.type,
-          name: title,
-          department_id: conv.department_id,
-          created_by: conv.created_by || null,
-          avatar_url: conv.avatar_url || null,
-          other_user: otherUser,
-          unread_count: unreadCount,
-          last_message_text: conv.last_message_text || '',
-          last_message_at: conv.last_message_at || conv.updated_at,
-          created_at: conv.created_at
-        };
-      })
-    );
-
-    // Ordena por última mensagem mais recente
-    enriched.sort((a, b) => new Date(b.last_message_at || 0) - new Date(a.last_message_at || 0));
-    return enriched;
+    return conversations;
   }
 
   // Lista todos os colegas disponíveis na empresa para iniciar chat direto
@@ -439,6 +486,13 @@ class InternalChatService {
 
   async getUserById(userId) {
     if (!userId) return null;
+    const now = Date.now();
+    const cached = this.userCache.get(userId);
+    if (cached && cached.expiresAt > now) {
+      return cached.user;
+    }
+
+    let user = null;
     if (isSupabaseConfigured()) {
       try {
         const { data } = await supabase
@@ -446,10 +500,16 @@ class InternalChatService {
           .select('id, name, email, role, avatar_url, status')
           .eq('id', userId)
           .maybeSingle();
-        if (data) return data;
+        if (data) user = data;
       } catch (_) {}
     }
-    return { id: userId, name: 'Colaborador', role: 'Analista' };
+
+    if (!user) {
+      user = { id: userId, name: 'Colaborador', role: 'Analista' };
+    }
+
+    this.userCache.set(userId, { user, expiresAt: now + 120000 });
+    return user;
   }
 
   async getUnreadCount(conversationId, userId) {

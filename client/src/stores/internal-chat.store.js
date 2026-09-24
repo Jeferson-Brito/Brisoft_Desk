@@ -18,6 +18,10 @@ export const useInternalChatStore = defineStore('internalChat', () => {
   const isSending = ref(false)
   const typingUsers = ref({}) // conversationId -> { [userId]: userName }
 
+  // Caches em memória para carregamento instantâneo (0ms)
+  const messagesCache = ref({}) // convId -> message[]
+  const detailsCache = ref({}) // convId -> details
+
   // Total de mensagens internas não lidas em todas as conversas
   const totalUnreadCount = computed(() => {
     return conversations.value.reduce((acc, conv) => acc + (conv.unread_count || 0), 0)
@@ -54,34 +58,65 @@ export const useInternalChatStore = defineStore('internalChat', () => {
   async function selectConversation(conv) {
     if (!conv) return
     activeConversation.value = conv
-    isLoading.value = true
 
+    // Se já estiver em cache, exibe instantaneamente sem spinner (0ms)
+    if (messagesCache.value[conv.id]) {
+      messages.value = messagesCache.value[conv.id]
+      isLoading.value = false
+    } else {
+      messages.value = []
+      isLoading.value = true
+    }
+
+    // Marca como lida em background
+    if (conv.unread_count > 0) {
+      conv.unread_count = 0
+      internalChatApi.markAsRead(conv.id).catch(() => {})
+    }
+
+    // Busca mensagens atualizadas do servidor
     try {
       const { data } = await internalChatApi.getMessages(conv.id)
       if (data?.success && Array.isArray(data.messages)) {
-        messages.value = data.messages
-      }
-
-      // Marca como lida
-      if (conv.unread_count > 0) {
-        conv.unread_count = 0
-        await internalChatApi.markAsRead(conv.id)
+        messagesCache.value[conv.id] = data.messages
+        if (activeConversation.value?.id === conv.id) {
+          messages.value = data.messages
+        }
       }
     } catch (err) {
       console.error('Erro ao buscar mensagens da conversa:', err)
     } finally {
-      isLoading.value = false
+      if (activeConversation.value?.id === conv.id) {
+        isLoading.value = false
+      }
     }
   }
 
   async function startDirectChatWith(userId) {
     try {
+      // 1. Otimização instantânea: se já temos a conversa direta dessa pessoa na lista, abre ela direto!
+      const existingConv = conversations.value.find(c =>
+        c.type === 'direct' && (
+          c.other_user_id === userId ||
+          c.other_user?.id === userId ||
+          c.participants?.some(p => (p.user_id || p.id) === userId)
+        )
+      )
+      if (existingConv) {
+        selectConversation(existingConv)
+        return existingConv
+      }
+
+      // 2. Se não existir na memória, solicita ao backend
       const { data } = await internalChatApi.startDirectChat(userId)
       if (data?.success && data.conversation) {
-        await fetchConversations()
-        const targetConv = conversations.value.find(c => c.id === data.conversation.id) || data.conversation
-        await selectConversation(targetConv)
-        return targetConv
+        const newConv = data.conversation
+        // Insere diretamente sem recarregar a lista inteira do zero
+        if (!conversations.value.some(c => c.id === newConv.id)) {
+          conversations.value.unshift(newConv)
+        }
+        selectConversation(newConv)
+        return newConv
       }
     } catch (err) {
       ui.showToast('Erro ao abrir conversa direta: ' + (err.response?.data?.error || err.message), 'error')
@@ -108,8 +143,15 @@ export const useInternalChatStore = defineStore('internalChat', () => {
         if (!messages.value.some(m => m.id === data.message.id)) {
           messages.value.push(data.message)
         }
+        // Atualiza cache em memória
+        const convId = activeConversation.value.id
+        if (!messagesCache.value[convId]) messagesCache.value[convId] = []
+        if (!messagesCache.value[convId].some(m => m.id === data.message.id)) {
+          messagesCache.value[convId].push(data.message)
+        }
+
         // Atualiza a conversa na lista lateral
-        const conv = conversations.value.find(c => c.id === activeConversation.value.id)
+        const conv = conversations.value.find(c => c.id === convId)
         if (conv) {
           conv.last_message_text = data.message.text || 'Arquivo compartilhado'
           conv.last_message_at = data.message.created_at
@@ -133,7 +175,13 @@ export const useInternalChatStore = defineStore('internalChat', () => {
         if (!messages.value.some(m => m.id === data.message.id)) {
           messages.value.push(data.message)
         }
-        const conv = conversations.value.find(c => c.id === activeConversation.value.id)
+        const convId = activeConversation.value.id
+        if (!messagesCache.value[convId]) messagesCache.value[convId] = []
+        if (!messagesCache.value[convId].some(m => m.id === data.message.id)) {
+          messagesCache.value[convId].push(data.message)
+        }
+
+        const conv = conversations.value.find(c => c.id === convId)
         if (conv) {
           conv.last_message_text = data.message.text || (metadata.mediaType === 'audio' ? 'Mensagem de voz' : 'Arquivo compartilhado')
           conv.last_message_at = data.message.created_at
@@ -152,7 +200,14 @@ export const useInternalChatStore = defineStore('internalChat', () => {
   function handleIncomingInternalMessage(message) {
     if (!message || !message.conversation_id) return
 
-    const isCurrentActive = activeConversation.value?.id === message.conversation_id
+    const convId = message.conversation_id
+    // Atualiza cache em memória
+    if (!messagesCache.value[convId]) messagesCache.value[convId] = []
+    if (!messagesCache.value[convId].some(m => m.id === message.id)) {
+      messagesCache.value[convId].push(message)
+    }
+
+    const isCurrentActive = activeConversation.value?.id === convId
     const isFromMe = message.sender_id === auth.user?.id
 
     if (isCurrentActive) {
@@ -160,7 +215,7 @@ export const useInternalChatStore = defineStore('internalChat', () => {
         messages.value.push(message)
       }
       if (!isFromMe) {
-        internalChatApi.markAsRead(message.conversation_id).catch(() => {})
+        internalChatApi.markAsRead(convId).catch(() => {})
       }
     } else {
       // Notificação se for de outro usuário
@@ -217,19 +272,33 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     }
   }
 
-  // Busca detalhes da conversa (participantes e mídias)
+  // Busca detalhes da conversa (participantes e mídias) com cache instantâneo
   async function fetchConversationDetails(conversationId) {
     if (!conversationId) return
-    isLoadingDetails.value = true
+
+    // Se já estiver em cache, exibe instantaneamente
+    if (detailsCache.value[conversationId]) {
+      conversationDetails.value = detailsCache.value[conversationId]
+      isLoadingDetails.value = false
+    } else {
+      conversationDetails.value = null
+      isLoadingDetails.value = true
+    }
+
     try {
       const { data } = await internalChatApi.getConversationDetails(conversationId)
       if (data?.success && data.details) {
-        conversationDetails.value = data.details
+        detailsCache.value[conversationId] = data.details
+        if (activeConversation.value?.id === conversationId) {
+          conversationDetails.value = data.details
+        }
       }
     } catch (err) {
       console.warn('Erro ao carregar detalhes da conversa:', err)
     } finally {
-      isLoadingDetails.value = false
+      if (activeConversation.value?.id === conversationId) {
+        isLoadingDetails.value = false
+      }
     }
   }
 

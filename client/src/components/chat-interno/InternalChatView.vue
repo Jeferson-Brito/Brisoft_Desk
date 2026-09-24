@@ -1,231 +1,198 @@
 <template>
   <div class="internal-chat-layout">
-    <!-- Coluna 1: Lista de Canais e Colegas de Equipe -->
-    <aside class="internal-sidebar">
-      <div class="internal-chat-sidebar-header">
-        <div class="header-title-row">
-          <div class="title-with-icon">
-            <span class="chat-icon-badge"><i class="ri-team-line"></i></span>
-            <div>
-              <h2 class="sidebar-title">Equipe Brisoft</h2>
-              <span class="sidebar-subtitle">Chat Interno</span>
-            </div>
-          </div>
-          <div class="header-actions-group">
-            <span class="online-counter-pill" :title="`${onlineCount} colaboradores online no sistema`">
-              <span class="status-live-dot"></span>
-              {{ onlineCount }} online
-            </span>
-            <button
-              type="button"
-              class="btn-new-chat-action"
-              title="Nova conversa ou criar grupo"
-              @click="openNewChatModal('direct')"
-            >
-              <i class="ri-add-line"></i>
-            </button>
-          </div>
+    <!-- Coluna 1: Fila de Conversas Internas (Design idêntico à aba de Atendimentos) -->
+    <aside class="internal-sidebar queue-column">
+      <!-- 1. Header da Fila -->
+      <div class="queue-header-row">
+        <div class="queue-header-left">
+          <h2 class="queue-title-bold">Conversas Internas</h2>
+          <span class="queue-pill-badge">{{ totalConversationsCount }}</span>
         </div>
-
-        <!-- Campo de Busca na Sidebar -->
-        <div class="search-box-wrapper">
-          <i class="ri-search-line search-icon"></i>
-          <input
-            v-model="searchTerm"
-            type="text"
-            placeholder="Buscar conversa ou colega..."
-            class="search-input"
-          />
-          <button v-if="searchTerm" class="clear-search-btn" @click="searchTerm = ''">
-            <i class="ri-close-line"></i>
-          </button>
-        </div>
-
-        <!-- Pílulas de Filtro -->
-        <div class="sidebar-filter-tabs">
+        <div class="queue-header-right">
           <button
             type="button"
-            class="filter-pill"
-            :class="{ active: activeFilter === 'all' }"
-            @click="activeFilter = 'all'"
+            class="queue-filter-btn"
+            title="Nova conversa ou grupo corporativo"
+            @click="openNewChatModal('direct')"
           >
-            Todos
-          </button>
-          <button
-            type="button"
-            class="filter-pill"
-            :class="{ active: activeFilter === 'channels' }"
-            @click="activeFilter = 'channels'"
-          >
-            Canais / Grupos
-          </button>
-          <button
-            type="button"
-            class="filter-pill"
-            :class="{ active: activeFilter === 'direct' }"
-            @click="activeFilter = 'direct'"
-          >
-            Mensagens Diretas
-          </button>
-          <button
-            type="button"
-            class="filter-pill"
-            :class="{ active: activeFilter === 'unread' }"
-            @click="activeFilter = 'unread'"
-          >
-            Não Lidas
-            <span v-if="chatStore.totalUnreadCount > 0" class="filter-unread-count">
-              {{ chatStore.totalUnreadCount }}
-            </span>
+            <span class="queue-icon-box"><i class="ri-add-line"></i></span>
           </button>
         </div>
       </div>
 
-      <div class="sidebar-scrollable">
-        <!-- SEÇÃO: Canais e Grupos -->
-        <div
-          v-if="activeFilter === 'all' || activeFilter === 'channels' || (activeFilter === 'unread' && unreadChannelConversations.length > 0)"
-          class="section-channels-wrapper"
+      <!-- 2. Abas de Status da Fila em Cápsula (Todos, Canais, Diretas, Não lidas) -->
+      <div class="queue-status-tabs-row">
+        <button
+          type="button"
+          class="queue-status-tab"
+          :class="{ active: activeFilter === 'all' }"
+          @click="activeFilter = 'all'"
         >
-          <div class="section-label-row">
-            <span class="section-label-text">CANAIS E GRUPOS</span>
-            <button
-              type="button"
-              class="btn-new-channel"
-              title="Criar novo canal ou grupo corporativo"
-              @click="openNewChatModal('group')"
-            >
-              <i class="ri-add-line"></i> Novo
-            </button>
-          </div>
+          <span>Todos</span>
+          <span class="tab-counter">{{ totalConversationsCount }}</span>
+        </button>
 
-          <div class="conversations-list">
-            <button
-              v-for="conv in displayedChannels"
-              :key="conv.id"
-              type="button"
-              class="conversation-item channel-item"
-              :class="{ active: chatStore.activeConversation?.id === conv.id }"
-              @click="selectConversationWithDetails(conv)"
-            >
-              <div v-if="conv.avatar_url" class="channel-avatar-wrapper">
-                <img :src="conv.avatar_url" class="channel-custom-avatar" :alt="conv.name" />
-              </div>
-              <div v-else class="channel-icon-box">
-                <i :class="getChannelIcon(conv.type)"></i>
-              </div>
-              <div class="conversation-info">
-                <div class="conv-title-row">
-                  <span class="conv-title">{{ conv.name }}</span>
-                  <span v-if="conv.last_message_at" class="conv-time">{{ formatTime(conv.last_message_at) }}</span>
-                </div>
-                <div class="conv-preview-row">
-                  <span class="conv-preview">{{ conv.last_message_text || 'Sem mensagens recentes' }}</span>
-                  <span v-if="conv.unread_count > 0" class="conv-unread-badge">{{ conv.unread_count }}</span>
-                </div>
-              </div>
-            </button>
-          </div>
+        <button
+          type="button"
+          class="queue-status-tab"
+          :class="{ active: activeFilter === 'channels' }"
+          @click="activeFilter = 'channels'"
+        >
+          <span>Canais</span>
+          <span class="tab-counter">{{ channelConversations.length }}</span>
+        </button>
+
+        <button
+          type="button"
+          class="queue-status-tab"
+          :class="{ active: activeFilter === 'direct' }"
+          @click="activeFilter = 'direct'"
+        >
+          <span>Diretas</span>
+          <span class="tab-counter">{{ directConversations.length }}</span>
+        </button>
+
+        <button
+          type="button"
+          class="queue-status-tab"
+          :class="{ active: activeFilter === 'unread' }"
+          @click="activeFilter = 'unread'"
+        >
+          <span>Não lidas</span>
+          <span class="tab-counter">{{ chatStore.totalUnreadCount }}</span>
+        </button>
+      </div>
+
+      <!-- 3. Campo de Busca (Buscar conversa ou colega...) -->
+      <div class="queue-search-row">
+        <div class="queue-search-box">
+          <span class="search-mag-icon"><i class="ri-search-line"></i></span>
+          <input
+            v-model="searchTerm"
+            type="text"
+            placeholder="Buscar conversa ou colega..."
+          />
+          <button
+            v-if="searchTerm"
+            type="button"
+            class="clear-input-btn"
+            @click="searchTerm = ''"
+          >
+            <i class="ri-close-line"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- 4. Lista da Fila (Scrollable, Design exato QueueItem) -->
+      <div class="queue-list-container">
+        <div v-if="filteredConversationsList.length === 0 && !searchTerm" class="queue-empty-message">
+          <span class="empty-icon-box"><i class="ri-chat-smile-line"></i></span>
+          <span>Nenhuma conversa nesta lista</span>
         </div>
 
-        <!-- SEÇÃO: Mensagens Diretas (Apenas colegas com mensagens/conversa iniciada) -->
         <div
-          v-if="activeFilter === 'all' || activeFilter === 'direct' || (activeFilter === 'unread' && displayedDirectConversations.length > 0)"
-          class="section-members-wrapper"
+          v-for="conv in filteredConversationsList"
+          :key="conv.id"
+          class="queue-item-card"
+          :class="{
+            active: chatStore.activeConversation?.id === conv.id,
+            unread: (conv.unread_count || 0) > 0
+          }"
+          @click="selectConversationWithDetails(conv)"
         >
-          <div class="section-label-row section-mt">
-            <span class="section-label-text">MENSAGENS DIRETAS ({{ displayedDirectConversations.length }})</span>
-            <button
-              type="button"
-              class="btn-new-channel"
-              title="Conversar com outro colega"
-              @click="openNewChatModal('direct')"
+          <!-- Avatar com Indicador Online -->
+          <div class="queue-avatar-wrap">
+            <div
+              v-if="conv.type !== 'direct'"
+              class="queue-avatar-circle channel-avatar-circle"
             >
-              <i class="ri-chat-new-line"></i> Nova
-            </button>
+              <img v-if="conv.avatar_url" :src="conv.avatar_url" :alt="conv.name" />
+              <i v-else :class="getChannelIcon(conv.type)"></i>
+            </div>
+            <div
+              v-else
+              class="queue-avatar-circle"
+              :style="getAvatarStyle(conv.other_user)"
+            >
+              <img v-if="conv.other_user?.avatar_url" :src="conv.other_user.avatar_url" :alt="conv.name" />
+              <span v-else>{{ getInitials(conv.name) }}</span>
+            </div>
+            <span
+              v-if="conv.type === 'direct'"
+              class="avatar-online-dot"
+              :class="{ offline: !isUserOnline(conv.other_user?.id) }"
+            ></span>
           </div>
 
-          <div class="members-list">
-            <div v-if="displayedDirectConversations.length === 0 && !searchTerm" class="empty-members-msg">
-              <i class="ri-chat-smile-line"></i>
-              <span>Nenhuma conversa iniciada</span>
-              <button type="button" class="btn-start-chat-inline" @click="openNewChatModal('direct')">
-                <i class="ri-user-add-line"></i> Conversar com colega
-              </button>
+          <!-- Conteúdo do Card -->
+          <div class="queue-item-body">
+            <!-- Linha 1: Nome + Horário -->
+            <div class="queue-row-header">
+              <div class="queue-name-box">
+                <strong class="queue-contact-name" :title="conv.name">{{ conv.name }}</strong>
+                <span v-if="conv.type === 'group'" class="queue-type-icon group" title="Grupo Interno">
+                  <span class="queue-icon-box-sm"><i class="ri-team-line"></i></span>
+                </span>
+                <span v-else-if="conv.type === 'general'" class="queue-type-icon general" title="Canal Geral">
+                  <span class="queue-icon-box-sm"><i class="ri-megaphone-line"></i></span>
+                </span>
+              </div>
+              <span v-if="conv.last_message_at" class="queue-item-time">{{ formatTime(conv.last_message_at) }}</span>
             </div>
 
-            <button
-              v-for="conv in displayedDirectConversations"
-              :key="conv.id"
-              type="button"
-              class="conversation-item member-item"
-              :class="{ active: chatStore.activeConversation?.id === conv.id }"
-              @click="selectConversationWithDetails(conv)"
-            >
-              <div class="member-avatar-wrapper">
-                <div class="member-avatar" :style="getAvatarStyle(conv.other_user)">
-                  <img v-if="conv.other_user?.avatar_url" :src="conv.other_user.avatar_url" :alt="conv.name" />
-                  <span v-else>{{ getInitials(conv.name) }}</span>
-                </div>
-                <span
-                  class="member-status-dot"
-                  :class="{ online: isUserOnline(conv.other_user?.id) }"
-                  :title="isUserOnline(conv.other_user?.id) ? 'Online no sistema' : 'Offline'"
-                ></span>
+            <!-- Linha 2: Snippet da Mensagem -->
+            <div class="queue-row-preview">
+              <span class="queue-preview-text" :class="{ 'is-unread': (conv.unread_count || 0) > 0 }">
+                {{ conv.last_message_text || (conv.type === 'direct' ? 'Conversa direta' : 'Canal corporativo') }}
+              </span>
+            </div>
+
+            <!-- Linha 3: Tag + Badge de Não Lidos -->
+            <div class="queue-row-tags">
+              <div class="queue-tags-left">
+                <span class="tag-department-chip" :title="getConversationTypeLabel(conv)">
+                  <span class="dept-icon-box"><i :class="getChannelIcon(conv.type)"></i></span>
+                  <span>{{ getConversationTagLabel(conv) }}</span>
+                </span>
               </div>
 
-              <div class="conversation-info">
-                <div class="conv-title-row">
-                  <span class="conv-title">{{ conv.name }}</span>
-                  <span v-if="conv.last_message_at" class="conv-time">
-                    {{ formatTime(conv.last_message_at) }}
-                  </span>
-                </div>
-                <div class="conv-preview-row">
-                  <span class="member-role-label">{{ conv.last_message_text || conv.other_user?.role || 'Conversa direta' }}</span>
-                  <span v-if="conv.unread_count > 0" class="conv-unread-badge">
-                    {{ conv.unread_count }}
-                  </span>
-                </div>
-              </div>
-            </button>
+              <!-- Badge de Mensagens Não Lidas (Círculo Verde) -->
+              <span v-if="(conv.unread_count || 0) > 0" class="queue-unread-circle" title="Mensagens não lidas">
+                {{ conv.unread_count }}
+              </span>
+            </div>
           </div>
         </div>
 
-        <!-- SEÇÃO: Outros Colegas Encontrados na Busca -->
-        <div v-if="searchTerm && otherColleaguesSearchMatches.length > 0" class="section-search-candidates">
-          <div class="section-label-row section-mt">
-            <span class="section-label-text">INICIAR CONVERSA COM ({{ otherColleaguesSearchMatches.length }})</span>
+        <!-- Se estiver buscando e houver colegas com quem ainda não há conversa -->
+        <div v-if="searchTerm && otherColleaguesSearchMatches.length > 0" class="search-candidates-group">
+          <div class="search-candidates-header">
+            <span>INICIAR CONVERSA DIRETA</span>
           </div>
-          <div class="members-list">
-            <button
-              v-for="member in otherColleaguesSearchMatches"
-              :key="member.id"
-              type="button"
-              class="conversation-item member-item"
-              @click="openDirectChatWithDetails(member.id)"
-            >
-              <div class="member-avatar-wrapper">
-                <div class="member-avatar" :style="getAvatarStyle(member)">
-                  <img v-if="member.avatar_url" :src="member.avatar_url" :alt="member.name" />
-                  <span v-else>{{ getInitials(member.name) }}</span>
-                </div>
-                <span
-                  class="member-status-dot"
-                  :class="{ online: isUserOnline(member.id) }"
-                  :title="isUserOnline(member.id) ? 'Online no sistema' : 'Offline'"
-                ></span>
+          <div
+            v-for="member in otherColleaguesSearchMatches"
+            :key="member.id"
+            class="queue-item-card new-candidate-card"
+            @click="openDirectChatWithDetails(member.id)"
+          >
+            <div class="queue-avatar-wrap">
+              <div class="queue-avatar-circle" :style="getAvatarStyle(member)">
+                <img v-if="member.avatar_url" :src="member.avatar_url" :alt="member.name" />
+                <span v-else>{{ getInitials(member.name) }}</span>
               </div>
-              <div class="conversation-info">
-                <div class="conv-title-row">
-                  <span class="conv-title">{{ member.name }}</span>
-                  <span class="badge-new-chat-invite"><i class="ri-message-3-line"></i> Iniciar</span>
+              <span class="avatar-online-dot" :class="{ offline: !isUserOnline(member.id) }"></span>
+            </div>
+            <div class="queue-item-body">
+              <div class="queue-row-header">
+                <div class="queue-name-box">
+                  <strong class="queue-contact-name">{{ member.name }}</strong>
                 </div>
-                <div class="conv-preview-row">
-                  <span class="member-role-label">{{ member.role || 'Colaborador' }}</span>
-                </div>
+                <span class="btn-start-chat-tag"><i class="ri-chat-new-line"></i> Iniciar</span>
               </div>
-            </button>
+              <div class="queue-row-preview">
+                <span class="queue-preview-text">{{ member.role || 'Colaborador' }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1409,6 +1376,7 @@ function scrollToBottom() {
 
 // ─── Computeds de Conversas e Filtros ──────────────────────────────────────────
 const onlineCount = computed(() => ui.onlineUsersCount || 1)
+const totalConversationsCount = computed(() => chatStore.conversations.length)
 
 const channelConversations = computed(() => {
   return chatStore.conversations.filter(c => c.type === 'general' || c.type === 'department' || c.type === 'group')
@@ -1451,6 +1419,48 @@ const displayedDirectConversations = computed(() => {
     c.other_user?.email?.toLowerCase().includes(term)
   )
 })
+
+// Fila unificada (estilo exato Atendimentos)
+const filteredConversationsList = computed(() => {
+  let list = []
+  if (activeFilter.value === 'channels') {
+    list = channelConversations.value
+  } else if (activeFilter.value === 'direct') {
+    list = directConversations.value
+  } else if (activeFilter.value === 'unread') {
+    list = chatStore.conversations.filter(c => (c.unread_count || 0) > 0)
+  } else {
+    // 'all'
+    list = chatStore.conversations
+  }
+
+  const term = searchTerm.value.toLowerCase().trim()
+  if (term) {
+    list = list.filter(c => 
+      c.name?.toLowerCase().includes(term) ||
+      c.last_message_text?.toLowerCase().includes(term) ||
+      c.other_user?.role?.toLowerCase().includes(term) ||
+      c.other_user?.email?.toLowerCase().includes(term)
+    )
+  }
+
+  return [...list].sort((a, b) => {
+    const unreadA = (a.unread_count || 0) > 0 ? 1 : 0
+    const unreadB = (b.unread_count || 0) > 0 ? 1 : 0
+    if (unreadA !== unreadB) return unreadB - unreadA
+    const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0
+    const timeB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0
+    return timeB - timeA
+  })
+})
+
+function getConversationTagLabel(conv) {
+  if (!conv) return ''
+  if (conv.type === 'general') return 'Geral'
+  if (conv.type === 'department') return 'Setor'
+  if (conv.type === 'group') return 'Grupo'
+  return conv.other_user?.role || 'Colega'
+}
 
 const otherColleaguesSearchMatches = computed(() => {
   const term = searchTerm.value.toLowerCase().trim()
@@ -1572,24 +1582,24 @@ function isMessageSearchMatched(msgId) {
 }
 
 // ─── Drawer de Detalhes da Conversa ───────────────────────────────────────────
-async function toggleDetailsDrawer() {
+function toggleDetailsDrawer() {
   showDetailsDrawer.value = !showDetailsDrawer.value
   if (showDetailsDrawer.value && chatStore.activeConversation) {
-    await chatStore.fetchConversationDetails(chatStore.activeConversation.id)
+    chatStore.fetchConversationDetails(chatStore.activeConversation.id)
   }
 }
 
-async function selectConversationWithDetails(conv) {
-  await chatStore.selectConversation(conv)
+function selectConversationWithDetails(conv) {
+  chatStore.selectConversation(conv)
   if (showDetailsDrawer.value && conv?.id) {
-    await chatStore.fetchConversationDetails(conv.id)
+    chatStore.fetchConversationDetails(conv.id)
   }
 }
 
 async function openDirectChatWithDetails(userId) {
   const conv = await chatStore.startDirectChatWith(userId)
   if (showDetailsDrawer.value && conv?.id) {
-    await chatStore.fetchConversationDetails(conv.id)
+    chatStore.fetchConversationDetails(conv.id)
   }
 }
 
@@ -2208,7 +2218,7 @@ function formatMessageTime(dateStr) {
 <style scoped>
 .internal-chat-layout {
   display: grid;
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: 290px 1fr;
   height: 100%;
   max-height: 100%;
   width: 100%;
@@ -2218,461 +2228,480 @@ function formatMessageTime(dateStr) {
   box-sizing: border-box;
 }
 
-/* ─── SIDEBAR ESQUERDA ──────────────────────────────────────────────────────── */
-.internal-sidebar {
-  display: flex;
-  flex-direction: column;
-  background: #ffffff;
-  border-right: 1px solid #e2e8f0;
-  height: 100%;
-  max-height: 100%;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.internal-chat-sidebar-header {
-  padding: 14px 14px 10px 14px;
-  border-bottom: 1px solid #f1f5f9;
-  background: #ffffff;
+/* ─── FILA LATERAL DE CONVERSAS (Estilo exato da aba de Atendimentos) ────────── */
+.internal-sidebar.queue-column {
+  width: 290px;
+  min-width: 270px;
+  max-width: 300px;
   flex-shrink: 0;
+  background-color: #ffffff;
+  border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
 }
 
-.header-title-row {
+/* 1. Header */
+.queue-header-row {
+  height: 52px;
+  min-height: 52px;
+  padding: 14px 12px 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  box-sizing: border-box;
 }
 
-.header-actions-group {
+.queue-header-left {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.btn-new-chat-action {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  border: 1px solid #bfdbfe;
-  background: #eff6ff;
-  color: #2563eb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.btn-new-chat-action:hover {
-  background: #2563eb;
-  color: #ffffff;
-  border-color: #2563eb;
-}
-
-.title-with-icon {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.chat-icon-badge {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: #eff6ff;
-  color: #2563eb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 19px;
-}
-
-.sidebar-title {
+.queue-title-bold {
   font-size: 15px;
-  font-weight: 700;
-  color: #0f172a;
+  font-weight: 600;
+  color: #1e293b;
   margin: 0;
-  line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 
-.sidebar-subtitle {
-  font-size: 11.5px;
-  color: #64748b;
-}
-
-.online-counter-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: #f0fdf4;
-  color: #166534;
-  border: 1px solid #bbf7d0;
-  padding: 3px 8px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.status-live-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
-}
-
-.search-box-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.search-icon {
-  position: absolute;
-  left: 10px;
-  color: #94a3b8;
-  font-size: 14px;
-}
-
-.search-input {
-  width: 100%;
-  height: 34px;
-  padding: 0 30px 0 32px;
-  background: #f1f5f9;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  font-size: 12.5px;
-  color: #1e293b;
-  outline: none;
-  transition: all 0.15s ease;
-}
-
-.search-input:focus {
-  background: #ffffff;
-  border-color: #cbd5e1;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
-}
-
-.clear-search-btn {
-  position: absolute;
-  right: 8px;
-  background: none;
+.queue-pill-badge {
+  background: #d1fae5;
+  color: #059669;
   border: none;
-  color: #94a3b8;
-  cursor: pointer;
-  padding: 2px;
-}
-
-/* Pílulas de Filtro da Sidebar */
-.sidebar-filter-tabs {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.sidebar-filter-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.filter-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 11.5px;
-  font-weight: 600;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #64748b;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-}
-
-.filter-pill:hover {
-  background: #f1f5f9;
-  color: #1e293b;
-  border-color: #cbd5e1;
-}
-
-.filter-pill.active {
-  background: #eff6ff;
-  color: #2563eb;
-  border-color: #bfdbfe;
-  font-weight: 700;
-}
-
-.filter-unread-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #ef4444;
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 700;
-  min-width: 16px;
-  height: 16px;
-  border-radius: 8px;
-  padding: 0 4px;
-  line-height: 1;
-}
-
-.sidebar-scrollable {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px 8px;
-  min-height: 0;
-}
-
-.section-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 8px 4px 8px;
-}
-
-.section-label-text {
+  border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
-  color: #94a3b8;
-  letter-spacing: 0.5px;
-}
-
-.btn-new-channel {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  background: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
   padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  line-height: 1.3;
 }
 
-.btn-new-channel:hover {
-  background: #2563eb;
-  color: #ffffff;
-  border-color: #2563eb;
-}
-
-.section-label {
-  padding: 8px 8px 4px 8px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #94a3b8;
-  letter-spacing: 0.5px;
-}
-
-.section-mt {
-  margin-top: 14px;
-}
-
-.conversation-item {
-  width: 100%;
+.queue-header-right {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  position: relative;
+}
+
+.queue-filter-btn {
+  position: relative;
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
   border: none;
   background: transparent;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  text-align: left;
+  font-size: 15px;
   transition: all 0.15s ease;
-  margin-bottom: 2px;
 }
 
-.conversation-item:hover {
+.queue-filter-btn:hover {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+/* 2. Trilho de Abas em Cápsula (Todos, Canais, Diretas, Não lidas) */
+.queue-status-tabs-row {
+  display: flex;
+  align-items: center;
   background: #f1f5f9;
+  border-radius: 999px;
+  padding: 3px;
+  margin: 0 12px 10px;
+  gap: 2px;
 }
 
-.conversation-item.active {
-  background: #eff6ff;
+.queue-status-tab {
+  flex: 1;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
-.channel-avatar-wrapper {
+.queue-status-tab:hover {
+  color: #0f172a;
+}
+
+.queue-status-tab.active {
+  background: #ffffff !important;
+  color: #059669 !important;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.tab-counter {
+  font-size: 10.5px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.queue-status-tab.active .tab-counter {
+  color: #059669;
+  font-weight: 600;
+}
+
+/* 3. Campo de Busca */
+.queue-search-row {
+  padding: 0 12px 10px;
+}
+
+.queue-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0 12px;
+  transition: all 0.15s ease;
+}
+
+.queue-search-box:focus-within {
+  background: #ffffff;
+  border-color: #059669;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.12);
+}
+
+.search-mag-icon {
+  font-size: 14px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+}
+
+.queue-search-box input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 12.5px;
+  color: #1e293b;
+  min-width: 0;
+}
+
+.clear-input-btn {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clear-input-btn:hover {
+  color: #0f172a;
+}
+
+/* 4. Container de Lista de Cards da Fila */
+.queue-list-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.queue-empty-message {
+  padding: 32px 16px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.empty-icon-box {
+  font-size: 26px;
+  color: #cbd5e1;
+}
+
+/* ─── Card da Fila (Estilo exato QueueItem.vue) ───────────────────────────── */
+.queue-item-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  background: #ffffff;
+  transition: all 0.15s ease;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.queue-item-card:hover {
+  background: #f8fafc;
+}
+
+/* Card Ativo com Borda Esquerda Verde e Fundo Verde Suave */
+.queue-item-card.active {
+  background: #eefbf4 !important;
+}
+
+.queue-item-card.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 32px;
+  background-color: #059669;
+  border-radius: 0 4px 4px 0;
+}
+
+/* Avatar com Indicador Online */
+.queue-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.queue-avatar-circle {
   width: 38px;
   height: 38px;
-  border-radius: 10px;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
-  flex-shrink: 0;
-  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.channel-custom-avatar {
+.queue-avatar-circle img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.btn-start-chat-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-  margin-top: 8px;
-  transition: all 0.15s ease;
+.channel-avatar-circle {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #d1fae5;
+  font-size: 17px;
 }
 
-.btn-start-chat-inline:hover {
-  background: #2563eb;
-  color: #ffffff;
-}
-
-.badge-new-chat-invite {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #2563eb;
-  background: #eff6ff;
-  padding: 1px 6px;
-  border-radius: 10px;
-}
-
-.channel-icon-box {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  color: #475569;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  flex-shrink: 0;
-}
-
-.conversation-item.active .channel-icon-box {
-  background: #dbeafe;
-  color: #1d4ed8;
-  border-color: #bfdbfe;
-}
-
-.member-avatar-wrapper {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.member-avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 13px;
-  overflow: hidden;
-}
-
-.member-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.member-status-dot {
+.avatar-online-dot {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
-  background: #cbd5e1;
+  background: #10b981;
   border: 2px solid #ffffff;
 }
 
-.member-status-dot.online {
-  background: #22c55e;
+.avatar-online-dot.offline {
+  background: #cbd5e1;
 }
 
-.conversation-info {
+/* Corpo do Card */
+.queue-item-body {
   flex: 1;
   min-width: 0;
-}
-
-.conv-title-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 2px;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.conv-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #1e293b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.conv-time {
-  font-size: 11px;
-  color: #94a3b8;
-  flex-shrink: 0;
-  margin-left: 6px;
-}
-
-.conv-preview-row {
+/* Linha 1: Nome + Hora */
+.queue-row-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
 }
 
-.conv-preview,
-.member-role-label {
+.queue-name-box {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.queue-contact-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-type-icon {
+  display: inline-flex;
+}
+
+.queue-type-icon.group {
+  color: #059669;
+}
+
+.queue-type-icon.general {
+  color: #10b981;
+}
+
+.queue-icon-box-sm {
+  width: 13px;
+  height: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.queue-icon-box-sm i {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.queue-item-time {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 400;
+  flex-shrink: 0;
+}
+
+/* Linha 2: Snippet */
+.queue-row-preview {
+  display: flex;
+  align-items: center;
+}
+
+.queue-preview-text {
   font-size: 12px;
   color: #64748b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.35;
 }
 
-.conv-unread-badge {
-  background: #ef4444;
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 10px;
-  flex-shrink: 0;
+.queue-preview-text.is-unread {
+  color: #1e293b;
+  font-weight: 600;
 }
 
-.empty-members-msg {
-  padding: 24px 12px;
-  text-align: center;
-  color: #94a3b8;
-  font-size: 12px;
+/* Linha 3: Tags + Badge Não Lidos */
+.queue-row-tags {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.queue-tags-left {
+  display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.tag-department-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  border: none;
+  color: #475569;
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.dept-icon-box {
+  width: 13px;
+  height: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dept-icon-box i {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1;
+}
+
+/* Badge Verde Circular de Não Lidos */
+.queue-unread-circle {
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: #059669;
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+  margin-left: auto;
+}
+
+/* Candidatos de Nova Conversa Direta */
+.search-candidates-group {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.search-candidates-header {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #94a3b8;
+  padding: 6px 10px 4px;
+  letter-spacing: 0.5px;
+}
+
+.new-candidate-card {
+  border: 1px dashed #e2e8f0;
+}
+
+.btn-start-chat-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #059669;
+  background: #ecfdf5;
+  padding: 2px 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 /* ─── PAINEL CENTRAL DO CHAT ────────────────────────────────────────────────── */
@@ -2734,9 +2763,9 @@ function formatMessageTime(dateStr) {
   width: 38px;
   height: 38px;
   font-size: 19px;
-  background: #eff6ff;
-  color: #2563eb;
-  border-color: #dbeafe;
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #d1fae5;
 }
 
 .chat-title {
@@ -2805,9 +2834,9 @@ function formatMessageTime(dateStr) {
 }
 
 .header-action-btn.active {
-  background: #eff6ff;
-  color: #2563eb;
-  border-color: #bfdbfe;
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #a7f3d0;
 }
 
 /* Barra Retrátil de Busca Textual */
@@ -2857,8 +2886,8 @@ function formatMessageTime(dateStr) {
 
 .conv-search-input:focus {
   background: #ffffff;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+  border-color: #059669;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15);
 }
 
 .btn-clear-query {
@@ -2930,8 +2959,8 @@ function formatMessageTime(dateStr) {
 }
 
 .search-target-matched .message-bubble-box {
-  outline: 2px solid #3b82f6 !important;
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.4) !important;
+  outline: 2px solid #059669 !important;
+  box-shadow: 0 0 12px rgba(5, 150, 105, 0.4) !important;
 }
 
 /* ─── MENSAGENS ─────────────────────────────────────────────────────────────── */
@@ -2969,8 +2998,8 @@ function formatMessageTime(dateStr) {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: #eff6ff;
-  color: #3b82f6;
+  background: #ecfdf5;
+  color: #059669;
   font-size: 26px;
   display: flex;
   align-items: center;
@@ -3095,16 +3124,16 @@ function formatMessageTime(dateStr) {
 }
 
 .msg-reply-trigger:hover {
-  background: #eff6ff;
-  color: #2563eb;
-  border-color: #93c5fd;
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #6ee7b7;
   transform: scale(1.1);
 }
 
 .message-mine .message-bubble-box {
-  background: #2563eb;
+  background-color: #2b9b73;
   color: #ffffff;
-  border-color: #2563eb;
+  border-color: #2b9b73;
   border-bottom-right-radius: 2px;
 }
 
@@ -3116,7 +3145,7 @@ function formatMessageTime(dateStr) {
   display: block;
   font-size: 11px;
   font-weight: 700;
-  color: #4f46e5;
+  color: #059669;
   margin-bottom: 3px;
 }
 
@@ -3137,7 +3166,7 @@ function formatMessageTime(dateStr) {
 
 .quoted-bar {
   width: 3px;
-  background: #2563eb;
+  background: #059669;
   border-radius: 2px;
   flex-shrink: 0;
 }
@@ -3155,7 +3184,7 @@ function formatMessageTime(dateStr) {
 .quoted-sender {
   font-size: 10.5px;
   font-weight: 700;
-  color: #2563eb;
+  color: #059669;
 }
 
 .message-mine .quoted-sender {
@@ -3234,8 +3263,8 @@ function formatMessageTime(dateStr) {
   width: 32px;
   height: 32px;
   border-radius: 6px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: #ecfdf5;
+  color: #059669;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3273,8 +3302,8 @@ function formatMessageTime(dateStr) {
 }
 
 @keyframes pulse-border {
-  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
-  50% { transform: scale(1.02); box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.7); }
+  50% { transform: scale(1.02); box-shadow: 0 0 0 8px rgba(5, 150, 105, 0); }
   100% { transform: scale(1); }
 }
 
@@ -3359,8 +3388,8 @@ function formatMessageTime(dateStr) {
 
 .chat-input-form:focus-within {
   background: #ffffff;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
 }
 
 .tool-btn {
@@ -3378,8 +3407,8 @@ function formatMessageTime(dateStr) {
 }
 
 .tool-btn:hover {
-  color: #2563eb;
-  background: #eff6ff;
+  color: #059669;
+  background: #ecfdf5;
 }
 
 .chat-textarea {
@@ -3400,7 +3429,7 @@ function formatMessageTime(dateStr) {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: #2563eb;
+  background: #059669;
   color: #ffffff;
   border: none;
   cursor: pointer;
@@ -3413,7 +3442,7 @@ function formatMessageTime(dateStr) {
 }
 
 .send-message-btn:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: #047857;
   transform: translateY(-1px);
 }
 
@@ -3437,7 +3466,7 @@ function formatMessageTime(dateStr) {
 .reply-banner-bar {
   width: 3px;
   height: 28px;
-  background: #2563eb;
+  background: #059669;
   border-radius: 2px;
   flex-shrink: 0;
 }
@@ -3451,7 +3480,7 @@ function formatMessageTime(dateStr) {
 
 .reply-banner-title {
   font-size: 11px;
-  color: #2563eb;
+  color: #059669;
 }
 
 .reply-banner-snippet {
@@ -3657,14 +3686,14 @@ function formatMessageTime(dateStr) {
   width: 72px;
   height: 72px;
   border-radius: 20px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: #ecfdf5;
+  color: #059669;
   font-size: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto;
-  box-shadow: 0 8px 16px -4px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 8px 16px -4px rgba(5, 150, 105, 0.15);
 }
 
 .no-chat-title {
@@ -3685,7 +3714,7 @@ function formatMessageTime(dateStr) {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: #2563eb;
+  background: #059669;
   color: #ffffff;
   border: none;
   padding: 10px 18px;
@@ -3697,7 +3726,7 @@ function formatMessageTime(dateStr) {
 }
 
 .btn-start-general:hover {
-  background: #1d4ed8;
+  background: #047857;
   transform: translateY(-1px);
 }
 
@@ -3792,14 +3821,14 @@ function formatMessageTime(dateStr) {
   width: 64px;
   height: 64px;
   border-radius: 16px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: #ecfdf5;
+  color: #059669;
   font-size: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 10px auto;
-  border: 1px solid #dbeafe;
+  border: 1px solid #d1fae5;
 }
 
 .drawer-conv-name {
@@ -3847,8 +3876,8 @@ function formatMessageTime(dateStr) {
 }
 
 .drawer-tab.active {
-  color: #2563eb;
-  border-bottom-color: #2563eb;
+  color: #059669;
+  border-bottom-color: #059669;
   font-weight: 700;
 }
 
@@ -3861,8 +3890,8 @@ function formatMessageTime(dateStr) {
 }
 
 .drawer-tab.active .drawer-badge-count {
-  background: #eff6ff;
-  color: #2563eb;
+  background: #ecfdf5;
+  color: #059669;
 }
 
 .drawer-tab-pane {
@@ -3939,9 +3968,9 @@ function formatMessageTime(dateStr) {
 }
 
 .btn-quick-direct:hover {
-  background: #eff6ff;
-  color: #2563eb;
-  border-color: #bfdbfe;
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #a7f3d0;
 }
 
 .drawer-empty-media {
@@ -4022,13 +4051,13 @@ function formatMessageTime(dateStr) {
 }
 
 .drawer-doc-item:hover {
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
 }
 
 .drawer-doc-icon {
   font-size: 20px;
-  color: #2563eb;
+  color: #059669;
   flex-shrink: 0;
 }
 
@@ -4089,7 +4118,7 @@ function formatMessageTime(dateStr) {
   border-radius: 8px;
   border: 1px dashed #cbd5e1;
   background: #f8fafc;
-  color: #2563eb;
+  color: #059669;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -4097,8 +4126,8 @@ function formatMessageTime(dateStr) {
 }
 
 .btn-manage-members-pill:hover {
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
 }
 
 /* ─── MODAL DE NOVO CANAL ────────────────────────────────────────────────────── */
@@ -4218,8 +4247,8 @@ function formatMessageTime(dateStr) {
 
 .channel-input:focus {
   background: #ffffff;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
 }
 
 .channel-input-hint {
@@ -4251,8 +4280,8 @@ function formatMessageTime(dateStr) {
 }
 
 .type-option-card.selected {
-  background: #eff6ff;
-  border-color: #2563eb;
+  background: #ecfdf5;
+  border-color: #059669;
 }
 
 .type-icon-box {
@@ -4262,7 +4291,7 @@ function formatMessageTime(dateStr) {
 }
 
 .type-option-card.selected .type-icon-box {
-  color: #2563eb;
+  color: #059669;
 }
 
 .type-text-box {
@@ -4292,7 +4321,7 @@ function formatMessageTime(dateStr) {
 .selected-counter {
   font-size: 11px;
   font-weight: 600;
-  color: #2563eb;
+  color: #059669;
 }
 
 .channel-member-picker {
@@ -4321,7 +4350,7 @@ function formatMessageTime(dateStr) {
 }
 
 .picker-member-row.selected {
-  background: #eff6ff;
+  background: #ecfdf5;
 }
 
 .member-checkbox {
@@ -4371,7 +4400,7 @@ function formatMessageTime(dateStr) {
 
 .btn-modal-submit {
   padding: 9px 20px;
-  background: #2563eb;
+  background: #059669;
   border: none;
   border-radius: 8px;
   color: #ffffff;
@@ -4385,7 +4414,7 @@ function formatMessageTime(dateStr) {
 }
 
 .btn-modal-submit:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: #047857;
 }
 
 .btn-modal-submit:disabled {
@@ -4423,9 +4452,9 @@ function formatMessageTime(dateStr) {
 }
 
 .modal-tab-btn.active {
-  color: #2563eb;
+  color: #059669;
   background: #ffffff;
-  border-bottom-color: #2563eb;
+  border-bottom-color: #059669;
 }
 
 .modal-search-wrapper {
@@ -4456,8 +4485,8 @@ function formatMessageTime(dateStr) {
 
 .modal-search-input:focus {
   background: #ffffff;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
 }
 
 .modal-members-picker-list {
@@ -4482,8 +4511,8 @@ function formatMessageTime(dateStr) {
 }
 
 .modal-direct-member-row:hover {
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
 }
 
 .modal-member-details {
@@ -4511,7 +4540,7 @@ function formatMessageTime(dateStr) {
 }
 
 .modal-direct-member-row:hover .modal-start-icon {
-  color: #2563eb;
+  color: #059669;
 }
 
 .channel-input-plain {
@@ -4529,8 +4558,8 @@ function formatMessageTime(dateStr) {
 
 .channel-input-plain:focus {
   background: #ffffff;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
 }
 
 .group-photo-preview-row {
@@ -4556,7 +4585,7 @@ function formatMessageTime(dateStr) {
 
 .self-tag {
   font-size: 10.5px;
-  color: #2563eb;
+  color: #059669;
   font-weight: normal;
   margin-left: 4px;
 }
@@ -4729,7 +4758,7 @@ function formatMessageTime(dateStr) {
 
 .msg-action-trigger:hover {
   background: #f1f5f9;
-  color: #2563eb;
+  color: #059669;
   transform: scale(1.1);
 }
 
@@ -4898,9 +4927,9 @@ function formatMessageTime(dateStr) {
 }
 
 .reaction-pill.user-reacted {
-  background: #eff6ff;
-  border-color: #93c5fd;
-  color: #1d4ed8;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
   font-weight: 600;
 }
 
@@ -5016,7 +5045,7 @@ function formatMessageTime(dateStr) {
 }
 
 .mention-item-btn:hover {
-  background: #eff6ff;
+  background: #ecfdf5;
 }
 
 .mention-item-info {
@@ -5039,9 +5068,9 @@ function formatMessageTime(dateStr) {
 /* Tag de Menção no Corpo da Mensagem */
 :deep(.mention-tag) {
   display: inline-block;
-  color: #2563eb;
+  color: #059669;
   font-weight: 600;
-  background: rgba(37, 99, 235, 0.08);
+  background: rgba(5, 150, 105, 0.08);
   padding: 0 4px;
   border-radius: 4px;
 }
