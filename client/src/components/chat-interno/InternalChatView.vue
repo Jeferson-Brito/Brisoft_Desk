@@ -2739,6 +2739,99 @@ function formatMessageTime(dateStr) {
   overflow: hidden;
 }
 
+/* ─── AVATARES GLOBAIS (CABEÇALHO, DRAWER E MODAIS) ────────────────────────── */
+.member-avatar-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+}
+
+.member-avatar-wrapper.header-avatar {
+  width: 40px;
+  height: 40px;
+}
+
+.member-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: #ffffff;
+  overflow: hidden;
+  user-select: none;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.header-avatar .member-avatar {
+  width: 40px;
+  height: 40px;
+  font-size: 14px;
+}
+
+.member-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.channel-avatar-wrapper {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.channel-avatar-wrapper.header-avatar {
+  width: 40px;
+  height: 40px;
+}
+
+.channel-avatar-wrapper img,
+.channel-custom-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.channel-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.member-status-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  border: 2px solid #ffffff;
+}
+
+.member-status-dot.online {
+  background: #10b981;
+}
+
 .chat-header {
   height: 58px;
   min-height: 58px;
@@ -3926,9 +4019,22 @@ function formatMessageTime(dateStr) {
 }
 
 .drawer-small-avatar {
-  width: 32px;
-  height: 32px;
-  font-size: 11px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  overflow: hidden;
+  font-size: 11.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.drawer-small-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .drawer-member-info {
