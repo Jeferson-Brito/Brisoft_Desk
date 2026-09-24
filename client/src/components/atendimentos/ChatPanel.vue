@@ -335,6 +335,9 @@
           <button type="button" class="btn-icon" :class="{ active: showEmojiPicker }" title="Emojis" @click="toggleEmojiPicker">
             <span class="composer-icon-box"><i class="ri-emotion-happy-line"></i></span>
           </button>
+          <button type="button" class="btn-icon" :class="{ active: showQuickMessages }" title="Mensagens rápidas" :disabled="ticket?.whatsapp_disconnected" @click="toggleQuickMessages">
+            <span class="composer-icon-box"><i class="ri-flashlight-line"></i></span>
+          </button>
         </div>
 
         <div v-if="isRecording" class="recording-status">

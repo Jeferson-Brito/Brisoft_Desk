@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 const { supabase, isSupabaseConfigured } = require('../config/supabase');
 const { destroyTempAdmin, TEMP_ADMIN_ID } = require('./auth.controller');
 const { isAdmin, isSupervisor, departmentIds, replaceSupervisorDepartments } = require('../services/access-control.service');
+const userCargoService = require('../services/user-cargo.service');
 
 // Usuários em memória (fallback quando Supabase não está configurado)
 let _memoryUsers = [];
@@ -46,11 +47,14 @@ class UsersController {
             ? (assignments || []).filter(item => String(item.user_id) === String(u.id)).map(item => item.departments).filter(Boolean)
             : []
         }));
+        await userCargoService.enrichUsersWithCargo(users);
         return res.json({ success: true, users });
       }
 
       // Fallback memória
-      return res.json({ success: true, users: _memoryUsers.map(u => { const { password_hash, ...pub } = u; return pub; }) });
+      const memoryPublic = _memoryUsers.map(u => { const { password_hash, ...pub } = u; return pub; });
+      await userCargoService.enrichUsersWithCargo(memoryPublic);
+      return res.json({ success: true, users: memoryPublic });
 
     } catch (err) {
       console.error('Erro ao listar usuários:', err);
@@ -64,7 +68,7 @@ class UsersController {
    * Body: { name, email, password, role, department_id, phone, avatar_url }
    */
   async createUser(req, res) {
-    const { name, email, password, role, department_id, department_ids, phone, avatar_url } = req.body;
+    const { name, email, password, role, cargo, department_id, department_ids, phone, avatar_url } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, error: 'Nome, e-mail e senha são obrigatórios.' });
@@ -115,6 +119,10 @@ class UsersController {
           await replaceSupervisorDepartments(data.id, department_ids?.length ? department_ids : [department_id].filter(Boolean));
           data.department_ids = department_ids?.length ? department_ids : [department_id].filter(Boolean);
         }
+        if (cargo !== undefined) {
+          await userCargoService.setUserCargo(data.id, cargo);
+        }
+        await userCargoService.enrichUserWithCargo(data);
         return res.json({ success: true, user: data, message: 'Usuário criado com sucesso.' });
       }
 
@@ -139,7 +147,11 @@ class UsersController {
         created_at: new Date().toISOString(),
       };
       _memoryUsers.push(newUser);
+      if (cargo !== undefined) {
+        await userCargoService.setUserCargo(newUser.id, cargo);
+      }
       const { password_hash, ...pub } = newUser;
+      await userCargoService.enrichUserWithCargo(pub);
       return res.json({ success: true, user: pub, message: 'Usuário criado com sucesso.' });
 
     } catch (err) {
@@ -151,11 +163,11 @@ class UsersController {
   /**
    * PUT /api/users/:id
    * Atualiza dados de um usuário (apenas admin)
-   * Body: { name, role, department_id, phone, avatar_url, is_active, password? }
+   * Body: { name, role, cargo, department_id, phone, avatar_url, is_active, password? }
    */
   async updateUser(req, res) {
     const { id } = req.params;
-    const { name, email, role, department_id, department_ids, phone, avatar_url, is_active, password } = req.body;
+    const { name, email, role, cargo, department_id, department_ids, phone, avatar_url, is_active, password } = req.body;
 
     // Impedir edição do admin temporário em memória
     if (id === TEMP_ADMIN_ID) {
@@ -222,6 +234,10 @@ class UsersController {
           if (role === 'Supervisor') await replaceSupervisorDepartments(id, department_ids?.length ? department_ids : [department_id].filter(Boolean));
           else if (role && role !== 'Supervisor') await replaceSupervisorDepartments(id, []);
         }
+        if (cargo !== undefined) {
+          await userCargoService.setUserCargo(id, cargo);
+        }
+        await userCargoService.enrichUserWithCargo(data);
         if (is_active === false || password || role || department_id !== undefined) {
           req.app.get('io')?.in(`user:${id}`).disconnectSockets(true);
         }
@@ -231,8 +247,12 @@ class UsersController {
       // Fallback memória
       const idx = _memoryUsers.findIndex(u => u.id === id);
       if (idx === -1) return res.status(404).json({ success: false, error: 'Usuário não encontrado.' });
+      if (cargo !== undefined) {
+        await userCargoService.setUserCargo(id, cargo);
+      }
       _memoryUsers[idx] = { ..._memoryUsers[idx], ...updatePayload };
       const { password_hash, ...pub } = _memoryUsers[idx];
+      await userCargoService.enrichUserWithCargo(pub);
       return res.json({ success: true, user: pub, message: 'Usuário atualizado com sucesso.' });
 
     } catch (err) {

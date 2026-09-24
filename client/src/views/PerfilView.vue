@@ -18,6 +18,7 @@
 
       <div class="grid">
         <label>Nome e sobrenome<input v-model="form.name" class="form-control" required /></label>
+        <label>Cargo / Função<input v-model="form.cargo" class="form-control" placeholder="Ex: Analista de Suporte, Supervisor de TI..." /></label>
         <label>E-mail de login<input :value="auth.user?.email || ''" class="form-control locked" disabled /><small>O e-mail de acesso não pode ser alterado.</small></label>
         <label>
           Telefone
@@ -184,6 +185,7 @@ function onPhoneInput(e) {
 
 const form = reactive({
   name: auth.user?.name || '',
+  cargo: auth.user?.cargo || '',
   phone: sanitizeInitialPhone(auth.user?.phone),
   avatar_url: auth.user?.avatar_url || null,
   current_password: '',
@@ -193,6 +195,7 @@ const form = reactive({
 watch(() => auth.user, (u) => {
   if (u) {
     if (!form.name) form.name = u.name || ''
+    if (!form.cargo && u.cargo) form.cargo = u.cargo || ''
     if (!form.phone && u.phone) form.phone = sanitizeInitialPhone(u.phone)
     if (form.avatar_url === null && u.avatar_url) form.avatar_url = u.avatar_url
   }
@@ -219,11 +222,13 @@ async function save() {
   try {
     const payload = {
       ...form,
+      cargo: form.cargo ? form.cargo.trim() : null,
       phone: form.phone ? form.phone.trim() : null
     }
     const { data } = await authApi.updateProfile(payload)
     if (!data.success) throw new Error(data.error)
     auth.setSession(data.token, data.user)
+    form.cargo = data.user?.cargo || ''
     form.phone = sanitizeInitialPhone(data.user?.phone)
     form.current_password = ''
     form.new_password = ''

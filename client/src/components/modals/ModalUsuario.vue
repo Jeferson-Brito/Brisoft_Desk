@@ -65,6 +65,20 @@
               </div>
             </div>
 
+            <!-- Cargo / Função -->
+            <div class="form-group">
+              <label>Cargo / Função</label>
+              <input
+                v-model="formData.cargo"
+                type="text"
+                placeholder="Ex: Supervisor de Suporte, Analista N2, Diretor..."
+                class="form-control"
+              />
+              <small style="display:block;margin-top:4px;color:#64748b;font-size:11px;">
+                Título profissional que será exibido nas conversas, fila e perfil.
+              </small>
+            </div>
+
             <!-- Perfil + Departamento -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
               <div class="form-group">
@@ -153,6 +167,7 @@ const formData = ref({
   email: props.editingUser?.email || '',
   password: '',
   role: props.editingUser?.role || 'Analista',
+  cargo: props.editingUser?.cargo || '',
   department_id: props.editingUser?.department_id || null,
   department_ids: props.editingUser?.department_ids || [props.editingUser?.department_id].filter(Boolean),
   phone: props.editingUser?.phone || '',
@@ -176,7 +191,10 @@ async function choosePhoto(event) {
 async function handleSubmit() {
   loading.value = true
   try {
-    const payload = { ...formData.value }
+    const payload = {
+      ...formData.value,
+      cargo: formData.value.cargo ? formData.value.cargo.trim() : null
+    }
     if (payload.role === 'Supervisor') {
       if (!payload.department_ids.length) return ui.showToast('Selecione ao menos um departamento para o supervisor.', 'error')
       payload.department_id = payload.department_ids[0]

@@ -38,7 +38,7 @@
                     <span class="dot-mini"></span>
                     {{ getUserStatusText(activeTargetUser) }}
                   </span>
-                  <span v-if="activeTargetUser?.role" class="user-role-text">• {{ activeTargetUser.role }}</span>
+                  <span v-if="activeTargetUser?.cargo || activeTargetUser?.role" class="user-role-text">• {{ activeTargetUser.cargo || activeTargetUser.role }}</span>
                 </template>
                 <template v-else-if="chatStore.activeConversation.type === 'general'">
                   <span class="channel-desc-text">📢 Canal Geral da Empresa</span>
@@ -280,7 +280,7 @@
             </div>
             <div class="card-preview-row">
               <span class="card-role-label">
-                {{ member.role || 'Colaborador' }}
+                {{ member.cargo || member.role || 'Colaborador' }}
                 <template v-if="getDirectConv(member.id)?.last_message_text">
                   — {{ getDirectConv(member.id).last_message_text }}
                 </template>
@@ -349,6 +349,7 @@ const filteredMembers = computed(() => {
   if (!q) return chatStore.teamMembers
   return chatStore.teamMembers.filter(m =>
     m.name?.toLowerCase().includes(q) ||
+    m.cargo?.toLowerCase().includes(q) ||
     m.role?.toLowerCase().includes(q) ||
     m.email?.toLowerCase().includes(q)
   )

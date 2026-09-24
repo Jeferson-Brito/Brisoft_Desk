@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { supabase, isSupabaseConfigured } = require('../config/supabase');
+const userCargoService = require('./user-cargo.service');
 
 // Fallback em memória para desenvolvimento ou caso a migração do banco ainda não tenha rodado
 const memoryConversations = [
@@ -52,6 +53,7 @@ class InternalChatService {
           .eq('id', userId)
           .maybeSingle();
         if (data) {
+          await userCargoService.enrichUserWithCargo(data);
           this.userCache.set(userId, { user: data, expiresAt: Date.now() + 120000 });
           return {
             ...data,
@@ -61,12 +63,14 @@ class InternalChatService {
       } catch (_) {}
     }
 
-    return {
+    const fallbackUser = {
       id: userId,
       name: 'Colaborador',
       role: 'Analista',
+      cargo: await userCargoService.getUserCargo(userId),
       last_seen_at: this.lastSeenMap?.[userId] || null
     };
+    return fallbackUser;
   }
 
   // Retorna todas as conversas pertinentes ao usuário de forma ultra-rápida (batch queries)
@@ -141,6 +145,7 @@ class InternalChatService {
             .in('id', missingUserIds);
 
           if (fetchedUsers) {
+            await userCargoService.enrichUsersWithCargo(fetchedUsers);
             const exp = Date.now() + 120000;
             for (const u of fetchedUsers) {
               this.userCache.set(u.id, { user: u, expiresAt: exp });
@@ -247,6 +252,7 @@ class InternalChatService {
           .order('name', { ascending: true });
 
         if (!error && Array.isArray(data)) {
+          await userCargoService.enrichUsersWithCargo(data);
           users = data.map(u => ({
             ...u,
             last_seen_at: this.lastSeenMap?.[u.id] || null
@@ -614,12 +620,15 @@ class InternalChatService {
           .select('id, name, email, role, avatar_url, status')
           .eq('id', userId)
           .maybeSingle();
-        if (data) user = data;
+        if (data) {
+          await userCargoService.enrichUserWithCargo(data);
+          user = data;
+        }
       } catch (_) {}
     }
 
     if (!user) {
-      user = { id: userId, name: 'Colaborador', role: 'Analista' };
+      user = { id: userId, name: 'Colaborador', role: 'Analista', cargo: await userCargoService.getUserCargo(userId) };
     }
 
     this.userCache.set(userId, { user, expiresAt: now + 120000 });

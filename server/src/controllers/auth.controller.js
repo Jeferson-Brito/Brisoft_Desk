@@ -11,6 +11,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { supabase, isSupabaseConfigured } = require('../config/supabase');
 const { enrichUserAccess } = require('../services/access-control.service');
+const userCargoService = require('../services/user-cargo.service');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES = '24h';
@@ -148,6 +149,7 @@ class AuthController {
       // Retorna os dados do usuário sem o hash da senha
       const { password_hash, ...userPublic } = user;
       Object.assign(userPublic, userWithAccess, { department_name, department_color, phone: user.phone });
+      await userCargoService.enrichUserWithCargo(userPublic);
       const { clearLoginAttempts } = require('../middleware/auth.middleware');
       clearLoginAttempts(req);
       return res.json({ success: true, token, user: userPublic });
@@ -208,7 +210,9 @@ class AuthController {
       } else {
         data.phone = null;
       }
-      return res.json({ success: true, user: await enrichUserAccess(data) });
+      const publicUser = await enrichUserAccess(data);
+      await userCargoService.enrichUserWithCargo(publicUser);
+      return res.json({ success: true, user: publicUser });
     } catch (err) {
       console.error('Erro ao buscar usuário:', err.message);
       return res.status(401).json({ success: false, error: 'Não foi possível validar a sessão.' });
@@ -253,6 +257,9 @@ class AuthController {
     }
 
     try {
+      if (req.body?.cargo !== undefined) {
+        await userCargoService.setUserCargo(id, req.body.cargo);
+      }
       if (newPassword) {
         if (newPassword.length < 8) return res.status(400).json({ success: false, error: 'A nova senha deve ter ao menos 8 caracteres.' });
         if (!currentPassword) return res.status(400).json({ success: false, error: 'Informe a senha atual.' });
@@ -274,8 +281,9 @@ class AuthController {
       refreshed.department_color = refreshed.departments?.color || null;
       refreshed.phone = sanitizePhone(refreshed.phone);
       const publicUser = await enrichUserAccess(refreshed);
+      await userCargoService.enrichUserWithCargo(publicUser);
       const token = jwt.sign(
-        { id: publicUser.id, email: publicUser.email, name: publicUser.name, role: publicUser.role, avatar_url: publicUser.avatar_url || null, is_temporary: false, department_id: publicUser.department_id, department_name: publicUser.department_name },
+        { id: publicUser.id, email: publicUser.email, name: publicUser.name, role: publicUser.role, cargo: publicUser.cargo, avatar_url: publicUser.avatar_url || null, is_temporary: false, department_id: publicUser.department_id, department_name: publicUser.department_name },
         JWT_SECRET,
         { expiresIn: JWT_EXPIRES }
       );

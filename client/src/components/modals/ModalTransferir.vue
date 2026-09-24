@@ -69,7 +69,7 @@
                 :key="user.id"
                 :value="user.id"
               >
-                {{ user.name }} ({{ user.role === 'admin' ? 'Administrador' : 'Atendente' }})
+                {{ user.name }} ({{ user.cargo || (user.role === 'admin' || user.role === 'Administrador' ? 'Administrador' : 'Atendente') }})
               </option>
             </select>
             <span style="font-size:11px;color:#94a3b8;margin-top:4px;display:block;">

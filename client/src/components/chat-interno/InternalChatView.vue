@@ -190,7 +190,7 @@
                 <span class="btn-start-chat-tag"><i class="ri-chat-new-line"></i> Iniciar</span>
               </div>
               <div class="queue-row-preview">
-                <span class="queue-preview-text">{{ member.role || 'Colaborador' }}</span>
+                <span class="queue-preview-text">{{ member.cargo || member.role || 'Colaborador' }}</span>
               </div>
             </div>
           </div>
@@ -235,7 +235,7 @@
                     {{ getUserStatusText(activeDirectUser) }}
                   </span>
                   <span class="sep-dot">•</span>
-                  <span>{{ activeDirectUser?.role || 'Colaborador' }}</span>
+                  <span>{{ activeDirectUser?.cargo || activeDirectUser?.role || 'Colaborador' }}</span>
                 </p>
                 <p class="chat-subtitle" v-else-if="chatStore.activeConversation.type === 'group'">
                   <span>{{ conversationParticipants.length }} participantes</span>
@@ -641,7 +641,7 @@
                   </div>
                   <div class="mention-item-info">
                     <span class="mention-name">{{ member.name }}</span>
-                    <span class="mention-role">{{ member.role || 'Colaborador' }}</span>
+                    <span class="mention-role">{{ member.cargo || member.role || 'Colaborador' }}</span>
                   </div>
                 </button>
               </div>
@@ -811,7 +811,7 @@
                   <div class="drawer-member-info">
                     <span class="drawer-member-name">{{ member.name }}</span>
                     <span class="drawer-member-sub">
-                      {{ isUserOnline(member.id) ? 'Online agora' : 'Offline' }} • {{ member.role || 'Colaborador' }}
+                      {{ isUserOnline(member.id) ? 'Online agora' : 'Offline' }} • {{ member.cargo || member.role || 'Colaborador' }}
                     </span>
                   </div>
                   <button
@@ -996,7 +996,7 @@
                 </div>
                 <div class="modal-member-details">
                   <span class="modal-member-name">{{ member.name }}</span>
-                  <span class="modal-member-role">{{ member.role || 'Colaborador' }}</span>
+                  <span class="modal-member-role">{{ member.cargo || member.role || 'Colaborador' }}</span>
                 </div>
                 <i class="ri-chat-1-line modal-start-icon"></i>
               </button>
@@ -1100,7 +1100,7 @@
                   </div>
                   <div class="picker-member-info">
                     <span class="picker-name">{{ member.name }}</span>
-                    <span class="picker-role">{{ member.role || 'Colaborador' }}</span>
+                    <span class="picker-role">{{ member.cargo || member.role || 'Colaborador' }}</span>
                   </div>
                 </div>
               </div>
@@ -1190,7 +1190,7 @@
                       {{ member.name }}
                       <span v-if="member.id === auth.user?.id" class="self-tag">(Você)</span>
                     </span>
-                    <span class="picker-role">{{ member.role || 'Colaborador' }}</span>
+                    <span class="picker-role">{{ member.cargo || member.role || 'Colaborador' }}</span>
                   </div>
                 </div>
               </div>
@@ -1420,6 +1420,7 @@ const displayedDirectConversations = computed(() => {
   if (!term) return list
   return list.filter(c => 
     c.name?.toLowerCase().includes(term) ||
+    c.other_user?.cargo?.toLowerCase().includes(term) ||
     c.other_user?.role?.toLowerCase().includes(term) ||
     c.other_user?.email?.toLowerCase().includes(term)
   )
@@ -1444,6 +1445,7 @@ const filteredConversationsList = computed(() => {
     list = list.filter(c => 
       c.name?.toLowerCase().includes(term) ||
       c.last_message_text?.toLowerCase().includes(term) ||
+      c.other_user?.cargo?.toLowerCase().includes(term) ||
       c.other_user?.role?.toLowerCase().includes(term) ||
       c.other_user?.email?.toLowerCase().includes(term)
     )
@@ -1464,7 +1466,7 @@ function getConversationTagLabel(conv) {
   if (conv.type === 'general') return 'Geral'
   if (conv.type === 'department') return 'Setor'
   if (conv.type === 'group') return 'Grupo'
-  return conv.other_user?.role || 'Colega'
+  return conv.other_user?.cargo || conv.other_user?.role || 'Colega'
 }
 
 const otherColleaguesSearchMatches = computed(() => {
@@ -1474,7 +1476,7 @@ const otherColleaguesSearchMatches = computed(() => {
   return chatStore.teamMembers.filter(m => 
     m.id !== auth.user?.id &&
     !activePartnerIds.has(String(m.id)) &&
-    (m.name?.toLowerCase().includes(term) || m.role?.toLowerCase().includes(term) || m.email?.toLowerCase().includes(term))
+    (m.name?.toLowerCase().includes(term) || m.cargo?.toLowerCase().includes(term) || m.role?.toLowerCase().includes(term) || m.email?.toLowerCase().includes(term))
   )
 })
 
@@ -1484,6 +1486,7 @@ const availableDirectMembers = computed(() => {
   if (!term) return list
   return list.filter(m => 
     m.name?.toLowerCase().includes(term) ||
+    m.cargo?.toLowerCase().includes(term) ||
     m.role?.toLowerCase().includes(term) ||
     m.email?.toLowerCase().includes(term)
   )
@@ -1611,7 +1614,7 @@ async function openDirectChatWithDetails(userId) {
 const conversationParticipants = computed(() => {
   if (chatStore.activeConversation?.type === 'direct') {
     const list = []
-    if (auth.user) list.push({ id: auth.user.id, name: auth.user.name, role: auth.user.role, avatar_url: auth.user.avatar_url })
+    if (auth.user) list.push({ id: auth.user.id, name: auth.user.name, role: auth.user.role, cargo: auth.user.cargo, avatar_url: auth.user.avatar_url })
     if (activeDirectUser.value) list.push(activeDirectUser.value)
     return list
   }

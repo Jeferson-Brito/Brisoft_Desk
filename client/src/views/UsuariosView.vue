@@ -44,7 +44,7 @@
           <tr>
             <th>Usuário</th>
             <th>E-mail</th>
-            <th>Perfil</th>
+            <th>Cargo / Perfil</th>
             <th>Departamento</th>
             <th>Status</th>
             <th style="text-align:right;">Ações</th>
@@ -87,8 +87,11 @@
                   border: `1px solid ${u.role === 'Administrador' ? '#a7f3d0' : '#ddd6fe'}`
                 }"
               >
-                {{ u.role || 'Analista' }}
+                {{ u.cargo || u.role || 'Analista' }}
               </span>
+              <small v-if="u.cargo && u.cargo !== u.role" style="display:block;margin-top:2px;font-size:10.5px;color:#94a3b8;">
+                {{ u.role }}
+              </small>
             </td>
             <td style="font-size:12px;color:#64748b;">
               {{ userDepartmentLabel(u) }}
@@ -154,7 +157,8 @@ const filteredUsers = computed(() => {
     const name = normalizePersonName(user.name || '').toLowerCase()
     const email = (user.email || '').toLowerCase()
     const role = (user.role || '').toLowerCase()
-    return name.includes(term) || email.includes(term) || role.includes(term)
+    const cargo = (user.cargo || '').toLowerCase()
+    return name.includes(term) || email.includes(term) || role.includes(term) || cargo.includes(term)
   })
 })
 

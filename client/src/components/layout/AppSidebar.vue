@@ -276,6 +276,7 @@ const userInitials = computed(() => {
 })
 
 const roleLabel = computed(() => {
+  if (auth.user?.cargo) return auth.user.cargo
   if (auth.isAdmin) return 'Administrador'
   if (auth.isSupervisor) return 'Supervisor'
   return 'Analista'

@@ -120,7 +120,7 @@
                     <span class="online-user-name">{{ user.name }}</span>
                     <span v-if="user.id === auth.user?.id" class="you-chip">Você</span>
                   </div>
-                  <span class="online-user-role">{{ formatRole(user.role) }}</span>
+                  <span class="online-user-role">{{ user.cargo || formatRole(user.role) }}</span>
                 </div>
               </div>
 
@@ -188,7 +188,7 @@
               </div>
               <div class="user-popover-info">
                 <span class="user-popover-name">{{ auth.userName || 'Usuário' }}</span>
-                <span class="user-popover-role">{{ formatRole(auth.user?.role) }}</span>
+                <span class="user-popover-role">{{ auth.user?.cargo || formatRole(auth.user?.role) }}</span>
                 <span v-if="auth.user?.email" class="user-popover-email">{{ auth.user.email }}</span>
               </div>
             </div>
@@ -297,11 +297,13 @@ const activeUsersList = computed(() => {
   return list.map(u => {
     const isMe = auth.user && (String(u.id) === String(auth.user.id) || u.name === auth.user.name)
     const role = (isMe && auth.user?.role) ? auth.user.role : (u.role || 'Analista')
+    const cargo = (isMe && auth.user?.cargo) ? auth.user.cargo : (u.cargo || null)
     const avatar = (isMe && auth.user?.avatar_url) ? auth.user.avatar_url : (u.avatar_url || null)
     return {
       id: u.id || (isMe ? auth.user?.id : 'u_' + Math.random()),
       name: u.name || (isMe ? auth.user?.name : 'Usuário'),
       role,
+      cargo,
       avatar_url: avatar
     }
   })
