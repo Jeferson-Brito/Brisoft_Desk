@@ -933,6 +933,35 @@ watch(canSend, (val) => {
   if (val) focusInput()
 })
 
+function messageAuthorLabel(message) {
+  if (!message) return 'Mensagem'
+  if (message.sender === 'agent' || message.from_me) {
+    if (message.user_id && String(message.user_id) === String(authStore.user?.id)) {
+      return 'Você'
+    }
+    return message.user_name || message.agent_name || 'Atendente'
+  }
+  return message.sender_name || props.ticket?.clientName || props.ticket?.client_name || props.ticket?.contact?.name || 'Cliente'
+}
+
+function messagePlainText(message) {
+  if (!message) return ''
+  if (message.text) {
+    let t = String(message.text)
+    const match = t.match(/^\*([^*]+)\*:\s*([\s\S]*)$/)
+    if (match) t = match[2]
+    if (t.startsWith('[Chatbot]')) t = t.replace(/^\[Chatbot\]\s*/, '')
+    return t.trim()
+  }
+  if (message.media_url || message.media_type) {
+    if (message.media_type === 'image') return '📷 Imagem'
+    if (message.media_type === 'audio' || message.media_type === 'voice') return '🎤 Áudio'
+    if (message.media_type === 'video') return '🎥 Vídeo'
+    return '📎 Documento anexo'
+  }
+  return 'Mensagem'
+}
+
 function startReply(message) {
   editingMessage.value = null
   replyingMessage.value = message
