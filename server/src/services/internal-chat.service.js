@@ -21,10 +21,52 @@ class InternalChatService {
     this.io = null;
     this.userCache = new Map();
     this.lastReadCache = new Map(); // key: `${userId}:${conversationId}` -> ISO string
+    this.lastSeenMap = {};
   }
 
   setIO(ioInstance) {
     this.io = ioInstance;
+  }
+
+  setLastSeenMap(map) {
+    this.lastSeenMap = map || {};
+  }
+
+  async getUserById(userId) {
+    if (!userId) return null;
+    if (this.userCache.has(userId)) {
+      const cached = this.userCache.get(userId);
+      if (cached && cached.expiresAt > Date.now()) {
+        return {
+          ...cached.user,
+          last_seen_at: this.lastSeenMap?.[userId] || null
+        };
+      }
+    }
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data } = await supabase
+          .from('users')
+          .select('id, name, email, role, department_id, avatar_url, status, is_active')
+          .eq('id', userId)
+          .maybeSingle();
+        if (data) {
+          this.userCache.set(userId, { user: data, expiresAt: Date.now() + 120000 });
+          return {
+            ...data,
+            last_seen_at: this.lastSeenMap?.[userId] || null
+          };
+        }
+      } catch (_) {}
+    }
+
+    return {
+      id: userId,
+      name: 'Colaborador',
+      role: 'Analista',
+      last_seen_at: this.lastSeenMap?.[userId] || null
+    };
   }
 
   // Retorna todas as conversas pertinentes ao usuário de forma ultra-rápida (batch queries)
@@ -145,7 +187,11 @@ class InternalChatService {
             const otherId = otherUserIdByConv.get(conv.id);
             if (otherId) {
               const cached = this.userCache.get(otherId);
-              otherUser = cached ? cached.user : { id: otherId, name: 'Colaborador', role: 'Analista' };
+              const baseUser = cached ? cached.user : { id: otherId, name: 'Colaborador', role: 'Analista' };
+              otherUser = {
+                ...baseUser,
+                last_seen_at: this.lastSeenMap?.[otherId] || null
+              };
               if (otherUser?.name) title = otherUser.name;
             }
           }
@@ -201,7 +247,10 @@ class InternalChatService {
           .order('name', { ascending: true });
 
         if (!error && Array.isArray(data)) {
-          users = data;
+          users = data.map(u => ({
+            ...u,
+            last_seen_at: this.lastSeenMap?.[u.id] || null
+          }));
         }
       } catch (err) {
         console.warn('Falha ao listar membros da equipe:', err.message);
@@ -271,9 +320,24 @@ class InternalChatService {
 
         // Associa os dois participantes
         await supabase.from('internal_conversation_participants').insert([
-          { conversation_id: newConv.id, user_id: currentUser.id },
+          { conversation_id: newConv.id, user_id: currentUser.id, last_read_at: new Date().toISOString() },
           { conversation_id: newConv.id, user_id: targetUserId }
         ]);
+
+        if (this.io) {
+          this.io.to(`user:${targetUserId}`).emit('internal_conversation_created', {
+            ...newConv,
+            name: currentUser.name || 'Conversa Direta',
+            other_user: {
+              id: currentUser.id,
+              name: currentUser.name,
+              role: currentUser.role,
+              avatar_url: currentUser.avatar_url || null,
+              last_seen_at: new Date().toISOString()
+            },
+            unread_count: 0
+          });
+        }
 
         return {
           ...newConv,
@@ -491,12 +555,26 @@ class InternalChatService {
       // Emite para a sala do departamento
       this.io.to(`department:${deptId}`).emit('internal_message', messageData);
     } else {
-      // Direta: emite para o destinatário e para o remetente
-      const otherUserId = await this.getOtherParticipantId(conversationId, senderUser.id);
-      if (otherUserId) {
-        this.io.to(`user:${otherUserId}`).emit('internal_message', messageData);
+      // Para conversas diretas ou grupos, busca todos os participantes
+      let participantIds = [];
+      if (isSupabaseConfigured()) {
+        try {
+          const { data } = await supabase
+            .from('internal_conversation_participants')
+            .select('user_id')
+            .eq('conversation_id', conversationId);
+          if (data && Array.isArray(data)) participantIds = data.map(p => p.user_id);
+        } catch (_) {}
       }
-      this.io.to(`user:${senderUser.id}`).emit('internal_message', messageData);
+      if (participantIds.length === 0) {
+        participantIds = memoryParticipants.filter(p => p.conversation_id === conversationId).map(p => p.user_id);
+      }
+      if (!participantIds.includes(senderUser.id)) {
+        participantIds.push(senderUser.id);
+      }
+      participantIds.forEach(uid => {
+        this.io.to(`user:${uid}`).emit('internal_message', messageData);
+      });
     }
   }
 

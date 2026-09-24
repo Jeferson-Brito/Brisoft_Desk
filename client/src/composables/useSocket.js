@@ -73,6 +73,9 @@ export function useSocket() {
       if (data) {
         ui.onlineUsersCount = typeof data.count === 'number' ? data.count : 0
         ui.onlineUsersList = Array.isArray(data.users) ? data.users : []
+        if (data.last_seen && typeof data.last_seen === 'object') {
+          ui.lastSeenUsers = { ...ui.lastSeenUsers, ...data.last_seen }
+        }
       }
     })
 

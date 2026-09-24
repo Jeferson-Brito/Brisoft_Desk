@@ -20,6 +20,7 @@ export const useUiStore = defineStore('ui', () => {
   const serverOnline = ref(false)
   const onlineUsersCount = ref(1)
   const onlineUsersList = ref([])
+  const lastSeenUsers = ref({})
 
   function switchView(view) {
     activeView.value = view
@@ -79,7 +80,7 @@ export const useUiStore = defineStore('ui', () => {
 
   return {
     activeView, toasts, openModals, whatsappStatus, whatsappQrCode, whatsappAccounts, serverOnline,
-    onlineUsersCount, onlineUsersList, isMobileChatOpen, setMobileChatOpen,
+    onlineUsersCount, onlineUsersList, lastSeenUsers, isMobileChatOpen, setMobileChatOpen,
     isNavigating, setNavigating,
     activeChatModuleTab, setChatModuleTab,
     isInternalChatOpen, toggleInternalChat, openInternalChat, closeInternalChat,

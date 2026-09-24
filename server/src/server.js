@@ -156,6 +156,59 @@ io.use((socket, next) => {
     .catch(() => next(new Error('Sessão inválida ou expirada')));
 });
 
+let lastSeenMap = {};
+
+async function initLastSeen() {
+  if (isSupabaseConfigured()) {
+    try {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'user_last_seen')
+        .maybeSingle();
+      if (data?.value && typeof data.value === 'object') {
+        lastSeenMap = { ...data.value };
+      }
+
+      // Preenche com últimas mensagens para usuários que ainda não tenham registro
+      const { data: recentMsgs } = await supabase
+        .from('internal_messages')
+        .select('sender_id, created_at')
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      if (recentMsgs && Array.isArray(recentMsgs)) {
+        for (const m of recentMsgs) {
+          if (m.sender_id && !lastSeenMap[m.sender_id]) {
+            lastSeenMap[m.sender_id] = m.created_at;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+  internalChatService.setLastSeenMap(lastSeenMap);
+}
+
+let saveLastSeenTimeout = null;
+function persistLastSeen() {
+  internalChatService.setLastSeenMap(lastSeenMap);
+  if (saveLastSeenTimeout) clearTimeout(saveLastSeenTimeout);
+  saveLastSeenTimeout = setTimeout(async () => {
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase
+          .from('system_settings')
+          .upsert({
+            key: 'user_last_seen',
+            value: lastSeenMap,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+      } catch (_) {}
+    }
+  }, 2000);
+  saveLastSeenTimeout.unref?.();
+}
+
 // Socket.io Connection Handler
 async function broadcastOnlineUsers() {
   try {
@@ -200,7 +253,8 @@ async function broadcastOnlineUsers() {
     const users = Array.from(userMap.values());
     io.emit('online_users', {
       count: users.length,
-      users
+      users,
+      last_seen: lastSeenMap
     });
   } catch (_) {}
 }
@@ -236,7 +290,18 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     if (socket.authExpiryTimer) clearTimeout(socket.authExpiryTimer);
     console.log(`❌ Cliente desconectado: ${socket.id}`);
-    setTimeout(broadcastOnlineUsers, 500);
+    const userId = socket.user?.id;
+    setTimeout(async () => {
+      if (userId && userId !== '__temp_admin__') {
+        const sockets = await io.fetchSockets();
+        const stillConnected = sockets.some(s => s.user?.id === userId);
+        if (!stillConnected) {
+          lastSeenMap[userId] = new Date().toISOString();
+          persistLastSeen();
+        }
+      }
+      broadcastOnlineUsers();
+    }, 500);
   });
 });
 
@@ -246,6 +311,7 @@ let businessHoursTimer = null;
 let disconnectCleanupTimer = null;
 async function startServer() {
   await initTempAdmin();
+  await initLastSeen();
   server.listen(PORT, () => {
   console.log('====================================================');
   console.log(`🚀 BRISOFT DESK SERVER RODANDO NA PORTA ${PORT}`);

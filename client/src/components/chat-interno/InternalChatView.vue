@@ -232,7 +232,7 @@
                 <h3 class="chat-title">{{ chatStore.activeConversation.name }}</h3>
                 <p class="chat-subtitle" v-if="chatStore.activeConversation.type === 'direct'">
                   <span class="status-indicator-text" :class="{ online: isUserOnline(activeDirectUser?.id) }">
-                    {{ isUserOnline(activeDirectUser?.id) ? 'Disponível agora' : 'Offline' }}
+                    {{ getUserStatusText(activeDirectUser) }}
                   </span>
                   <span class="sep-dot">•</span>
                   <span>{{ activeDirectUser?.role || 'Colaborador' }}</span>
@@ -731,6 +731,9 @@
               </div>
 
               <h3 class="drawer-conv-name">{{ chatStore.activeConversation.name }}</h3>
+              <span v-if="chatStore.activeConversation.type === 'direct'" class="drawer-user-status" :class="{ online: isUserOnline(activeDirectUser?.id) }">
+                {{ getUserStatusText(activeDirectUser) }}
+              </span>
               <span class="drawer-conv-type-badge">
                 {{ getConversationTypeLabel(chatStore.activeConversation) }}
               </span>
@@ -1893,6 +1896,43 @@ function isUserOnline(userId) {
   return ui.onlineUsersList.some(u => String(u.id) === String(userId))
 }
 
+function formatLastSeen(lastSeenAt) {
+  if (!lastSeenAt) return 'Offline'
+  const date = new Date(lastSeenAt)
+  if (isNaN(date.getTime())) return 'Offline'
+
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const targetDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const diffTime = today.getTime() - targetDay.getTime()
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
+
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const timeStr = `${hours}:${minutes}`
+
+  if (diffDays === 0) {
+    return `Visto por último hoje às ${timeStr}`
+  } else if (diffDays === 1) {
+    return `Visto por último ontem às ${timeStr}`
+  } else {
+    const day = String(date.getDate()).padStart(2, '0')
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    if (date.getFullYear() === now.getFullYear()) {
+      return `Visto por último em ${day}/${month} às ${timeStr}`
+    } else {
+      return `Visto por último em ${day}/${month}/${date.getFullYear()} às ${timeStr}`
+    }
+  }
+}
+
+function getUserStatusText(user) {
+  if (!user?.id) return ''
+  if (isUserOnline(user.id)) return 'Online'
+  const lastSeen = ui.lastSeenUsers?.[user.id] || user.last_seen_at
+  return formatLastSeen(lastSeen)
+}
+
 function getDirectConv(userId) {
   return chatStore.conversations.find(c => 
     c.type === 'direct' && String(c.other_user?.id) === String(userId)
@@ -2879,7 +2919,26 @@ function formatMessageTime(dateStr) {
   gap: 6px;
 }
 
+.status-indicator-text {
+  color: #64748b;
+  font-weight: 500;
+  font-size: 12px;
+}
+
 .status-indicator-text.online {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.drawer-user-status {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 3px;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.drawer-user-status.online {
   color: #16a34a;
   font-weight: 600;
 }
