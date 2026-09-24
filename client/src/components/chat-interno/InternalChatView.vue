@@ -2,19 +2,29 @@
   <div class="internal-chat-layout">
     <!-- Coluna 1: Lista de Canais e Colegas de Equipe -->
     <aside class="internal-sidebar">
-      <div class="sidebar-header">
+      <div class="internal-chat-sidebar-header">
         <div class="header-title-row">
           <div class="title-with-icon">
             <span class="chat-icon-badge"><i class="ri-team-line"></i></span>
             <div>
               <h2 class="sidebar-title">Equipe Brisoft</h2>
-              <span class="sidebar-subtitle">Chat Interno da Empresa</span>
+              <span class="sidebar-subtitle">Chat Interno</span>
             </div>
           </div>
-          <span class="online-counter-pill" :title="`${onlineCount} colaboradores online no sistema`">
-            <span class="status-live-dot"></span>
-            {{ onlineCount }} online
-          </span>
+          <div class="header-actions-group">
+            <span class="online-counter-pill" :title="`${onlineCount} colaboradores online no sistema`">
+              <span class="status-live-dot"></span>
+              {{ onlineCount }} online
+            </span>
+            <button
+              type="button"
+              class="btn-new-chat-action"
+              title="Nova conversa ou criar grupo"
+              @click="openNewChatModal('direct')"
+            >
+              <i class="ri-add-line"></i>
+            </button>
+          </div>
         </div>
 
         <!-- Campo de Busca na Sidebar -->
@@ -23,7 +33,7 @@
           <input
             v-model="searchTerm"
             type="text"
-            placeholder="Buscar colega ou canal..."
+            placeholder="Buscar conversa ou colega..."
             class="search-input"
           />
           <button v-if="searchTerm" class="clear-search-btn" @click="searchTerm = ''">
@@ -31,7 +41,7 @@
           </button>
         </div>
 
-        <!-- Pílulas de Filtro (Fase 3) -->
+        <!-- Pílulas de Filtro -->
         <div class="sidebar-filter-tabs">
           <button
             type="button"
@@ -47,7 +57,7 @@
             :class="{ active: activeFilter === 'channels' }"
             @click="activeFilter = 'channels'"
           >
-            Canais
+            Canais / Grupos
           </button>
           <button
             type="button"
@@ -55,7 +65,7 @@
             :class="{ active: activeFilter === 'direct' }"
             @click="activeFilter = 'direct'"
           >
-            Colegas
+            Mensagens Diretas
           </button>
           <button
             type="button"
@@ -72,18 +82,18 @@
       </div>
 
       <div class="sidebar-scrollable">
-        <!-- SEÇÃO: Canais Coletivos -->
+        <!-- SEÇÃO: Canais e Grupos -->
         <div
           v-if="activeFilter === 'all' || activeFilter === 'channels' || (activeFilter === 'unread' && unreadChannelConversations.length > 0)"
           class="section-channels-wrapper"
         >
           <div class="section-label-row">
-            <span class="section-label-text">CANAIS DA EMPRESA</span>
+            <span class="section-label-text">CANAIS E GRUPOS</span>
             <button
               type="button"
               class="btn-new-channel"
-              title="Criar novo canal corporativo"
-              @click="openNewChannelModal"
+              title="Criar novo canal ou grupo corporativo"
+              @click="openNewChatModal('group')"
             >
               <i class="ri-add-line"></i> Novo
             </button>
@@ -98,7 +108,10 @@
               :class="{ active: chatStore.activeConversation?.id === conv.id }"
               @click="selectConversationWithDetails(conv)"
             >
-              <div class="channel-icon-box">
+              <div v-if="conv.avatar_url" class="channel-avatar-wrapper">
+                <img :src="conv.avatar_url" class="channel-custom-avatar" :alt="conv.name" />
+              </div>
+              <div v-else class="channel-icon-box">
                 <i :class="getChannelIcon(conv.type)"></i>
               </div>
               <div class="conversation-info">
@@ -115,27 +128,81 @@
           </div>
         </div>
 
-        <!-- SEÇÃO: Mensagens Diretas (Equipe) -->
+        <!-- SEÇÃO: Mensagens Diretas (Apenas colegas com mensagens/conversa iniciada) -->
         <div
-          v-if="activeFilter === 'all' || activeFilter === 'direct' || (activeFilter === 'unread' && displayedMembers.length > 0)"
+          v-if="activeFilter === 'all' || activeFilter === 'direct' || (activeFilter === 'unread' && displayedDirectConversations.length > 0)"
           class="section-members-wrapper"
         >
           <div class="section-label-row section-mt">
-            <span class="section-label-text">COLEGAS DE TRABALHO ({{ displayedMembers.length }})</span>
+            <span class="section-label-text">MENSAGENS DIRETAS ({{ displayedDirectConversations.length }})</span>
+            <button
+              type="button"
+              class="btn-new-channel"
+              title="Conversar com outro colega"
+              @click="openNewChatModal('direct')"
+            >
+              <i class="ri-chat-new-line"></i> Nova
+            </button>
           </div>
 
           <div class="members-list">
-            <div v-if="displayedMembers.length === 0" class="empty-members-msg">
-              <i class="ri-user-search-line"></i>
-              <span>Nenhum colega encontrado</span>
+            <div v-if="displayedDirectConversations.length === 0 && !searchTerm" class="empty-members-msg">
+              <i class="ri-chat-smile-line"></i>
+              <span>Nenhuma conversa iniciada</span>
+              <button type="button" class="btn-start-chat-inline" @click="openNewChatModal('direct')">
+                <i class="ri-user-add-line"></i> Conversar com colega
+              </button>
             </div>
 
             <button
-              v-for="member in displayedMembers"
+              v-for="conv in displayedDirectConversations"
+              :key="conv.id"
+              type="button"
+              class="conversation-item member-item"
+              :class="{ active: chatStore.activeConversation?.id === conv.id }"
+              @click="selectConversationWithDetails(conv)"
+            >
+              <div class="member-avatar-wrapper">
+                <div class="member-avatar" :style="getAvatarStyle(conv.other_user)">
+                  <img v-if="conv.other_user?.avatar_url" :src="conv.other_user.avatar_url" :alt="conv.name" />
+                  <span v-else>{{ getInitials(conv.name) }}</span>
+                </div>
+                <span
+                  class="member-status-dot"
+                  :class="{ online: isUserOnline(conv.other_user?.id) }"
+                  :title="isUserOnline(conv.other_user?.id) ? 'Online no sistema' : 'Offline'"
+                ></span>
+              </div>
+
+              <div class="conversation-info">
+                <div class="conv-title-row">
+                  <span class="conv-title">{{ conv.name }}</span>
+                  <span v-if="conv.last_message_at" class="conv-time">
+                    {{ formatTime(conv.last_message_at) }}
+                  </span>
+                </div>
+                <div class="conv-preview-row">
+                  <span class="member-role-label">{{ conv.last_message_text || conv.other_user?.role || 'Conversa direta' }}</span>
+                  <span v-if="conv.unread_count > 0" class="conv-unread-badge">
+                    {{ conv.unread_count }}
+                  </span>
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- SEÇÃO: Outros Colegas Encontrados na Busca -->
+        <div v-if="searchTerm && otherColleaguesSearchMatches.length > 0" class="section-search-candidates">
+          <div class="section-label-row section-mt">
+            <span class="section-label-text">INICIAR CONVERSA COM ({{ otherColleaguesSearchMatches.length }})</span>
+          </div>
+          <div class="members-list">
+            <button
+              v-for="member in otherColleaguesSearchMatches"
               :key="member.id"
               type="button"
               class="conversation-item member-item"
-              :class="{ active: isDirectActive(member.id) }"
               @click="openDirectChatWithDetails(member.id)"
             >
               <div class="member-avatar-wrapper">
@@ -149,19 +216,13 @@
                   :title="isUserOnline(member.id) ? 'Online no sistema' : 'Offline'"
                 ></span>
               </div>
-
               <div class="conversation-info">
                 <div class="conv-title-row">
                   <span class="conv-title">{{ member.name }}</span>
-                  <span v-if="getDirectConv(member.id)?.last_message_at" class="conv-time">
-                    {{ formatTime(getDirectConv(member.id).last_message_at) }}
-                  </span>
+                  <span class="badge-new-chat-invite"><i class="ri-message-3-line"></i> Iniciar</span>
                 </div>
                 <div class="conv-preview-row">
                   <span class="member-role-label">{{ member.role || 'Colaborador' }}</span>
-                  <span v-if="getDirectConv(member.id)?.unread_count > 0" class="conv-unread-badge">
-                    {{ getDirectConv(member.id).unread_count }}
-                  </span>
                 </div>
               </div>
             </button>
@@ -192,37 +253,40 @@
                 ></span>
               </div>
 
+              <div v-else-if="chatStore.activeConversation.avatar_url" class="channel-avatar-wrapper header-avatar">
+                <img :src="chatStore.activeConversation.avatar_url" class="channel-custom-avatar" :alt="chatStore.activeConversation.name" />
+              </div>
+
               <div v-else class="channel-icon-box header-channel-icon">
                 <i :class="getChannelIcon(chatStore.activeConversation.type)"></i>
               </div>
 
               <div class="chat-header-text">
                 <h3 class="chat-title">{{ chatStore.activeConversation.name }}</h3>
-                <p class="chat-subtitle">
-                  <template v-if="chatStore.activeConversation.type === 'direct'">
-                    <span class="status-indicator-text" :class="{ online: isUserOnline(activeDirectUser?.id) }">
-                      {{ isUserOnline(activeDirectUser?.id) ? 'Disponível agora' : 'Offline' }}
-                    </span>
-                    <span class="sep-dot">•</span>
-                    <span>{{ activeDirectUser?.role || 'Colaborador' }}</span>
-                  </template>
-                  <template v-else-if="chatStore.activeConversation.type === 'general'">
-                    <span>Canal visível para todos os colaboradores da empresa</span>
-                  </template>
-                  <template v-else-if="chatStore.activeConversation.type === 'group'">
-                    <span>Grupo interno restrito a participantes</span>
-                  </template>
-                  <template v-else>
-                    <span>Canal exclusivo do setor</span>
-                  </template>
+                <p class="chat-subtitle" v-if="chatStore.activeConversation.type === 'direct'">
+                  <span class="status-indicator-text" :class="{ online: isUserOnline(activeDirectUser?.id) }">
+                    {{ isUserOnline(activeDirectUser?.id) ? 'Disponível agora' : 'Offline' }}
+                  </span>
+                  <span class="sep-dot">•</span>
+                  <span>{{ activeDirectUser?.role || 'Colaborador' }}</span>
+                </p>
+                <p class="chat-subtitle" v-else-if="chatStore.activeConversation.type === 'group'">
+                  <span>{{ conversationParticipants.length }} participantes</span>
                 </p>
               </div>
             </div>
 
             <div class="chat-header-actions">
-              <span class="secure-internal-badge" title="Mensagens trafegam exclusivamente dentro da rede interna">
-                <i class="ri-shield-check-line"></i> Seguro
-              </span>
+              <!-- Botão: Configurações e Gerenciamento do Grupo -->
+              <button
+                v-if="chatStore.activeConversation.type !== 'direct'"
+                type="button"
+                class="header-action-btn"
+                title="Configurações e Membros do Grupo"
+                @click="openEditGroupModal"
+              >
+                <i class="ri-settings-3-line"></i>
+              </button>
 
               <!-- Botão: Pesquisar nesta conversa -->
               <button
@@ -692,6 +756,9 @@
                 <img v-if="activeDirectUser?.avatar_url" :src="activeDirectUser.avatar_url" :alt="chatStore.activeConversation.name" />
                 <span v-else>{{ getInitials(chatStore.activeConversation.name) }}</span>
               </div>
+              <div v-else-if="chatStore.activeConversation.avatar_url" class="drawer-big-avatar">
+                <img :src="chatStore.activeConversation.avatar_url" class="channel-custom-avatar" :alt="chatStore.activeConversation.name" />
+              </div>
               <div v-else class="drawer-big-icon">
                 <i :class="getChannelIcon(chatStore.activeConversation.type)"></i>
               </div>
@@ -700,6 +767,15 @@
               <span class="drawer-conv-type-badge">
                 {{ getConversationTypeLabel(chatStore.activeConversation) }}
               </span>
+
+              <button
+                v-if="chatStore.activeConversation.type !== 'direct'"
+                type="button"
+                class="btn-edit-group-drawer"
+                @click="openEditGroupModal"
+              >
+                <i class="ri-settings-4-line"></i> Gerenciar Grupo
+              </button>
             </div>
 
             <!-- Abas do Drawer: Membros / Arquivos / Fixadas -->
@@ -745,6 +821,11 @@
                 <i class="ri-loader-4-line spin-icon"></i> Carregando membros...
               </div>
               <div v-else class="drawer-members-list">
+                <div v-if="chatStore.activeConversation.type !== 'direct'" class="drawer-members-header-action">
+                  <button type="button" class="btn-manage-members-pill" @click="openEditGroupModal">
+                    <i class="ri-user-add-line"></i> Adicionar / Gerenciar Membros
+                  </button>
+                </div>
                 <div
                   v-for="member in conversationParticipants"
                   :key="member.id"
@@ -879,59 +960,110 @@
       </div>
     </main>
 
-    <!-- Modal de Criação de Novo Canal Corporativo (Fase 3) -->
+    <!-- Modal de Nova Conversa ou Grupo -->
     <Teleport to="body">
-      <div v-if="showNewChannelModal" class="modal-overlay" @click.self="closeNewChannelModal">
+      <div v-if="showNewChatModal" class="modal-overlay" @click.self="closeNewChatModal">
         <div class="channel-modal-card">
           <div class="channel-modal-header">
             <div>
-              <h3 class="channel-modal-title">Novo Canal Corporativo</h3>
-              <p class="channel-modal-subtitle">Crie um canal de comunicação para equipes, projetos ou setores</p>
+              <h3 class="channel-modal-title">Nova Conversa</h3>
+              <p class="channel-modal-subtitle">Inicie um bate-papo direto ou crie um grupo corporativo</p>
             </div>
-            <button type="button" class="btn-modal-close" @click="closeNewChannelModal">
+            <button type="button" class="btn-modal-close" @click="closeNewChatModal">
               <i class="ri-close-line"></i>
             </button>
           </div>
 
-          <form @submit.prevent="submitCreateChannel" class="channel-modal-body">
-            <div class="channel-form-group">
-              <label class="channel-form-label">Nome do Canal</label>
-              <div class="channel-name-input-wrapper">
-                <span class="hashtag-prefix">#</span>
-                <input
-                  v-model="newChannelForm.name"
-                  type="text"
-                  placeholder="ex: financeiro, projetos-2026, avisos"
-                  class="channel-input"
-                  required
-                  maxlength="40"
-                />
+          <!-- Abas do Modal: Conversa Direta vs Grupo -->
+          <div class="modal-tabs-header">
+            <button
+              type="button"
+              class="modal-tab-btn"
+              :class="{ active: newChatTab === 'direct' }"
+              @click="newChatTab = 'direct'"
+            >
+              <i class="ri-user-line"></i> Conversar com Colega
+            </button>
+            <button
+              type="button"
+              class="modal-tab-btn"
+              :class="{ active: newChatTab === 'group' }"
+              @click="newChatTab = 'group'"
+            >
+              <i class="ri-team-line"></i> Criar Grupo / Canal
+            </button>
+          </div>
+
+          <!-- CONTEÚDO ABA 1: Conversa Direta com Colega -->
+          <div v-if="newChatTab === 'direct'" class="channel-modal-body">
+            <div class="modal-search-wrapper">
+              <i class="ri-search-line"></i>
+              <input
+                v-model="newChatMemberSearch"
+                type="text"
+                placeholder="Buscar colega pelo nome, cargo ou e-mail..."
+                class="modal-search-input"
+              />
+            </div>
+
+            <div class="modal-members-picker-list">
+              <button
+                v-for="member in availableDirectMembers"
+                :key="member.id"
+                type="button"
+                class="modal-direct-member-row"
+                @click="startDirectChatFromModal(member.id)"
+              >
+                <div class="member-avatar-wrapper">
+                  <div class="member-avatar" :style="getAvatarStyle(member)">
+                    <img v-if="member.avatar_url" :src="member.avatar_url" :alt="member.name" />
+                    <span v-else>{{ getInitials(member.name) }}</span>
+                  </div>
+                  <span
+                    class="member-status-dot"
+                    :class="{ online: isUserOnline(member.id) }"
+                  ></span>
+                </div>
+                <div class="modal-member-details">
+                  <span class="modal-member-name">{{ member.name }}</span>
+                  <span class="modal-member-role">{{ member.role || 'Colaborador' }}</span>
+                </div>
+                <i class="ri-chat-1-line modal-start-icon"></i>
+              </button>
+              <div v-if="availableDirectMembers.length === 0" class="empty-members-msg py-4">
+                <i class="ri-user-unfollow-line"></i>
+                <span>Nenhum colega encontrado</span>
               </div>
-              <span class="channel-input-hint">Use letras, números e hífens.</span>
+            </div>
+          </div>
+
+          <!-- CONTEÚDO ABA 2: Criar Novo Grupo / Canal -->
+          <form v-else-if="newChatTab === 'group'" @submit.prevent="submitCreateChannel" class="channel-modal-body">
+            <div class="channel-form-group">
+              <label class="channel-form-label">Nome do Grupo / Canal</label>
+              <input
+                v-model="newChannelForm.name"
+                type="text"
+                placeholder="ex: Comercial, Suporte N2, Projetos 2026"
+                class="channel-input-plain"
+                required
+                maxlength="50"
+              />
             </div>
 
             <div class="channel-form-group">
-              <label class="channel-form-label">Tipo de Canal</label>
-              <div class="channel-type-selector">
-                <label
-                  class="type-option-card"
-                  :class="{ selected: newChannelForm.type === 'general' }"
-                >
-                  <input
-                    type="radio"
-                    value="general"
-                    v-model="newChannelForm.type"
-                    style="display: none"
-                  />
-                  <div class="type-icon-box">
-                    <i class="ri-global-line"></i>
-                  </div>
-                  <div class="type-text-box">
-                    <span class="type-title">Público da Empresa</span>
-                    <span class="type-desc">Todos os colaboradores têm acesso automático</span>
-                  </div>
-                </label>
+              <label class="channel-form-label">Foto / Imagem do Grupo (opcional)</label>
+              <input
+                v-model="newChannelForm.avatar_url"
+                type="url"
+                placeholder="URL da imagem (ex: https://...)"
+                class="channel-input-plain"
+              />
+            </div>
 
+            <div class="channel-form-group">
+              <label class="channel-form-label">Tipo de Conversa</label>
+              <div class="channel-type-selector">
                 <label
                   class="type-option-card"
                   :class="{ selected: newChannelForm.type === 'group' }"
@@ -946,8 +1078,27 @@
                     <i class="ri-lock-line"></i>
                   </div>
                   <div class="type-text-box">
-                    <span class="type-title">Grupo Privado / Equipe</span>
+                    <span class="type-title">Grupo Privado</span>
                     <span class="type-desc">Apenas colaboradores selecionados participam</span>
+                  </div>
+                </label>
+
+                <label
+                  class="type-option-card"
+                  :class="{ selected: newChannelForm.type === 'general' }"
+                >
+                  <input
+                    type="radio"
+                    value="general"
+                    v-model="newChannelForm.type"
+                    style="display: none"
+                  />
+                  <div class="type-icon-box">
+                    <i class="ri-global-line"></i>
+                  </div>
+                  <div class="type-text-box">
+                    <span class="type-title">Canal Público</span>
+                    <span class="type-desc">Visível para todos os colaboradores da empresa</span>
                   </div>
                 </label>
               </div>
@@ -956,7 +1107,7 @@
             <!-- Seleção de Membros se for Grupo Privado -->
             <div v-if="newChannelForm.type === 'group'" class="channel-form-group">
               <div class="member-select-header">
-                <label class="channel-form-label mb-0">Adicionar Participantes</label>
+                <label class="channel-form-label mb-0">Selecionar Participantes</label>
                 <span class="selected-counter">{{ newChannelForm.participant_ids.length }} selecionado(s)</span>
               </div>
               <div class="channel-member-picker">
@@ -986,12 +1137,124 @@
             </div>
 
             <div class="channel-modal-footer">
-              <button type="button" class="btn-modal-cancel" @click="closeNewChannelModal">
+              <button type="button" class="btn-modal-cancel" @click="closeNewChatModal">
                 Cancelar
               </button>
               <button type="submit" class="btn-modal-submit" :disabled="isSubmittingChannel">
                 <i v-if="isSubmittingChannel" class="ri-loader-4-line spin-icon"></i>
-                <span v-else>Criar Canal</span>
+                <span v-else>Criar Grupo</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Modal de Edição / Configurações do Grupo -->
+    <Teleport to="body">
+      <div v-if="showEditGroupModal" class="modal-overlay" @click.self="closeEditGroupModal">
+        <div class="channel-modal-card">
+          <div class="channel-modal-header">
+            <div>
+              <h3 class="channel-modal-title">Configurações do Grupo</h3>
+              <p class="channel-modal-subtitle">Edite o nome, foto e membros participantes</p>
+            </div>
+            <button type="button" class="btn-modal-close" @click="closeEditGroupModal">
+              <i class="ri-close-line"></i>
+            </button>
+          </div>
+
+          <form @submit.prevent="submitUpdateGroup" class="channel-modal-body">
+            <div class="channel-form-group">
+              <label class="channel-form-label">Nome do Grupo</label>
+              <input
+                v-model="editGroupForm.name"
+                type="text"
+                class="channel-input-plain"
+                required
+                maxlength="50"
+              />
+            </div>
+
+            <div class="channel-form-group">
+              <label class="channel-form-label">Foto / Imagem do Grupo (URL)</label>
+              <div class="group-photo-preview-row">
+                <div v-if="editGroupForm.avatar_url" class="group-avatar-preview-box">
+                  <img :src="editGroupForm.avatar_url" alt="Prévia" />
+                </div>
+                <input
+                  v-model="editGroupForm.avatar_url"
+                  type="url"
+                  placeholder="https://exemplo.com/foto.jpg"
+                  class="channel-input-plain"
+                />
+              </div>
+            </div>
+
+            <!-- Adicionar / Remover Participantes (se grupo) -->
+            <div class="channel-form-group" v-if="editGroupForm.type !== 'general'">
+              <div class="member-select-header">
+                <label class="channel-form-label mb-0">Membros Participantes</label>
+                <span class="selected-counter">{{ editGroupForm.participant_ids.length }} membro(s)</span>
+              </div>
+              <div class="channel-member-picker">
+                <div
+                  v-for="member in chatStore.teamMembers"
+                  :key="member.id"
+                  class="picker-member-row"
+                  :class="{ selected: editGroupForm.participant_ids.includes(member.id) }"
+                  @click="toggleEditGroupMember(member.id)"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="editGroupForm.participant_ids.includes(member.id)"
+                    @click.stop="toggleEditGroupMember(member.id)"
+                    class="member-checkbox"
+                  />
+                  <div class="member-avatar drawer-small-avatar" :style="getAvatarStyle(member)">
+                    <img v-if="member.avatar_url" :src="member.avatar_url" :alt="member.name" />
+                    <span v-else>{{ getInitials(member.name) }}</span>
+                  </div>
+                  <div class="picker-member-info">
+                    <span class="picker-name">
+                      {{ member.name }}
+                      <span v-if="member.id === auth.user?.id" class="self-tag">(Você)</span>
+                    </span>
+                    <span class="picker-role">{{ member.role || 'Colaborador' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Zona de Ações de Saída e Exclusão -->
+            <div class="group-danger-actions" v-if="editGroupForm.type !== 'general'">
+              <button
+                type="button"
+                class="btn-leave-group"
+                :disabled="isLeavingGroup"
+                @click="handleLeaveGroup"
+              >
+                <i class="ri-logout-box-r-line"></i> Sair do Grupo
+              </button>
+
+              <button
+                v-if="editGroupForm.created_by === auth.user?.id || auth.user?.role === 'admin'"
+                type="button"
+                class="btn-delete-group"
+                :disabled="isDeletingGroup"
+                @click="handleDeleteGroup"
+              >
+                <i class="ri-delete-bin-line"></i> Excluir Grupo
+              </button>
+            </div>
+
+            <div class="channel-modal-footer">
+              <button type="button" class="btn-modal-cancel" @click="closeEditGroupModal">
+                Cancelar
+              </button>
+              <button type="submit" class="btn-modal-submit" :disabled="isUpdatingGroup">
+                <i v-if="isUpdatingGroup" class="ri-loader-4-line spin-icon"></i>
+                <span v-else>Salvar Alterações</span>
               </button>
             </div>
           </form>
@@ -1050,13 +1313,30 @@ const currentSearchIndex = ref(0)
 const showDetailsDrawer = ref(false)
 const detailsTab = ref('members') // 'members' | 'media' | 'pinned'
 
-// ─── Modal de Criação de Canal ────────────────────────────────────────────────
-const showNewChannelModal = ref(false)
+// ─── Modal de Criação / Edição de Conversas e Grupos ──────────────────────────
+const showNewChatModal = ref(false)
+const newChatTab = ref('direct') // 'direct' | 'group'
+const newChatMemberSearch = ref('')
 const isSubmittingChannel = ref(false)
 const newChannelForm = ref({
   name: '',
-  type: 'general',
+  avatar_url: '',
+  type: 'group',
   participant_ids: []
+})
+
+const showEditGroupModal = ref(false)
+const isUpdatingGroup = ref(false)
+const isLeavingGroup = ref(false)
+const isDeletingGroup = ref(false)
+const editGroupForm = ref({
+  id: null,
+  name: '',
+  avatar_url: '',
+  type: 'group',
+  created_by: null,
+  participant_ids: [],
+  memberFilter: ''
 })
 
 // ─── Fase 4: Reações, Menções, Fixadas e Edição ──────────────────────────────
@@ -1149,28 +1429,49 @@ const displayedChannels = computed(() => {
   return list.filter(c => c.name?.toLowerCase().includes(term))
 })
 
-const filteredMembers = computed(() => {
+const directConversations = computed(() => {
+  return chatStore.conversations.filter(c => c.type === 'direct')
+})
+
+const unreadDirectConversations = computed(() => {
+  return directConversations.value.filter(c => (c.unread_count || 0) > 0)
+})
+
+const displayedDirectConversations = computed(() => {
+  let list = directConversations.value
+  if (activeFilter.value === 'unread') {
+    list = unreadDirectConversations.value
+  }
+
   const term = searchTerm.value.toLowerCase().trim()
-  if (!term) return chatStore.teamMembers
+  if (!term) return list
+  return list.filter(c => 
+    c.name?.toLowerCase().includes(term) ||
+    c.other_user?.role?.toLowerCase().includes(term) ||
+    c.other_user?.email?.toLowerCase().includes(term)
+  )
+})
+
+const otherColleaguesSearchMatches = computed(() => {
+  const term = searchTerm.value.toLowerCase().trim()
+  if (!term) return []
+  const activePartnerIds = new Set(directConversations.value.map(c => String(c.other_user?.id)))
   return chatStore.teamMembers.filter(m => 
+    m.id !== auth.user?.id &&
+    !activePartnerIds.has(String(m.id)) &&
+    (m.name?.toLowerCase().includes(term) || m.role?.toLowerCase().includes(term) || m.email?.toLowerCase().includes(term))
+  )
+})
+
+const availableDirectMembers = computed(() => {
+  const term = newChatMemberSearch.value.toLowerCase().trim()
+  const list = chatStore.teamMembers.filter(m => m.id !== auth.user?.id)
+  if (!term) return list
+  return list.filter(m => 
     m.name?.toLowerCase().includes(term) ||
     m.role?.toLowerCase().includes(term) ||
     m.email?.toLowerCase().includes(term)
   )
-})
-
-const unreadDirectMembers = computed(() => {
-  return filteredMembers.value.filter(m => {
-    const conv = getDirectConv(m.id)
-    return conv && (conv.unread_count || 0) > 0
-  })
-})
-
-const displayedMembers = computed(() => {
-  if (activeFilter.value === 'unread') {
-    return unreadDirectMembers.value
-  }
-  return filteredMembers.value
 })
 
 const activeDirectUser = computed(() => {
@@ -1325,19 +1626,31 @@ const sharedDocs = computed(() => {
   return sharedMediaFiles.value.filter(m => m.media_type !== 'image' && !isImageUrl(m.media_url))
 })
 
-// ─── Criação de Novos Canais Corporativos ─────────────────────────────────────
-function openNewChannelModal() {
+// ─── Criação e Edição de Grupos / Conversas ──────────────────────────────────
+function openNewChatModal(tab = 'direct') {
+  newChatTab.value = tab
+  newChatMemberSearch.value = ''
   newChannelForm.value = {
     name: '',
-    type: 'general',
+    avatar_url: '',
+    type: 'group',
     participant_ids: []
   }
-  showNewChannelModal.value = true
+  showNewChatModal.value = true
 }
 
-function closeNewChannelModal() {
-  showNewChannelModal.value = false
+function closeNewChatModal() {
+  showNewChatModal.value = false
   isSubmittingChannel.value = false
+}
+
+function openNewChannelModal() {
+  openNewChatModal('group')
+}
+
+async function startDirectChatFromModal(userId) {
+  closeNewChatModal()
+  await openDirectChatWithDetails(userId)
 }
 
 function toggleChannelMember(memberId) {
@@ -1350,28 +1663,127 @@ function toggleChannelMember(memberId) {
 }
 
 async function submitCreateChannel() {
-  let rawName = newChannelForm.value.name.trim().replace(/^#+/, '').replace(/\s+/g, '-').toLowerCase()
+  let rawName = newChannelForm.value.name.trim()
   if (!rawName) {
-    ui.showToast('Informe um nome para o canal.', 'error')
+    ui.showToast('Informe um nome para o grupo ou canal.', 'error')
     return
   }
 
   isSubmittingChannel.value = true
   try {
+    const finalName = newChannelForm.value.type === 'general'
+      ? (rawName.startsWith('#') ? rawName : `#${rawName.replace(/\s+/g, '-').toLowerCase()}`)
+      : rawName
+
     const created = await chatStore.createChannel({
-      name: `#${rawName}`,
+      name: finalName,
       type: newChannelForm.value.type,
+      avatar_url: newChannelForm.value.avatar_url?.trim() || null,
       participant_ids: newChannelForm.value.participant_ids
     })
 
     if (created) {
-      closeNewChannelModal()
+      closeNewChatModal()
       if (showDetailsDrawer.value) {
         await chatStore.fetchConversationDetails(created.id)
       }
     }
   } finally {
     isSubmittingChannel.value = false
+  }
+}
+
+async function openEditGroupModal() {
+  if (!chatStore.activeConversation || chatStore.activeConversation.type === 'direct') return
+
+  await chatStore.fetchConversationDetails(chatStore.activeConversation.id)
+  const currentParticipants = chatStore.conversationDetails?.participants || []
+  const participantIds = currentParticipants.map(p => p.id)
+
+  editGroupForm.value = {
+    id: chatStore.activeConversation.id,
+    name: chatStore.activeConversation.name?.replace(/^#/, '') || '',
+    avatar_url: chatStore.activeConversation.avatar_url || '',
+    type: chatStore.activeConversation.type,
+    created_by: chatStore.activeConversation.created_by,
+    participant_ids: participantIds.length ? participantIds : [auth.user?.id],
+    memberFilter: ''
+  }
+  showEditGroupModal.value = true
+}
+
+function closeEditGroupModal() {
+  showEditGroupModal.value = false
+  isUpdatingGroup.value = false
+  isLeavingGroup.value = false
+  isDeletingGroup.value = false
+}
+
+function toggleEditGroupMember(memberId) {
+  const index = editGroupForm.value.participant_ids.indexOf(memberId)
+  if (index === -1) {
+    editGroupForm.value.participant_ids.push(memberId)
+  } else {
+    if (memberId === auth.user?.id) {
+      ui.showToast('Para sair do grupo, utilize o botão "Sair do Grupo".', 'warning')
+      return
+    }
+    editGroupForm.value.participant_ids.splice(index, 1)
+  }
+}
+
+async function submitUpdateGroup() {
+  const rawName = editGroupForm.value.name.trim()
+  if (!rawName) {
+    ui.showToast('O grupo precisa de um nome.', 'error')
+    return
+  }
+
+  isUpdatingGroup.value = true
+  try {
+    const finalName = editGroupForm.value.type === 'general'
+      ? (rawName.startsWith('#') ? rawName : `#${rawName.replace(/\s+/g, '-').toLowerCase()}`)
+      : rawName
+
+    const success = await chatStore.updateChannel(editGroupForm.value.id, {
+      name: finalName,
+      avatar_url: editGroupForm.value.avatar_url?.trim() || null,
+      participant_ids: editGroupForm.value.participant_ids
+    })
+
+    if (success) {
+      closeEditGroupModal()
+    }
+  } finally {
+    isUpdatingGroup.value = false
+  }
+}
+
+async function handleLeaveGroup() {
+  if (!confirm('Deseja realmente sair deste grupo?')) return
+  isLeavingGroup.value = true
+  try {
+    const success = await chatStore.leaveChannel(editGroupForm.value.id)
+    if (success) {
+      closeEditGroupModal()
+      selectGeneralChannel()
+    }
+  } finally {
+    isLeavingGroup.value = false
+  }
+}
+
+async function handleDeleteGroup() {
+  if (!confirm('ATENÇÃO: Deseja realmente excluir este grupo permanentemente? Todas as mensagens serão perdidas.')) return
+  isDeletingGroup.value = true
+  try {
+    const success = await chatStore.deleteChannel(editGroupForm.value.id)
+    if (success) {
+      closeEditGroupModal()
+      selectGeneralChannel()
+    }
+  } finally {
+    isDeletingGroup.value = false
   }
 }
 
@@ -1819,18 +2231,47 @@ function formatMessageTime(dateStr) {
   overflow: hidden;
 }
 
-.sidebar-header {
-  padding: 16px;
+.internal-chat-sidebar-header {
+  padding: 14px 14px 10px 14px;
   border-bottom: 1px solid #f1f5f9;
   background: #ffffff;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .header-title-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+}
+
+.header-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-new-chat-action {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-new-chat-action:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
 }
 
 .title-with-icon {
@@ -2060,6 +2501,55 @@ function formatMessageTime(dateStr) {
 
 .conversation-item.active {
   background: #eff6ff;
+}
+
+.channel-avatar-wrapper {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid #e2e8f0;
+}
+
+.channel-custom-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.btn-start-chat-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: all 0.15s ease;
+}
+
+.btn-start-chat-inline:hover {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.badge-new-chat-invite {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 1px 6px;
+  border-radius: 10px;
 }
 
 .channel-icon-box {
@@ -2452,6 +2942,10 @@ function formatMessageTime(dateStr) {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  background-color: #f0f2f5;
+  background-image: url('/chat-wallpaper.svg');
+  background-repeat: repeat;
+  background-size: 420px 420px;
 }
 
 .messages-loading {
@@ -3558,6 +4052,55 @@ function formatMessageTime(dateStr) {
   color: #94a3b8;
 }
 
+.btn-edit-group-drawer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-edit-group-drawer:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.drawer-members-header-action {
+  padding: 8px 12px 4px 12px;
+}
+
+.btn-manage-members-pill {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-manage-members-pill:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
 /* ─── MODAL DE NOVO CANAL ────────────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed;
@@ -3848,6 +4391,223 @@ function formatMessageTime(dateStr) {
 .btn-modal-submit:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Abas do Modal e Seleção Direta */
+.modal-tabs-header {
+  display: flex;
+  border-bottom: 1px solid #f1f5f9;
+  background: #f8fafc;
+}
+
+.modal-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.modal-tab-btn:hover {
+  color: #1e293b;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.modal-tab-btn.active {
+  color: #2563eb;
+  background: #ffffff;
+  border-bottom-color: #2563eb;
+}
+
+.modal-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.modal-search-wrapper i {
+  position: absolute;
+  left: 12px;
+  color: #94a3b8;
+  font-size: 16px;
+}
+
+.modal-search-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px 0 36px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #1e293b;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.modal-search-input:focus {
+  background: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.modal-members-picker-list {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.modal-direct-member-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #f1f5f9;
+  background: #ffffff;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.modal-direct-member-row:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.modal-member-details {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.modal-member-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.modal-member-role {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.modal-start-icon {
+  font-size: 18px;
+  color: #94a3b8;
+  transition: color 0.15s ease;
+}
+
+.modal-direct-member-row:hover .modal-start-icon {
+  color: #2563eb;
+}
+
+.channel-input-plain {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: #1e293b;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.channel-input-plain:focus {
+  background: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.group-photo-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.group-avatar-preview-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  flex-shrink: 0;
+}
+
+.group-avatar-preview-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.self-tag {
+  font-size: 10.5px;
+  color: #2563eb;
+  font-weight: normal;
+  margin-left: 4px;
+}
+
+.group-danger-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px dashed #e2e8f0;
+  margin-top: 4px;
+}
+
+.btn-leave-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #fed7aa;
+  color: #ea580c;
+  background: #fff7ed;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-leave-group:hover:not(:disabled) {
+  background: #ffedd5;
+  border-color: #fdba74;
+}
+
+.btn-delete-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  background: #fef2f2;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-delete-group:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
 }
 
 /* ─── FASE 4: MENSAGENS FIXADAS, REAÇÕES, EDIÇÃO E MENÇÕES ───────────────── */

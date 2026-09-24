@@ -233,12 +233,93 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     }
   }
 
+  // Atualiza canal ou grupo corporativo
+  async function updateChannel(conversationId, payload) {
+    try {
+      const { data } = await internalChatApi.updateChannel(conversationId, payload)
+      if (data?.success) {
+        if (data.details) conversationDetails.value = data.details
+        await fetchConversations()
+        if (activeConversation.value?.id === conversationId) {
+          const updated = conversations.value.find(c => c.id === conversationId)
+          if (updated) activeConversation.value = updated
+        }
+        ui.showToast('Grupo atualizado com sucesso!')
+        return data.details
+      }
+    } catch (err) {
+      ui.showToast('Erro ao atualizar grupo: ' + (err.response?.data?.error || err.message), 'error')
+      throw err
+    }
+  }
+
+  // Exclui canal ou grupo corporativo
+  async function deleteChannel(conversationId) {
+    try {
+      const { data } = await internalChatApi.deleteChannel(conversationId)
+      if (data?.success) {
+        conversations.value = conversations.value.filter(c => c.id !== conversationId)
+        if (activeConversation.value?.id === conversationId) {
+          activeConversation.value = conversations.value[0] || null
+          if (activeConversation.value) selectConversation(activeConversation.value)
+        }
+        ui.showToast('Grupo excluído com sucesso.')
+        return true
+      }
+    } catch (err) {
+      ui.showToast('Erro ao excluir grupo: ' + (err.response?.data?.error || err.message), 'error')
+      throw err
+    }
+  }
+
+  // Sair de um grupo
+  async function leaveChannel(conversationId) {
+    try {
+      const { data } = await internalChatApi.leaveChannel(conversationId)
+      if (data?.success) {
+        conversations.value = conversations.value.filter(c => c.id !== conversationId)
+        if (activeConversation.value?.id === conversationId) {
+          activeConversation.value = conversations.value[0] || null
+          if (activeConversation.value) selectConversation(activeConversation.value)
+        }
+        ui.showToast('Você saiu do grupo.')
+        return true
+      }
+    } catch (err) {
+      ui.showToast('Erro ao sair do grupo: ' + (err.response?.data?.error || err.message), 'error')
+      throw err
+    }
+  }
+
   // Notificação de novo canal criado em tempo real
   function handleConversationCreated(conv) {
     if (!conv || !conv.id) return
     if (!conversations.value.some(c => c.id === conv.id)) {
       conversations.value.unshift(conv)
       ui.showToast(`📢 Novo canal disponível: ${conv.name}`)
+    }
+  }
+
+  function handleConversationUpdated(data) {
+    if (!data?.id) return
+    const conv = conversations.value.find(c => c.id === data.id)
+    if (conv) {
+      if (data.name) conv.name = data.name
+      if (data.avatar_url !== undefined) conv.avatar_url = data.avatar_url
+    }
+    if (activeConversation.value?.id === data.id) {
+      if (data.name) activeConversation.value.name = data.name
+      if (data.avatar_url !== undefined) activeConversation.value.avatar_url = data.avatar_url
+      if (data.details) conversationDetails.value = data.details
+    }
+  }
+
+  function handleConversationDeleted({ id }) {
+    if (!id) return
+    conversations.value = conversations.value.filter(c => c.id !== id)
+    if (activeConversation.value?.id === id) {
+      activeConversation.value = conversations.value[0] || null
+      if (activeConversation.value) selectConversation(activeConversation.value)
     }
   }
 
@@ -367,8 +448,13 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     selectConversation,
     startDirectChatWith,
     createChannel,
+    updateChannel,
+    deleteChannel,
+    leaveChannel,
     fetchConversationDetails,
     handleConversationCreated,
+    handleConversationUpdated,
+    handleConversationDeleted,
     sendMessage,
     sendMedia,
     handleIncomingInternalMessage,

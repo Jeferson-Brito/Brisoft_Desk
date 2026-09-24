@@ -116,6 +116,8 @@ class InternalChatService {
           type: conv.type,
           name: title,
           department_id: conv.department_id,
+          created_by: conv.created_by || null,
+          avatar_url: conv.avatar_url || null,
           other_user: otherUser,
           unread_count: unreadCount,
           last_message_text: conv.last_message_text || '',
@@ -477,7 +479,7 @@ class InternalChatService {
   }
 
   // Cria um novo canal ou grupo interno
-  async createChannel(currentUser, { name, type = 'group', department_id = null, participant_ids = [] }) {
+  async createChannel(currentUser, { name, type = 'group', department_id = null, avatar_url = null, participant_ids = [] }) {
     if (!name || !name.trim()) throw new Error('Nome do canal é obrigatório');
 
     const cleanName = name.trim();
@@ -491,7 +493,8 @@ class InternalChatService {
       name: cleanName,
       department_id: department_id || null,
       created_by: currentUser.id,
-      last_message_text: `Canal criado por ${currentUser.name || 'Colega'}`,
+      avatar_url: avatar_url || null,
+      last_message_text: `Grupo criado por ${currentUser.name || 'Colega'}`,
       last_message_at: now,
       created_at: now,
       updated_at: now
@@ -532,6 +535,196 @@ class InternalChatService {
     }
 
     return convData;
+  }
+
+  // Atualiza dados e participantes do grupo/canal
+  async updateChannel(currentUser, conversationId, { name, avatar_url, participant_ids }) {
+    if (!conversationId) throw new Error('ID da conversa é obrigatório');
+
+    let conv = null;
+    let currentParticipantIds = [];
+    if (isSupabaseConfigured()) {
+      const { data: convData } = await supabase
+        .from('internal_conversations')
+        .select('*')
+        .eq('id', conversationId)
+        .single();
+      if (!convData) throw new Error('Conversa não encontrada');
+      conv = convData;
+
+      const { data: currentParts } = await supabase
+        .from('internal_conversation_participants')
+        .select('user_id')
+        .eq('conversation_id', conversationId);
+      currentParticipantIds = (currentParts || []).map(p => p.user_id);
+    } else {
+      conv = memoryConversations.find(c => c.id === conversationId);
+      if (!conv) throw new Error('Conversa não encontrada');
+      currentParticipantIds = memoryParticipants.filter(p => p.conversation_id === conversationId).map(p => p.user_id);
+    }
+
+    if (conv.type === 'direct') {
+      throw new Error('Conversas diretas não podem ser editadas');
+    }
+
+    const updates = { updated_at: new Date().toISOString() };
+    if (name && typeof name === 'string' && name.trim()) {
+      updates.name = name.trim();
+      conv.name = updates.name;
+    }
+    if (avatar_url !== undefined) {
+      updates.avatar_url = avatar_url;
+      conv.avatar_url = avatar_url;
+    }
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase
+          .from('internal_conversations')
+          .update(updates)
+          .eq('id', conversationId);
+      } catch (err) {
+        console.warn('Erro ao atualizar conversa no Supabase:', err.message);
+      }
+    }
+
+    // Gerenciar participantes se fornecido
+    if (Array.isArray(participant_ids)) {
+      const targetIds = [...new Set([conv.created_by || currentUser.id, ...participant_ids].filter(Boolean))];
+      const toAdd = targetIds.filter(id => !currentParticipantIds.includes(id));
+      const toRemove = currentParticipantIds.filter(id => !targetIds.includes(id) && id !== conv.created_by);
+
+      if (isSupabaseConfigured()) {
+        try {
+          if (toAdd.length > 0) {
+            const rowsToAdd = toAdd.map(uid => ({
+              conversation_id: conversationId,
+              user_id: uid,
+              joined_at: new Date().toISOString()
+            }));
+            await supabase.from('internal_conversation_participants').insert(rowsToAdd);
+          }
+          if (toRemove.length > 0) {
+            await supabase
+              .from('internal_conversation_participants')
+              .delete()
+              .eq('conversation_id', conversationId)
+              .in('user_id', toRemove);
+          }
+        } catch (err) {
+          console.warn('Erro ao atualizar participantes no Supabase:', err.message);
+        }
+      }
+
+      // Memória
+      toAdd.forEach(uid => memoryParticipants.push({ conversation_id: conversationId, user_id: uid }));
+      for (let i = memoryParticipants.length - 1; i >= 0; i--) {
+        if (memoryParticipants[i].conversation_id === conversationId && toRemove.includes(memoryParticipants[i].user_id)) {
+          memoryParticipants.splice(i, 1);
+        }
+      }
+
+      if (this.io) {
+        toRemove.forEach(uid => {
+          this.io.to(`user:${uid}`).emit('internal_conversation_removed', { id: conversationId });
+        });
+      }
+    }
+
+    const updatedDetails = await this.getConversationDetails(conversationId);
+
+    if (this.io) {
+      this.broadcastEvent(conversationId, 'internal_conversation_updated', {
+        id: conversationId,
+        name: conv.name,
+        avatar_url: conv.avatar_url,
+        updated_at: updates.updated_at,
+        details: updatedDetails
+      });
+    }
+
+    return updatedDetails;
+  }
+
+  // Exclui grupo ou canal
+  async deleteChannel(currentUser, conversationId) {
+    if (!conversationId) throw new Error('ID do canal é obrigatório');
+
+    let conv = null;
+    if (isSupabaseConfigured()) {
+      const { data } = await supabase.from('internal_conversations').select('*').eq('id', conversationId).single();
+      conv = data;
+    } else {
+      conv = memoryConversations.find(c => c.id === conversationId);
+    }
+    if (!conv) throw new Error('Canal não encontrado');
+    if (conv.type === 'general') throw new Error('O canal geral da empresa não pode ser excluído');
+
+    const isAdminUser = currentUser?.role === 'Administrador';
+    if (!isAdminUser && conv.created_by && conv.created_by !== currentUser.id) {
+      throw new Error('Apenas o criador do canal ou administradores podem excluí-lo');
+    }
+
+    if (this.io) {
+      this.broadcastEvent(conversationId, 'internal_conversation_deleted', { id: conversationId });
+    }
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('internal_conversations').delete().eq('id', conversationId);
+      } catch (err) {
+        console.warn('Erro ao deletar conversa no Supabase:', err.message);
+      }
+    }
+
+    const convIndex = memoryConversations.findIndex(c => c.id === conversationId);
+    if (convIndex !== -1) memoryConversations.splice(convIndex, 1);
+
+    return { success: true, id: conversationId };
+  }
+
+  // Sair de um grupo
+  async leaveChannel(currentUser, conversationId) {
+    if (!conversationId) throw new Error('ID do canal é obrigatório');
+
+    let conv = null;
+    if (isSupabaseConfigured()) {
+      const { data } = await supabase.from('internal_conversations').select('*').eq('id', conversationId).single();
+      conv = data;
+    } else {
+      conv = memoryConversations.find(c => c.id === conversationId);
+    }
+    if (!conv) throw new Error('Canal não encontrado');
+    if (conv.type === 'general') throw new Error('Não é possível sair do canal geral da empresa');
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase
+          .from('internal_conversation_participants')
+          .delete()
+          .eq('conversation_id', conversationId)
+          .eq('user_id', currentUser.id);
+      } catch (err) {
+        console.warn('Erro ao sair do canal no Supabase:', err.message);
+      }
+    }
+
+    for (let i = memoryParticipants.length - 1; i >= 0; i--) {
+      if (memoryParticipants[i].conversation_id === conversationId && memoryParticipants[i].user_id === currentUser.id) {
+        memoryParticipants.splice(i, 1);
+      }
+    }
+
+    if (this.io) {
+      this.io.to(`user:${currentUser.id}`).emit('internal_conversation_removed', { id: conversationId });
+      this.broadcastEvent(conversationId, 'internal_participant_left', {
+        conversation_id: conversationId,
+        user_id: currentUser.id,
+        user_name: currentUser.name
+      });
+    }
+
+    return { success: true };
   }
 
   // Retorna detalhes completos da conversa (membros e galeria de mídia)

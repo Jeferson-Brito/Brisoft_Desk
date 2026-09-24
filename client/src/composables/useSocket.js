@@ -222,6 +222,26 @@ export function useSocket() {
       internalChat.handleConversationCreated(conv)
     })
 
+    socket.on('internal_conversation_updated', (data) => {
+      const internalChat = useInternalChatStore()
+      internalChat.handleConversationUpdated(data)
+    })
+
+    socket.on('internal_conversation_deleted', (data) => {
+      const internalChat = useInternalChatStore()
+      internalChat.handleConversationDeleted(data)
+    })
+
+    socket.on('internal_conversation_removed', (data) => {
+      const internalChat = useInternalChatStore()
+      internalChat.handleConversationDeleted(data)
+    })
+
+    socket.on('internal_participant_left', () => {
+      const internalChat = useInternalChatStore()
+      internalChat.fetchConversations()
+    })
+
     socket.on('internal_reaction_updated', (data) => {
       const internalChat = useInternalChatStore()
       internalChat.handleReactionUpdated(data)

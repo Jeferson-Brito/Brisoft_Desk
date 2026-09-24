@@ -132,9 +132,9 @@
         </Transition>
       </div>
 
-      <!-- Botão + Novo atendimento (Exibido exclusivamente no módulo de Atendimentos) -->
+      <!-- Botão + Novo atendimento (Exibido exclusivamente na aba de Atendimentos com clientes) -->
       <button
-        v-if="currentModule === 'atendimentos'"
+        v-if="currentModule === 'atendimentos' && ui.activeChatModuleTab === 'atendimentos'"
         type="button"
         class="btn-new-attendance-cta"
         title="Iniciar novo atendimento"

@@ -192,6 +192,44 @@ class InternalChatController {
       return res.status(400).json({ success: false, error: error.message });
     }
   }
+
+  async updateChannel(req, res) {
+    try {
+      const { id } = req.params;
+      const { name, avatar_url, participant_ids } = req.body;
+      const details = await internalChatService.updateChannel(req.user, id, {
+        name,
+        avatar_url,
+        participant_ids
+      });
+      return res.json({ success: true, details });
+    } catch (error) {
+      console.error('Erro ao atualizar canal interno:', error);
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async deleteChannel(req, res) {
+    try {
+      const { id } = req.params;
+      const result = await internalChatService.deleteChannel(req.user, id);
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      console.error('Erro ao excluir canal interno:', error);
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async leaveChannel(req, res) {
+    try {
+      const { id } = req.params;
+      const result = await internalChatService.leaveChannel(req.user, id);
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      console.error('Erro ao sair do canal interno:', error);
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
 }
 
 module.exports = new InternalChatController();

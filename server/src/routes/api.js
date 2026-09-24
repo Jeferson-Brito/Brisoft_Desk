@@ -162,6 +162,9 @@ router.post(
 );
 router.post('/internal-chat/direct/:targetUserId', requireAuth, (req, res) => internalChatController.startDirectChat(req, res));
 router.post('/internal-chat/channels', requireAuth, (req, res) => internalChatController.createChannel(req, res));
+router.put('/internal-chat/channels/:id', requireAuth, (req, res) => internalChatController.updateChannel(req, res));
+router.delete('/internal-chat/channels/:id', requireAuth, (req, res) => internalChatController.deleteChannel(req, res));
+router.post('/internal-chat/channels/:id/leave', requireAuth, (req, res) => internalChatController.leaveChannel(req, res));
 router.get('/internal-chat/conversations/:id/details', requireAuth, (req, res) => internalChatController.getConversationDetails(req, res));
 router.post('/internal-chat/conversations/:id/read', requireAuth, (req, res) => internalChatController.markAsRead(req, res));
 router.post('/internal-chat/messages/:id/reactions', requireAuth, (req, res) => internalChatController.toggleReaction(req, res));
