@@ -8,7 +8,19 @@ export const useInternalChatStore = defineStore('internalChat', () => {
   const auth = useAuthStore()
   const ui = useUiStore()
 
-  const conversations = ref([])
+  const SESSION_CONVS_KEY = 'brisoft_internal_convs_cache'
+  const SESSION_MSGS_KEY = 'brisoft_internal_msgs_cache'
+
+  function getStoredJson(key, defaultVal) {
+    try {
+      const stored = sessionStorage.getItem(key)
+      return stored ? JSON.parse(stored) : defaultVal
+    } catch {
+      return defaultVal
+    }
+  }
+
+  const conversations = ref(getStoredJson(SESSION_CONVS_KEY, []))
   const teamMembers = ref([])
   const activeConversation = ref(null)
   const conversationDetails = ref(null)
@@ -19,7 +31,7 @@ export const useInternalChatStore = defineStore('internalChat', () => {
   const typingUsers = ref({}) // conversationId -> { [userId]: userName }
 
   // Caches em memória para carregamento instantâneo (0ms)
-  const messagesCache = ref({}) // convId -> message[]
+  const messagesCache = ref(getStoredJson(SESSION_MSGS_KEY, {})) // convId -> message[]
   const detailsCache = ref({}) // convId -> details
 
   // Total de mensagens internas não lidas em todas as conversas
@@ -40,6 +52,7 @@ export const useInternalChatStore = defineStore('internalChat', () => {
           }
         }
         conversations.value = data.conversations
+        try { sessionStorage.setItem(SESSION_CONVS_KEY, JSON.stringify(data.conversations)) } catch {}
       }
     } catch (err) {
       console.warn('Erro ao carregar conversas internas:', err)

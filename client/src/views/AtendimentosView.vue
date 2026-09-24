@@ -2,7 +2,7 @@
   <div class="atendimentos-view-layout">
     <!-- VISUALIZAÇÃO 1: Fila e Chat do WhatsApp -->
     <div
-      v-if="ui.activeChatModuleTab === 'atendimentos'"
+      v-show="ui.activeChatModuleTab === 'atendimentos'"
       class="atendimentos-main-grid"
       :class="{
         'details-open': isDetailsOpen && !!ticketStore.activeTicket,
@@ -39,7 +39,7 @@
 
     <!-- VISUALIZAÇÃO 2: Chat Interno Completo da Equipe (Duas Colunas) -->
     <div
-      v-else-if="ui.activeChatModuleTab === 'conversas_internas'"
+      v-show="ui.activeChatModuleTab === 'conversas_internas'"
       class="internal-chat-full-container"
     >
       <InternalChatView />

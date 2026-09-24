@@ -167,20 +167,27 @@ class InternalChatService {
 
         const unreadCountMap = new Map();
         if (convsNeedingUnreadCheck.length > 0) {
-          await Promise.all(
-            convsNeedingUnreadCheck.map(async (c) => {
-              const cachedRead = this.lastReadCache.get(`${user.id}:${c.id}`);
-              const dbRead = userPartMap.get(c.id);
-              const lastRead = cachedRead || dbRead || '1970-01-01T00:00:00Z';
-              const { count } = await supabase
-                .from('internal_messages')
-                .select('id', { count: 'exact', head: true })
-                .eq('conversation_id', c.id)
-                .neq('sender_id', user.id)
-                .gt('created_at', lastRead);
-              unreadCountMap.set(c.id, count || 0);
-            })
-          );
+          const checkIds = convsNeedingUnreadCheck.map(c => c.id);
+          try {
+            const { data: recentMsgs } = await supabase
+              .from('internal_messages')
+              .select('conversation_id, created_at, sender_id')
+              .in('conversation_id', checkIds)
+              .neq('sender_id', user.id)
+              .order('created_at', { ascending: false })
+              .limit(100);
+
+            if (Array.isArray(recentMsgs)) {
+              for (const m of recentMsgs) {
+                const cachedRead = this.lastReadCache.get(`${user.id}:${m.conversation_id}`);
+                const dbRead = userPartMap.get(m.conversation_id);
+                const lastRead = cachedRead || dbRead || '1970-01-01T00:00:00Z';
+                if (m.created_at > lastRead) {
+                  unreadCountMap.set(m.conversation_id, (unreadCountMap.get(m.conversation_id) || 0) + 1);
+                }
+              }
+            }
+          } catch (_) {}
         }
 
         // Mapeia enriquecimento instantâneo em memória

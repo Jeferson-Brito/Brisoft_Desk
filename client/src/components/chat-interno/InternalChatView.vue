@@ -2,11 +2,10 @@
   <div class="internal-chat-layout">
     <!-- Coluna 1: Fila de Conversas Internas (Design idêntico à aba de Atendimentos) -->
     <aside class="internal-sidebar queue-column">
-      <!-- 1. Header da Fila -->
+      <!-- 1. Header da Fila (Sem contador de chats abertos) -->
       <div class="queue-header-row">
         <div class="queue-header-left">
           <h2 class="queue-title-bold">Conversas Internas</h2>
-          <span class="queue-pill-badge">{{ totalConversationsCount }}</span>
         </div>
         <div class="queue-header-right">
           <button
@@ -20,50 +19,7 @@
         </div>
       </div>
 
-      <!-- 2. Abas de Status da Fila em Cápsula (Todos, Canais, Diretas, Não lidas) -->
-      <div class="queue-status-tabs-row">
-        <button
-          type="button"
-          class="queue-status-tab"
-          :class="{ active: activeFilter === 'all' }"
-          @click="activeFilter = 'all'"
-        >
-          <span>Todos</span>
-          <span class="tab-counter">{{ totalConversationsCount }}</span>
-        </button>
-
-        <button
-          type="button"
-          class="queue-status-tab"
-          :class="{ active: activeFilter === 'channels' }"
-          @click="activeFilter = 'channels'"
-        >
-          <span>Canais</span>
-          <span class="tab-counter">{{ channelConversations.length }}</span>
-        </button>
-
-        <button
-          type="button"
-          class="queue-status-tab"
-          :class="{ active: activeFilter === 'direct' }"
-          @click="activeFilter = 'direct'"
-        >
-          <span>Diretas</span>
-          <span class="tab-counter">{{ directConversations.length }}</span>
-        </button>
-
-        <button
-          type="button"
-          class="queue-status-tab"
-          :class="{ active: activeFilter === 'unread' }"
-          @click="activeFilter = 'unread'"
-        >
-          <span>Não lidas</span>
-          <span class="tab-counter">{{ chatStore.totalUnreadCount }}</span>
-        </button>
-      </div>
-
-      <!-- 3. Campo de Busca (Buscar conversa ou colega...) -->
+      <!-- 2. Campo de Busca (Fila única, sem separação por abas) -->
       <div class="queue-search-row">
         <div class="queue-search-box">
           <span class="search-mag-icon"><i class="ri-search-line"></i></span>
@@ -83,6 +39,8 @@
         </div>
       </div>
 
+
+
       <!-- 4. Lista da Fila (Scrollable, Design exato QueueItem) -->
       <div class="queue-list-container">
         <div v-if="filteredConversationsList.length === 0 && !searchTerm" class="queue-empty-message">
@@ -96,9 +54,14 @@
           class="queue-item-card"
           :class="{
             active: chatStore.activeConversation?.id === conv.id,
-            unread: (conv.unread_count || 0) > 0
+            unread: (conv.unread_count || 0) > 0,
+            pinned: isConversationPinned(conv.id)
           }"
           @click="selectConversationWithDetails(conv)"
+          @contextmenu.prevent="openChatContextMenu($event, conv)"
+          @touchstart="handleTouchStart($event, conv)"
+          @touchend="handleTouchEnd"
+          @touchmove="handleTouchMove"
         >
           <!-- Avatar com Indicador Online -->
           <div class="queue-avatar-wrap">
@@ -126,7 +89,7 @@
 
           <!-- Conteúdo do Card -->
           <div class="queue-item-body">
-            <!-- Linha 1: Nome + Horário -->
+            <!-- Linha 1: Nome + Horário + Pin -->
             <div class="queue-row-header">
               <div class="queue-name-box">
                 <strong class="queue-contact-name" :title="conv.name">{{ conv.name }}</strong>
@@ -137,7 +100,15 @@
                   <span class="queue-icon-box-sm"><i class="ri-megaphone-line"></i></span>
                 </span>
               </div>
-              <span v-if="conv.last_message_at" class="queue-item-time">{{ formatTime(conv.last_message_at) }}</span>
+              <div class="queue-meta-right">
+                <span v-if="isConversationPinned(conv.id)" class="queue-pin-badge" title="Conversa fixada no topo">
+                  <i class="ri-pushpin-2-fill"></i>
+                </span>
+                <span v-if="isConversationMuted(conv.id)" class="queue-mute-badge" title="Notificações silenciadas">
+                  <i class="ri-notification-off-line"></i>
+                </span>
+                <span v-if="conv.last_message_at" class="queue-item-time">{{ formatTime(conv.last_message_at) }}</span>
+              </div>
             </div>
 
             <!-- Linha 2: Snippet da Mensagem -->
@@ -1248,11 +1219,66 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- Menu de Contexto Flutuante para Conversas Internas (Desktop: Botão Direito / Mobile: Pressionar e Segurar) -->
+    <Teleport to="body">
+      <div
+        v-if="contextMenu.visible"
+        class="chat-context-menu-backdrop"
+        @click="closeContextMenu"
+        @contextmenu.prevent="closeContextMenu"
+      >
+        <div
+          class="chat-context-menu"
+          :style="{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }"
+          @click.stop
+        >
+          <div class="context-menu-header">
+            <strong class="context-menu-title">{{ contextMenu.conv?.name }}</strong>
+            <small class="context-menu-sub">{{ contextMenu.conv?.type === 'direct' ? 'Conversa Direta' : (contextMenu.conv?.type === 'general' ? 'Canal Geral' : 'Grupo') }}</small>
+          </div>
+          <div class="context-menu-divider"></div>
+
+          <!-- Fixar / Desafixar -->
+          <button type="button" class="context-menu-item" @click="togglePinConversation(contextMenu.conv)">
+            <i :class="isConversationPinned(contextMenu.conv?.id) ? 'ri-pushpin-line' : 'ri-pushpin-2-fill'"></i>
+            <span>{{ isConversationPinned(contextMenu.conv?.id) ? 'Desafixar do topo' : 'Fixar conversa no topo' }}</span>
+          </button>
+
+          <!-- Marcar como lida / não lida -->
+          <button type="button" class="context-menu-item" @click="toggleReadConversation(contextMenu.conv)">
+            <i :class="(contextMenu.conv?.unread_count || 0) > 0 ? 'ri-mail-open-line' : 'ri-mail-unread-line'"></i>
+            <span>{{ (contextMenu.conv?.unread_count || 0) > 0 ? 'Marcar como lida' : 'Marcar como não lida' }}</span>
+          </button>
+
+          <!-- Silenciar / Reativar -->
+          <button type="button" class="context-menu-item" @click="toggleMuteConversation(contextMenu.conv)">
+            <i :class="isConversationMuted(contextMenu.conv?.id) ? 'ri-notification-3-line' : 'ri-notification-off-line'"></i>
+            <span>{{ isConversationMuted(contextMenu.conv?.id) ? 'Reativar notificações' : 'Silenciar notificações' }}</span>
+          </button>
+
+          <!-- Ver Detalhes -->
+          <button type="button" class="context-menu-item" @click="openDetailsFromContextMenu(contextMenu.conv)">
+            <i class="ri-information-line"></i>
+            <span>Ver detalhes e membros</span>
+          </button>
+
+          <!-- Sair do Grupo se for grupo e não for o criador -->
+          <template v-if="contextMenu.conv?.type === 'group' && contextMenu.conv?.created_by !== auth.user?.id">
+            <div class="context-menu-divider"></div>
+            <button type="button" class="context-menu-item text-danger" @click="leaveGroupFromContextMenu(contextMenu.conv)">
+              <i class="ri-logout-box-r-line"></i>
+              <span>Sair do grupo</span>
+            </button>
+          </template>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useInternalChatStore } from '@/stores/internal-chat.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -1264,7 +1290,7 @@ const ui = useUiStore()
 const { socket } = useSocket()
 
 const searchTerm = ref('')
-const activeFilter = ref('all') // 'all' | 'channels' | 'direct' | 'unread'
+const activeFilter = ref('all') // Mantido para compatibilidade interna se necessário
 const inputMessage = ref('')
 const messagesContainerRef = ref(null)
 const inputTextareaRef = ref(null)
@@ -1272,6 +1298,162 @@ const fileInputRef = ref(null)
 
 const replyingTo = ref(null)
 const previewImageUrl = ref(null)
+
+// ─── Conversas Fixadas, Silenciadas e Menu Contextual (Botão Direito / Long Touch) ───
+const PINNED_STORAGE_KEY = computed(() => `brisoft_pinned_convs_${auth.user?.id || 'default'}`)
+const MUTED_STORAGE_KEY = computed(() => `brisoft_muted_convs_${auth.user?.id || 'default'}`)
+
+function loadStoredSet(key) {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? new Set(JSON.parse(raw)) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
+function saveStoredSet(key, set) {
+  try {
+    localStorage.setItem(key, JSON.stringify(Array.from(set)))
+  } catch {}
+}
+
+const pinnedConvIds = ref(loadStoredSet(PINNED_STORAGE_KEY.value))
+const mutedConvIds = ref(loadStoredSet(MUTED_STORAGE_KEY.value))
+
+watch(PINNED_STORAGE_KEY, (newKey) => {
+  pinnedConvIds.value = loadStoredSet(newKey)
+  mutedConvIds.value = loadStoredSet(MUTED_STORAGE_KEY.value)
+})
+
+function isConversationPinned(convId) {
+  return convId ? pinnedConvIds.value.has(convId) : false
+}
+
+function isConversationMuted(convId) {
+  return convId ? mutedConvIds.value.has(convId) : false
+}
+
+function togglePinConversation(conv) {
+  if (!conv?.id) return
+  if (pinnedConvIds.value.has(conv.id)) {
+    pinnedConvIds.value.delete(conv.id)
+    ui.showToast('Conversa desafixada do topo.')
+  } else {
+    pinnedConvIds.value.add(conv.id)
+    ui.showToast('Conversa fixada no topo!')
+  }
+  pinnedConvIds.value = new Set(pinnedConvIds.value)
+  saveStoredSet(PINNED_STORAGE_KEY.value, pinnedConvIds.value)
+  closeContextMenu()
+}
+
+function toggleMuteConversation(conv) {
+  if (!conv?.id) return
+  if (mutedConvIds.value.has(conv.id)) {
+    mutedConvIds.value.delete(conv.id)
+    ui.showToast('Notificações reativadas.')
+  } else {
+    mutedConvIds.value.add(conv.id)
+    ui.showToast('Notificações silenciadas.')
+  }
+  mutedConvIds.value = new Set(mutedConvIds.value)
+  saveStoredSet(MUTED_STORAGE_KEY.value, mutedConvIds.value)
+  closeContextMenu()
+}
+
+function toggleReadConversation(conv) {
+  if (!conv?.id) return
+  if ((conv.unread_count || 0) > 0) {
+    conv.unread_count = 0
+    chatStore.markConversationAsRead(conv.id)
+    ui.showToast('Marcada como lida.')
+  } else {
+    conv.unread_count = 1
+    ui.showToast('Marcada como não lida.')
+  }
+  closeContextMenu()
+}
+
+const contextMenu = reactive({
+  visible: false,
+  x: 0,
+  y: 0,
+  conv: null
+})
+
+let touchTimer = null
+let touchMoved = false
+
+function openChatContextMenu(event, conv) {
+  if (!conv) return
+  event.preventDefault?.()
+
+  const menuWidth = 240
+  const menuHeight = 250
+  const clickX = event.clientX || (event.touches && event.touches[0]?.clientX) || 120
+  const clickY = event.clientY || (event.touches && event.touches[0]?.clientY) || 150
+
+  let posX = clickX
+  let posY = clickY
+
+  if (posX + menuWidth > window.innerWidth) {
+    posX = window.innerWidth - menuWidth - 16
+  }
+  if (posY + menuHeight > window.innerHeight) {
+    posY = window.innerHeight - menuHeight - 16
+  }
+
+  contextMenu.x = Math.max(12, posX)
+  contextMenu.y = Math.max(12, posY)
+  contextMenu.conv = conv
+  contextMenu.visible = true
+}
+
+function handleTouchStart(event, conv) {
+  touchMoved = false
+  if (touchTimer) clearTimeout(touchTimer)
+  touchTimer = setTimeout(() => {
+    if (!touchMoved) {
+      openChatContextMenu(event, conv)
+    }
+  }, 500)
+}
+
+function handleTouchMove() {
+  touchMoved = true
+  if (touchTimer) clearTimeout(touchTimer)
+}
+
+function handleTouchEnd() {
+  if (touchTimer) clearTimeout(touchTimer)
+}
+
+function closeContextMenu() {
+  contextMenu.visible = false
+  contextMenu.conv = null
+}
+
+function openDetailsFromContextMenu(conv) {
+  closeContextMenu()
+  if (conv) {
+    selectConversationWithDetails(conv)
+    showDetailsDrawer.value = true
+  }
+}
+
+async function leaveGroupFromContextMenu(conv) {
+  closeContextMenu()
+  if (!conv?.id) return
+  if (confirm(`Deseja realmente sair do grupo "${conv.name}"?`)) {
+    try {
+      await chatStore.leaveGroup(conv.id)
+      ui.showToast('Você saiu do grupo.')
+    } catch {
+      ui.showToast('Erro ao sair do grupo.', 'error')
+    }
+  }
+}
 
 // ─── Busca Textual na Conversa Ativa ──────────────────────────────────────────
 const showMessageSearch = ref(false)
@@ -1324,27 +1506,36 @@ let mediaRecorder = null
 let audioChunks = []
 let typingTimeout = null
 
-// ─── Inicialização ────────────────────────────────────────────────────────────
-onMounted(async () => {
+// ─── Inicialização Instantânea ────────────────────────────────────────────────
+onMounted(() => {
   window.addEventListener('click', closeAllPopovers)
-  await Promise.all([
-    chatStore.fetchConversations(),
-    chatStore.fetchTeamMembers()
-  ])
+  window.addEventListener('scroll', closeContextMenu, true)
 
-  // Se não houver conversa ativa, seleciona o canal Geral por padrão
-  if (!chatStore.activeConversation) {
-    const general = chatStore.conversations.find(c => c.type === 'general')
-    if (general) {
-      chatStore.selectConversation(general)
+  // 1. Inicialização instantânea: se já temos conversas em cache ou memória, exibe imediatamente!
+  if (chatStore.conversations.length > 0) {
+    if (!chatStore.activeConversation) {
+      const pinned = chatStore.conversations.find(c => isConversationPinned(c.id))
+      const general = chatStore.conversations.find(c => c.type === 'general')
+      chatStore.selectConversation(pinned || general || chatStore.conversations[0])
+    } else {
+      chatStore.selectConversation(chatStore.activeConversation)
     }
-  } else {
-    chatStore.selectConversation(chatStore.activeConversation)
   }
+
+  // 2. Atualiza dados frescos em background sem bloquear a UI
+  chatStore.fetchConversations().then(() => {
+    if (!chatStore.activeConversation && chatStore.conversations.length > 0) {
+      const pinned = chatStore.conversations.find(c => isConversationPinned(c.id))
+      const general = chatStore.conversations.find(c => c.type === 'general')
+      chatStore.selectConversation(pinned || general || chatStore.conversations[0])
+    }
+  })
+  chatStore.fetchTeamMembers()
 })
 
 onUnmounted(() => {
   window.removeEventListener('click', closeAllPopovers)
+  window.removeEventListener('scroll', closeContextMenu, true)
   clearInterval(audioTimer)
 })
 
@@ -1352,6 +1543,7 @@ function closeAllPopovers() {
   activeReactionPopoverId.value = null
   activeMoreMenuId.value = null
   showMentionSuggestions.value = false
+  closeContextMenu()
 }
 
 // Rola para a mensagem mais recente ao carregar ou receber novas mensagens
@@ -1452,9 +1644,17 @@ const filteredConversationsList = computed(() => {
   }
 
   return [...list].sort((a, b) => {
+    // 1. Conversas fixadas no topo
+    const pinnedA = isConversationPinned(a.id) ? 1 : 0
+    const pinnedB = isConversationPinned(b.id) ? 1 : 0
+    if (pinnedA !== pinnedB) return pinnedB - pinnedA
+
+    // 2. Não lidas
     const unreadA = (a.unread_count || 0) > 0 ? 1 : 0
     const unreadB = (b.unread_count || 0) > 0 ? 1 : 0
     if (unreadA !== unreadB) return unreadB - unreadA
+
+    // 3. Mais recentes
     const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0
     const timeB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0
     return timeB - timeA
@@ -2626,6 +2826,29 @@ function formatMessageTime(dateStr) {
 .queue-icon-box-sm i {
   font-size: 12px;
   line-height: 1;
+}
+
+.queue-meta-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.queue-pin-badge {
+  color: #059669;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.queue-mute-badge {
+  color: #94a3b8;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .queue-item-time {
@@ -5333,6 +5556,141 @@ function formatMessageTime(dateStr) {
     bottom: 0;
     z-index: 20;
     box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+  }
+}
+/* ─── Menu de Contexto Flutuante (Desktop e Mobile) ────────────────────────── */
+.chat-context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.chat-context-menu {
+  position: fixed;
+  width: 230px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  animation: contextMenuPop 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+@keyframes contextMenuPop {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.context-menu-header {
+  padding: 8px 10px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.context-menu-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.context-menu-sub {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.context-menu-divider {
+  height: 1px;
+  background-color: #f1f5f9;
+  margin: 4px 6px;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s ease;
+}
+
+.context-menu-item i {
+  font-size: 16px;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+}
+
+.context-menu-item:hover {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.context-menu-item:hover i {
+  color: #059669;
+}
+
+.context-menu-item.text-danger {
+  color: #dc2626;
+}
+
+.context-menu-item.text-danger i {
+  color: #ef4444;
+}
+
+.context-menu-item.text-danger:hover {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+@media (max-width: 640px) {
+  .chat-context-menu {
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    animation: contextMenuSlideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes contextMenuSlideUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .context-menu-item {
+    padding: 12px 10px;
+    font-size: 14px;
   }
 }
 </style>
