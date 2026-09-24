@@ -20,6 +20,7 @@ class InternalChatService {
   constructor() {
     this.io = null;
     this.userCache = new Map();
+    this.lastReadCache = new Map(); // key: `${userId}:${conversationId}` -> ISO string
   }
 
   setIO(ioInstance) {
@@ -107,16 +108,23 @@ class InternalChatService {
 
         // Checagem otimizada de não lidas apenas nas conversas com mensagens recentes
         const convsNeedingUnreadCheck = conversations.filter(c => {
-          const lastRead = userPartMap.get(c.id) || '1970-01-01T00:00:00Z';
+          const cachedRead = this.lastReadCache.get(`${user.id}:${c.id}`);
+          const dbRead = userPartMap.get(c.id);
+          const lastRead = cachedRead || dbRead || null;
+          // Se o usuário nunca leu e a conversa não possui mensagens, dispensa contagem
+          if (!lastRead && !c.last_message_at && !c.updated_at) return false;
+          const effectiveRead = lastRead || '1970-01-01T00:00:00Z';
           const lastMsg = c.last_message_at || c.updated_at || '';
-          return lastMsg > lastRead;
+          return lastMsg > effectiveRead;
         });
 
         const unreadCountMap = new Map();
         if (convsNeedingUnreadCheck.length > 0) {
           await Promise.all(
             convsNeedingUnreadCheck.map(async (c) => {
-              const lastRead = userPartMap.get(c.id) || '1970-01-01T00:00:00Z';
+              const cachedRead = this.lastReadCache.get(`${user.id}:${c.id}`);
+              const dbRead = userPartMap.get(c.id);
+              const lastRead = cachedRead || dbRead || '1970-01-01T00:00:00Z';
               const { count } = await supabase
                 .from('internal_messages')
                 .select('id', { count: 'exact', head: true })
@@ -415,14 +423,42 @@ class InternalChatService {
   // Marca conversa como lida
   async markAsRead(currentUser, conversationId) {
     if (!currentUser?.id || !conversationId) return;
+    const now = new Date().toISOString();
 
+    // 1. Atualiza cache em memória imediato do serviço (0ms de latência)
+    this.lastReadCache.set(`${currentUser.id}:${conversationId}`, now);
+
+    // 2. Persiste no Supabase com upsert (garante criação caso não exista linha de participante para canais gerais ou de setor)
     if (isSupabaseConfigured()) {
       try {
         await supabase
           .from('internal_conversation_participants')
-          .update({ last_read_at: new Date().toISOString() })
-          .match({ conversation_id: conversationId, user_id: currentUser.id });
-      } catch (_) {}
+          .upsert({
+            conversation_id: conversationId,
+            user_id: currentUser.id,
+            last_read_at: now,
+            joined_at: now
+          }, { onConflict: 'conversation_id,user_id' });
+      } catch (err) {
+        console.warn('Erro ao marcar conversa interna como lida no Supabase:', err.message);
+      }
+    }
+
+    // 3. Fallback para estrutura em memória
+    const memPart = memoryParticipants.find(p => p.conversation_id === conversationId && p.user_id === currentUser.id);
+    if (memPart) {
+      memPart.last_read_at = now;
+    } else {
+      memoryParticipants.push({ conversation_id: conversationId, user_id: currentUser.id, last_read_at: now, joined_at: now });
+    }
+
+    // 4. Notifica via Socket.io para sincronizar abas do mesmo usuário
+    if (this.io) {
+      this.io.to(`user:${currentUser.id}`).emit('internal_conversation_read', {
+        conversationId,
+        userId: currentUser.id,
+        readAt: now
+      });
     }
   }
 

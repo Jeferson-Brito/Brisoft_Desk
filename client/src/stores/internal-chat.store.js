@@ -31,13 +31,15 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     try {
       const { data } = await internalChatApi.listConversations()
       if (data?.success && Array.isArray(data.conversations)) {
-        conversations.value = data.conversations
-
-        // Se já tiver uma conversa ativa, atualiza os dados dela
+        // Se já tiver uma conversa ativa aberta pelo usuário, preserva unread_count = 0
         if (activeConversation.value) {
-          const found = conversations.value.find(c => c.id === activeConversation.value.id)
-          if (found) activeConversation.value = found
+          const activeInList = data.conversations.find(c => c.id === activeConversation.value.id)
+          if (activeInList) {
+            activeInList.unread_count = 0
+            activeConversation.value = activeInList
+          }
         }
+        conversations.value = data.conversations
       }
     } catch (err) {
       console.warn('Erro ao carregar conversas internas:', err)
@@ -59,6 +61,13 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     if (!conv) return
     activeConversation.value = conv
 
+    // Zera imediatamente qualquer indicador de não lida na lista e no objeto ativo
+    const targetInList = conversations.value.find(c => c.id === conv.id)
+    if (targetInList) {
+      targetInList.unread_count = 0
+    }
+    conv.unread_count = 0
+
     // Se já estiver em cache, exibe instantaneamente sem spinner (0ms)
     if (messagesCache.value[conv.id]) {
       messages.value = messagesCache.value[conv.id]
@@ -68,11 +77,8 @@ export const useInternalChatStore = defineStore('internalChat', () => {
       isLoading.value = true
     }
 
-    // Marca como lida em background
-    if (conv.unread_count > 0) {
-      conv.unread_count = 0
-      internalChatApi.markAsRead(conv.id).catch(() => {})
-    }
+    // Sempre notifica o servidor que a conversa foi visualizada (persiste last_read_at)
+    internalChatApi.markAsRead(conv.id).catch(() => {})
 
     // Busca mensagens atualizadas do servidor
     try {
@@ -81,6 +87,8 @@ export const useInternalChatStore = defineStore('internalChat', () => {
         messagesCache.value[conv.id] = data.messages
         if (activeConversation.value?.id === conv.id) {
           messages.value = data.messages
+          if (targetInList) targetInList.unread_count = 0
+          conv.unread_count = 0
         }
       }
     } catch (err) {
@@ -153,6 +161,7 @@ export const useInternalChatStore = defineStore('internalChat', () => {
         // Atualiza a conversa na lista lateral
         const conv = conversations.value.find(c => c.id === convId)
         if (conv) {
+          conv.unread_count = 0
           conv.last_message_text = data.message.text || 'Arquivo compartilhado'
           conv.last_message_at = data.message.created_at
           // Move para o topo da lista
@@ -183,6 +192,7 @@ export const useInternalChatStore = defineStore('internalChat', () => {
 
         const conv = conversations.value.find(c => c.id === convId)
         if (conv) {
+          conv.unread_count = 0
           conv.last_message_text = data.message.text || (metadata.mediaType === 'audio' ? 'Mensagem de voz' : 'Arquivo compartilhado')
           conv.last_message_at = data.message.created_at
           conversations.value = [conv, ...conversations.value.filter(c => c.id !== conv.id)]
@@ -231,7 +241,9 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     if (conv) {
       conv.last_message_text = message.text || 'Arquivo compartilhado'
       conv.last_message_at = message.created_at
-      if (!isCurrentActive && !isFromMe) {
+      if (isCurrentActive || isFromMe) {
+        conv.unread_count = 0
+      } else {
         conv.unread_count = (conv.unread_count || 0) + 1
       }
       // Reordena conversa para o topo
@@ -239,6 +251,19 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     } else {
       // Se não estiver na lista (ex: nova conversa criada por outro usuário), recarrega lista
       fetchConversations()
+    }
+  }
+
+  // Sincronização em tempo real de visualização da conversa
+  function handleConversationRead({ conversationId, userId }) {
+    if (userId === auth.user?.id) {
+      const conv = conversations.value.find(c => c.id === conversationId)
+      if (conv) {
+        conv.unread_count = 0
+      }
+      if (activeConversation.value?.id === conversationId) {
+        activeConversation.value.unread_count = 0
+      }
     }
   }
 
@@ -527,6 +552,7 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     sendMessage,
     sendMedia,
     handleIncomingInternalMessage,
+    handleConversationRead,
     handleUserTyping,
     toggleReaction,
     togglePinMessage,

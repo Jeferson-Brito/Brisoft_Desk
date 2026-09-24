@@ -217,6 +217,11 @@ export function useSocket() {
       internalChat.handleUserTyping(data)
     })
 
+    socket.on('internal_conversation_read', (data) => {
+      const internalChat = useInternalChatStore()
+      internalChat.handleConversationRead?.(data)
+    })
+
     socket.on('internal_conversation_created', (conv) => {
       const internalChat = useInternalChatStore()
       internalChat.handleConversationCreated(conv)

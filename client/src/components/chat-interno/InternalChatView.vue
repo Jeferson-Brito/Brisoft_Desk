@@ -1335,6 +1335,8 @@ onMounted(async () => {
     if (general) {
       chatStore.selectConversation(general)
     }
+  } else {
+    chatStore.selectConversation(chatStore.activeConversation)
   }
 })
 
