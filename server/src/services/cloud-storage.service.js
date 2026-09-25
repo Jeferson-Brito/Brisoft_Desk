@@ -23,6 +23,10 @@ async function mapWithConcurrency(items, concurrency, task) {
   return results;
 }
 
+const { promisify } = require('util');
+const gzipAsync = promisify(zlib.gzip);
+const gunzipAsync = promisify(zlib.gunzip);
+
 function createSessionSnapshot(files) {
   const normalized = files.map(file => ({ name: path.basename(file.name), data: file.buffer.toString('base64') }));
   const serializedFiles = JSON.stringify(normalized);
@@ -34,8 +38,32 @@ function createSessionSnapshot(files) {
   })), { level: zlib.constants.Z_BEST_SPEED });
 }
 
+async function createSessionSnapshotAsync(files) {
+  const normalized = files.map(file => ({ name: path.basename(file.name), data: file.buffer.toString('base64') }));
+  const serializedFiles = JSON.stringify(normalized);
+  const payload = Buffer.from(JSON.stringify({
+    version: 1,
+    createdAt: new Date().toISOString(),
+    checksum: crypto.createHash('sha256').update(serializedFiles).digest('hex'),
+    files: normalized
+  }));
+  return gzipAsync(payload, { level: zlib.constants.Z_BEST_SPEED });
+}
+
 function parseSessionSnapshot(buffer) {
   const snapshot = JSON.parse(zlib.gunzipSync(buffer).toString('utf8'));
+  if (snapshot?.version !== 1 || !Array.isArray(snapshot.files)) throw new Error('Formato de pacote de sessão inválido.');
+  const serializedFiles = JSON.stringify(snapshot.files);
+  const checksum = crypto.createHash('sha256').update(serializedFiles).digest('hex');
+  if (checksum !== snapshot.checksum) throw new Error('Pacote de sessão corrompido.');
+  return snapshot.files
+    .filter(file => file?.name && path.basename(file.name) === file.name && /\.json$/i.test(file.name) && typeof file.data === 'string')
+    .map(file => ({ name: file.name, buffer: Buffer.from(file.data, 'base64') }));
+}
+
+async function parseSessionSnapshotAsync(buffer) {
+  const decompressed = await gunzipAsync(buffer);
+  const snapshot = JSON.parse(decompressed.toString('utf8'));
   if (snapshot?.version !== 1 || !Array.isArray(snapshot.files)) throw new Error('Formato de pacote de sessão inválido.');
   const serializedFiles = JSON.stringify(snapshot.files);
   const checksum = crypto.createHash('sha256').update(serializedFiles).digest('hex');
@@ -77,7 +105,7 @@ async function restoreSession(accountId, targetDir) {
     try {
       const { data: snapshotFile, error: snapshotError } = await supabase.storage.from(SESSION_BUCKET).download(`${prefix}/${SESSION_SNAPSHOT_FILE}`);
       if (snapshotError || !snapshotFile) throw snapshotError || new Error('Pacote de sessão vazio.');
-      const files = parseSessionSnapshot(Buffer.from(await snapshotFile.arrayBuffer()));
+      const files = await parseSessionSnapshotAsync(Buffer.from(await snapshotFile.arrayBuffer()));
       await mapWithConcurrency(files, SESSION_CONCURRENCY, file =>
         fs.promises.writeFile(path.join(targetDir, file.name), file.buffer)
       );
@@ -113,7 +141,7 @@ async function backupSession(accountId, sourceDir) {
   }
 
   if (!snapshots.some(snapshot => snapshot.name === 'creds.json')) return 0;
-  const packageBuffer = createSessionSnapshot(snapshots);
+  const packageBuffer = await createSessionSnapshotAsync(snapshots);
   const { error } = await supabase.storage.from(SESSION_BUCKET).upload(`${accountId}/${SESSION_SNAPSHOT_FILE}`, packageBuffer, {
     contentType: 'application/gzip', upsert: true, cacheControl: '0'
   });

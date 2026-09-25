@@ -194,7 +194,7 @@ function saveLidMap(account) {
   } catch (_) {}
 }
 
-function scheduleSessionBackup(account, delayMs = 5000) {
+function scheduleSessionBackup(account, delayMs = 15000) {
   if (!account?.authDir || account.sessionBackupTimer) return;
   account.sessionBackupTimer = setTimeout(async () => {
     account.sessionBackupTimer = null;
@@ -677,7 +677,7 @@ class WhatsAppService {
         await saveCreds();
         scheduleSessionBackup(account);
       });
-      this.bindContacts(account);
+      this.bindContacts(account, baileys.downloadMediaMessage, baileys.downloadContentFromMessage);
       this.bindConnection(account, baileys.DisconnectReason);
       this.bindMessages(account, baileys.downloadMediaMessage, baileys.downloadContentFromMessage);
       this.bindCalls(account);
@@ -693,7 +693,7 @@ class WhatsAppService {
     }
   }
 
-  bindContacts(account) {
+  bindContacts(account, downloadMediaMessage, downloadContentFromMessage) {
     const updateContacts = contacts => {
       let changed = false;
       for (const c of contacts || []) {
@@ -734,11 +734,50 @@ class WhatsAppService {
       console.log(`[WhatsApp:${account.name}] histórico sincronizado (${chats?.length || 0} conversas, ${messages?.length || 0} msgs, tipo: ${syncType || 'n/d'}).`);
       if (Array.isArray(contacts) && contacts.length) updateContacts(contacts);
       if (Array.isArray(chats) && chats.length) updateChats(chats);
+      if (Array.isArray(messages) && messages.length && downloadMediaMessage) {
+        this.processBatchMessages(account, messages, downloadMediaMessage, downloadContentFromMessage);
+      }
       this.syncAccountGroups(account).catch(() => {});
       if (this.io) {
         this.io.emit('tickets_updated');
       }
     });
+  }
+
+  processBatchMessages(account, messages = [], downloadMediaMessage, downloadContentFromMessage) {
+    const now = Date.now();
+    const maxAgeMs = 7 * 24 * 60 * 60 * 1000;
+    for (const msg of messages) {
+      if (!msg?.message || !msg?.key?.remoteJid) continue;
+      const ts = typeof msg.messageTimestamp === 'object' && msg.messageTimestamp?.low ? msg.messageTimestamp.low : Number(msg.messageTimestamp);
+      const ms = ts > 1e11 ? ts : ts * 1000;
+      if (ms && (now - ms > maxAgeMs)) continue;
+
+      const rawJid = msg.key.remoteJid;
+      if (rawJid.includes('@newsletter') || rawJid.includes('status@broadcast')) continue;
+
+      const messageKey = `${account.id}:${msg.key.id || `${rawJid}:${msg.messageTimestamp}`}`;
+      if (this.recentMessageIds.has(messageKey)) continue;
+      this.rememberMessageId(messageKey);
+
+      this.messageQueue.enqueue(`${account.id}:${rawJid}`, async () => {
+        if (rawJid.includes('@g.us')) {
+          const res = await this.processGroupMessage(account, msg, downloadMediaMessage, downloadContentFromMessage);
+          if (res && String(res.type).startsWith('ignored_')) this.recentMessageIds.delete(messageKey);
+          return res;
+        }
+        if (!msg.key.fromMe) {
+          const res = await this.processIncomingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage);
+          if (res && String(res.type).startsWith('ignored_')) this.recentMessageIds.delete(messageKey);
+          return res;
+        }
+        const res = await this.processExternalOutgoingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage);
+        if (res && String(res.type).startsWith('ignored_')) this.recentMessageIds.delete(messageKey);
+        return res;
+      }).catch(() => {
+        this.recentMessageIds.delete(messageKey);
+      });
+    }
   }
 
   bindConnection(account, DisconnectReason) {
@@ -770,8 +809,8 @@ class WhatsAppService {
         account.qrCode = null;
         account.initializing = false;
         console.log(`[WhatsApp:${account.name}] conectado${account.phone ? ` (${account.phone})` : ''}.`);
-        // Gera imediatamente o pacote único usado nos próximos deploys.
-        scheduleSessionBackup(account, 500);
+        // Agenda o pacote após estabilização inicial para não travar a conexão
+        scheduleSessionBackup(account, 5000);
         await this.saveConfigs();
         this.emitAccounts();
         ticketService.handleAccountReconnected(account.id, this.io).catch(error => console.warn(`[WhatsApp:${account.name}] falha ao restaurar atendimentos: ${error.message}`));
@@ -898,10 +937,14 @@ class WhatsAppService {
                 return { type: 'platform_group_echo_ignored' };
               }
             }
-            return this.processGroupMessage(account, msg, downloadMediaMessage, downloadContentFromMessage);
+            const res = await this.processGroupMessage(account, msg, downloadMediaMessage, downloadContentFromMessage);
+            if (res && String(res.type).startsWith('ignored_')) this.recentMessageIds.delete(messageKey);
+            return res;
           }
           if (!msg.key.fromMe) {
-            return this.processIncomingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage);
+            const res = await this.processIncomingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage);
+            if (res && String(res.type).startsWith('ignored_')) this.recentMessageIds.delete(messageKey);
+            return res;
           }
           // O evento de sincronização pode chegar alguns milissegundos antes de
           // sendMessage devolver o ID. Esta pequena janela impede que um envio
@@ -911,7 +954,9 @@ class WhatsAppService {
             this.platformMessageIds.delete(messageKey);
             return { type: 'platform_echo_ignored' };
           }
-          return this.processExternalOutgoingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage);
+          const res = await this.processExternalOutgoingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage);
+          if (res && String(res.type).startsWith('ignored_')) this.recentMessageIds.delete(messageKey);
+          return res;
         }).catch(error => {
           this.recentMessageIds.delete(messageKey);
           console.error(`[WhatsApp:${account.name}] falha ao processar mensagem: ${error.message}`);

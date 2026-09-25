@@ -561,7 +561,14 @@ function selectOutboundWhatsAppAccount(accounts, department) {
 function emitTicketEvent(io, event, payload, ticket) {
   if (!io || !ticket) return;
   let target = io.to('admins');
-  if (ticket.department_id) target = target.to(`department:${ticket.department_id}`);
+  if (ticket.department_id) {
+    target = target.to(`department:${ticket.department_id}`);
+  } else {
+    target = target.to('company:general');
+  }
+  if (ticket.user_id) {
+    target = target.to(`user:${ticket.user_id}`);
+  }
   target.emit(event, payload);
 }
 
@@ -1013,17 +1020,16 @@ ${rendered}`,
       };
 
       // 1. Verifica se o cliente já possui um ticket ATIVO (chatbot, aguardando ou em_atendimento)
-      const lookupConditions = [
-        `phone.eq.${phone}`,
-        `jid.eq.${from}`,
-        `jid.eq.${outboundJid}`
-      ];
+      const lookupConditions = [];
+      if (phone) lookupConditions.push(`phone.eq.${phone}`);
+      if (from) lookupConditions.push(`jid.eq.${from}`);
+      if (outboundJid && outboundJid !== from) lookupConditions.push(`jid.eq.${outboundJid}`);
       if (rawJid && rawJid !== from) {
         lookupConditions.push(`raw_jid.eq.${rawJid}`);
         lookupConditions.push(`jid.eq.${rawJid}`);
       }
       const rawLidNum = rawJid ? rawJid.replace('@lid', '').replace(/:\d+$/, '') : null;
-      if (rawLidNum && rawLidNum !== phone) {
+      if (rawLidNum && rawLidNum !== phone && /^\d+$/.test(rawLidNum)) {
         lookupConditions.push(`phone.eq.${rawLidNum}`);
       }
 
@@ -1760,26 +1766,35 @@ ${rendered}`,
       const senderLabel = `WhatsApp (${accountLabel})`;
       const previewText = text || ({ audio: '🎙️ Áudio', image: '📷 Imagem', video: '🎥 Vídeo', document: `📄 ${fileName || 'Documento'}` }[mediaType] || 'Mensagem enviada pelo WhatsApp');
 
-      const lookup = [`phone.eq.${phone}`, `jid.eq.${targetJid}`];
+      const lookup = [];
+      if (phone) lookup.push(`phone.eq.${phone}`);
+      if (targetJid) lookup.push(`jid.eq.${targetJid}`);
       if (outboundJid && outboundJid !== targetJid) lookup.push(`jid.eq.${outboundJid}`);
       if (rawJid && rawJid !== targetJid) lookup.push(`raw_jid.eq.${rawJid}`);
-      let activeQuery = supabase.from('tickets').select('*').or(lookup.join(',')).in('status', ['chatbot', 'aguardando', 'em_atendimento']);
-      activeQuery = whatsappAccountId === 'default'
-        ? activeQuery.in('channel', ['whatsapp', channel])
-        : activeQuery.eq('channel', channel);
-      let { data: ticket, error: activeError } = await activeQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
-      if (activeError) throw activeError;
+
+      let ticket = null;
+      if (lookup.length > 0) {
+        let activeQuery = supabase.from('tickets').select('*').or(lookup.join(',')).in('status', ['chatbot', 'aguardando', 'em_atendimento']);
+        activeQuery = whatsappAccountId === 'default'
+          ? activeQuery.in('channel', ['whatsapp', channel])
+          : activeQuery.eq('channel', channel);
+        const { data: activeFound, error: activeError } = await activeQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (activeError) throw activeError;
+        ticket = activeFound;
+      }
       let createdTicket = false;
       let knownContact = await findContactByPhone(phone);
 
       let previousTicket = null;
       if (!ticket) {
-        let previousQuery = supabase.from('tickets').select('client_name, initials, contact_id, department, department_id, agent_name, handled_via, is_employee').or(lookup.join(','));
-        previousQuery = whatsappAccountId === 'default'
-          ? previousQuery.in('channel', ['whatsapp', channel])
-          : previousQuery.eq('channel', channel);
-        const previousResult = await previousQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
-        if (!previousResult.error) previousTicket = previousResult.data;
+        if (lookup.length > 0) {
+          let previousQuery = supabase.from('tickets').select('client_name, initials, contact_id, department, department_id, agent_name, handled_via, is_employee').or(lookup.join(','));
+          previousQuery = whatsappAccountId === 'default'
+            ? previousQuery.in('channel', ['whatsapp', channel])
+            : previousQuery.eq('channel', channel);
+          const previousResult = await previousQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
+          if (!previousResult.error) previousTicket = previousResult.data;
+        }
 
         if (!knownContact && phone) {
           try {
@@ -1831,7 +1846,7 @@ ${rendered}`,
           direct_whatsapp_messages: 1
         };
         if (targetDepartment?.name) ticketPayload.department = targetDepartment.name;
-        if (targetDepartment?.id && String(targetDepartment.id).length > 10) ticketPayload.department_id = targetDepartment.id;
+        if (targetDepartment?.id) ticketPayload.department_id = targetDepartment.id;
         let insertResult = await supabase.from('tickets').insert(ticketPayload).select().single();
         if (insertResult.error && isMissingTicketTimingColumns(insertResult.error)) {
           delete ticketPayload.first_response_at;
@@ -1957,6 +1972,7 @@ ${rendered}`,
       if (io) {
         emitTicketEvent(io, createdTicket ? 'ticket_created' : 'ticket_updated', { ticket: emittedTicket }, emittedTicket);
         emitTicketEvent(io, 'new_message', { ticketId: ticket.id, message: savedMessage, ticket: emittedTicket }, emittedTicket);
+        io.emit('tickets_updated');
         scheduleKpiUpdate(io);
 
         if (!emittedTicket.user_id && emittedTicket.status !== 'finalizado') {
@@ -2142,7 +2158,7 @@ ${rendered}`,
   async get24hMessagesForTicket(ticket, user = null) {
     if (!ticket) return [];
     try {
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const historyCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const phone = ticket.phone;
       const jid = ticket.jid || ticket.raw_jid;
 
@@ -2150,7 +2166,7 @@ ${rendered}`,
         .from('tickets')
         .select('id, status, department, agent_name, encerrado_por, encerrado_em, created_at, updated_at')
         .eq('status', 'finalizado')
-        .gte('updated_at', twentyFourHoursAgo)
+        .gte('updated_at', historyCutoff)
         .neq('id', ticket.id);
 
       query = scopeTicketQuery(query, user);
@@ -2191,7 +2207,7 @@ ${rendered}`,
             sender: 'system',
             type: 'divider',
             created_at: past.created_at || past.updated_at,
-            text: `📜 Histórico anterior (Últimas 24h) • *${deptName}*`
+            text: `📜 Histórico anterior • *${deptName}* (${closeTime})`
           });
 
           consolidated.push(...pMsgs);
