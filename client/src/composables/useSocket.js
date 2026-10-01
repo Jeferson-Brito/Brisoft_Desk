@@ -4,6 +4,7 @@ import { useTicketStore } from '@/stores/tickets.store'
 import { useUiStore }     from '@/stores/ui.store'
 import { useInternalChatStore } from '@/stores/internal-chat.store'
 import { sendNativeNotification, requestNotificationPermission } from '@/utils/native-notifications'
+import { closeSharedAudioContext, sharedAudioContext } from '@/utils/notification-sound'
 
 let socket = null
 const incomingCallTimers = new Map()
@@ -20,12 +21,14 @@ export function useSocket() {
     const auth = useAuthStore()
     if (!auth.token) return
     requestNotificationPermission()
-    if (socket?.connected) return
+    if (socket?.connected && socket.auth?.token === auth.token) return
 
     if (socket) {
-      socket.auth = { token: auth.token }
-      socket.connect()
-      return
+      const stale = socket
+      socket = null
+      stale.io.reconnection(false)
+      stale.removeAllListeners()
+      stale.disconnect()
     }
 
     socket = io('/', {
@@ -52,8 +55,10 @@ export function useSocket() {
 
     socket.on('connect_error', (err) => {
       ui.serverOnline = false
-      if (/autenticado|inválida|expirada/i.test(err.message)) {
-        auth.logout()
+      if (/autenticado|inválida|expirada/i.test(err.message || '')) {
+        disconnect()
+        auth.clearSession()
+        if (!window.location.pathname.startsWith('/login')) window.location.assign('/login')
       }
     })
 
@@ -74,7 +79,7 @@ export function useSocket() {
         ui.onlineUsersCount = typeof data.count === 'number' ? data.count : 0
         ui.onlineUsersList = Array.isArray(data.users) ? data.users : []
         if (data.last_seen && typeof data.last_seen === 'object') {
-          ui.lastSeenUsers = { ...ui.lastSeenUsers, ...data.last_seen }
+          ui.lastSeenUsers = { ...data.last_seen }
         }
       }
     })
@@ -83,21 +88,13 @@ export function useSocket() {
     socket.on('whatsapp_status', (data) => {
       ui.whatsappStatus = data.status
       if (Array.isArray(data.accounts)) {
-        ui.whatsappAccounts = data.accounts
+        ui.whatsappAccounts = applyWhatsAppAccounts(ui.whatsappAccounts, data.accounts, auth.canManageTeam, true)
       }
     })
 
     socket.on('whatsapp_accounts_updated', (data) => {
       if (!Array.isArray(data?.accounts)) return
-      if (auth.isAdmin) {
-        ui.whatsappAccounts = data.accounts
-      } else {
-        const existing = new Map((ui.whatsappAccounts || []).map(a => [a.id, a]))
-        for (const acc of data.accounts) {
-          existing.set(acc.id, acc)
-        }
-        ui.whatsappAccounts = [...existing.values()]
-      }
+      ui.whatsappAccounts = applyWhatsAppAccounts(ui.whatsappAccounts, data.accounts, auth.canManageTeam, auth.isAdmin)
     })
 
     // ── Tickets em tempo real ─────────────────────────────────────────────────
@@ -272,8 +269,12 @@ export function useSocket() {
   }
 
   function disconnect() {
-    socket?.disconnect()
+    if (socket) {
+      socket.io.reconnection(false)
+      socket.disconnect()
+    }
     socket = null
+    closeSharedAudioContext()
     for (const timer of incomingCallTimers.values()) clearTimeout(timer)
     incomingCallTimers.clear()
     for (const callKey of incomingCallRingtoneTimers.keys()) _stopCallRingtone(callKey)
@@ -363,9 +364,38 @@ function _notifyIfRelevant(ticket, message) {
   _playTicketSound()
 }
 
+function withoutQr(account) {
+  if (!account?.qrCode) return account
+  const copy = { ...account }
+  delete copy.qrCode
+  return copy
+}
+
+function applyWhatsAppAccounts(current, incoming, canSeeQr, replaceAll) {
+  const previousById = new Map((current || []).map(account => [String(account.id), account]))
+  const normalized = incoming.map(account => {
+    const previous = previousById.get(String(account.id))
+    if (!canSeeQr) return withoutQr(account)
+    if (!account.qrCode && previous?.qrCode && (account.status === 'scan_qr' || account.status === 'connecting')) {
+      return { ...account, qrCode: previous.qrCode }
+    }
+    return account
+  })
+  if (replaceAll) return normalized
+  const incomingIds = new Set(normalized.map(account => String(account.id)))
+  const incomingDepartments = new Set(normalized.flatMap(account => [account.departmentId, account.fallbackDepartmentId].filter(Boolean).map(String)))
+  const kept = (current || []).filter(account => {
+    if (incomingIds.has(String(account.id))) return false
+    const departments = [account.departmentId, account.fallbackDepartmentId].filter(Boolean).map(String)
+    return !departments.some(id => incomingDepartments.has(id))
+  }).map(account => (canSeeQr ? account : withoutQr(account)))
+  return [...kept, ...normalized]
+}
+
 function _playMessageSound() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const ctx = sharedAudioContext()
+    if (!ctx) return
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.connect(gain); gain.connect(ctx.destination)
@@ -381,7 +411,8 @@ function _playMessageSound() {
 
 function _playTicketSound() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const ctx = sharedAudioContext()
+    if (!ctx) return
     const ping = (freq, start, dur) => {
       const osc = ctx.createOscillator(), gain = ctx.createGain()
       osc.connect(gain); gain.connect(ctx.destination)

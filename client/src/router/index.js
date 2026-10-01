@@ -215,8 +215,11 @@ router.onError((error, to) => {
     error?.message || ''
   )
   if (isChunkError && to?.fullPath && typeof window !== 'undefined') {
-    // Redireciona diretamente para a rota pretendida, permitindo que o navegador carregue o novo asset
-    window.location.assign(to.fullPath)
+    const alreadyRetried = Object.keys(sessionStorage).some(key => key.startsWith('brifdesk_chunk_retry_'))
+    if (!alreadyRetried) {
+      sessionStorage.setItem('brifdesk_chunk_retry_navigation', '1')
+      window.location.assign(to.fullPath)
+    }
   }
 })
 

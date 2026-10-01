@@ -544,6 +544,20 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     }
   }
 
+  function resetLocalState() {
+    conversations.value = []
+    messages.value = []
+    messagesCache.value = {}
+    detailsCache.value = {}
+    activeConversation.value = null
+    conversationDetails.value = null
+    typingUsers.value = {}
+    try {
+      sessionStorage.removeItem(SESSION_CONVS_KEY)
+      sessionStorage.removeItem(SESSION_MSGS_KEY)
+    } catch {}
+  }
+
   function handleMessageDeleted({ messageId }) {
     const msg = messages.value.find(m => m.id === messageId)
     if (msg) {
@@ -566,6 +580,7 @@ export const useInternalChatStore = defineStore('internalChat', () => {
     typingUsers,
     totalUnreadCount,
     fetchConversations,
+    resetLocalState,
     fetchTeamMembers,
     selectConversation,
     startDirectChatWith,

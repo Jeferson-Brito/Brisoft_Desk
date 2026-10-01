@@ -37,7 +37,6 @@ process.on('uncaughtException', (err) => {
 });
 process.on('unhandledRejection', (reason) => {
   console.error('❌ Promise rejeitada sem tratamento:', reason);
-  process.exit(1);
 });
 
 const path = require('path');
@@ -349,6 +348,7 @@ async function gracefulShutdown(signal) {
   if (businessHoursTimer) clearInterval(businessHoursTimer);
   if (disconnectCleanupTimer) clearInterval(disconnectCleanupTimer);
   try {
+    await whatsappService.messageQueue?.whenIdle?.(4000);
     await whatsappService.closeAllSockets(signal);
   } catch (err) {
     console.warn('Erro ao fechar sockets no shutdown:', err.message);

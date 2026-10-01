@@ -104,6 +104,29 @@ function mediaSizeBytes(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+async function readBoundedMedia(source, maxBytes) {
+  if (Buffer.isBuffer(source)) {
+    return source.length > maxBytes
+      ? { overflow: true, size: source.length }
+      : { buffer: source, size: source.length };
+  }
+  if (!source || typeof source[Symbol.asyncIterator] !== 'function') {
+    throw new Error('O WhatsApp retornou uma mídia em formato desconhecido.');
+  }
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of source) {
+    const piece = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += piece.length;
+    if (total > maxBytes) {
+      if (typeof source.destroy === 'function') source.destroy();
+      return { overflow: true, size: total };
+    }
+    chunks.push(piece);
+  }
+  return { buffer: Buffer.concat(chunks), size: total };
+}
+
 function safeAccountId(value) {
   return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '');
 }
@@ -187,11 +210,15 @@ function loadLidMap(account) {
 }
 
 function saveLidMap(account) {
-  try {
+  if (!account?.id) return;
+  clearTimeout(account.lidMapSaveTimer);
+  account.lidMapSaveTimer = setTimeout(() => {
+    account.lidMapSaveTimer = null;
     const file = path.join(ACCOUNTS_ROOT, account.id, 'lid-map.json');
     const obj = Object.fromEntries(account.lidMap.entries());
-    fs.writeFileSync(file, JSON.stringify(obj, null, 2), 'utf8');
-  } catch (_) {}
+    fs.promises.writeFile(file, JSON.stringify(obj)).catch(() => {});
+  }, 400);
+  account.lidMapSaveTimer.unref?.();
 }
 
 function scheduleSessionBackup(account, delayMs = 15000) {
@@ -387,7 +414,8 @@ class WhatsAppService {
     this.loaded = false;
     this.messageQueue = new KeyedTaskQueue({
       concurrency: envInteger('WHATSAPP_MESSAGE_CONCURRENCY', 10, 1),
-      maxPending: envInteger('WHATSAPP_MAX_PENDING_MESSAGES', 10000, 1)
+      maxPending: envInteger('WHATSAPP_MAX_PENDING_MESSAGES', 10000, 1),
+      taskTimeoutMs: envInteger('WHATSAPP_TASK_TIMEOUT_MS', 120000, 1000)
     });
     this.recentMessageIds = new Map();
     this.platformMessageIds = new Map();
@@ -674,8 +702,12 @@ class WhatsAppService {
       });
       account.sock = sock;
       sock.ev.on('creds.update', async () => {
-        await saveCreds();
-        scheduleSessionBackup(account);
+        try {
+          await saveCreds();
+          scheduleSessionBackup(account);
+        } catch (error) {
+          console.warn(`[WhatsApp:${account.name}] falha ao gravar credenciais: ${error.message}`);
+        }
       });
       this.bindContacts(account, baileys.downloadMediaMessage, baileys.downloadContentFromMessage);
       this.bindConnection(account, baileys.DisconnectReason);
@@ -774,15 +806,21 @@ class WhatsAppService {
         const res = await this.processExternalOutgoingMessage(account, msg, downloadMediaMessage, downloadContentFromMessage);
         if (res && String(res.type).startsWith('ignored_')) this.recentMessageIds.delete(messageKey);
         return res;
-      }).catch(() => {
+      }).catch((error) => {
         this.recentMessageIds.delete(messageKey);
+        if (/Fila de mensagens cheia/i.test(error?.message || '')) {
+          console.error(`[WhatsApp:${account.name}] mensagem descartada: a fila estourou o limite (${messageKey}).`);
+        }
       });
     }
   }
 
   bindConnection(account, DisconnectReason) {
-    account.sock.ev.on('connection.update', async update => {
+    const sock = account.sock;
+    sock.ev.on('connection.update', async update => {
+      if (account.sock !== sock) return;
       const { connection, lastDisconnect, qr } = update;
+      try {
       if (qr) {
         account.qrCode = await QRCode.toDataURL(qr);
         account.status = 'scan_qr';
@@ -811,13 +849,14 @@ class WhatsAppService {
         console.log(`[WhatsApp:${account.name}] conectado${account.phone ? ` (${account.phone})` : ''}.`);
         // Agenda o pacote após estabilização inicial para não travar a conexão
         scheduleSessionBackup(account, 5000);
-        await this.saveConfigs();
+        await this.saveConfigs().catch(error => console.warn(`[WhatsApp:${account.name}] falha ao salvar conexão: ${error.message}`));
         this.emitAccounts();
         ticketService.handleAccountReconnected(account.id, this.io).catch(error => console.warn(`[WhatsApp:${account.name}] falha ao restaurar atendimentos: ${error.message}`));
         this.syncAccountGroups(account).catch(error => console.warn(`[WhatsApp:${account.name}] falha ao sincronizar grupos: ${error.message}`));
       }
 
       if (connection === 'close') {
+        if (account.sock !== sock && account.sock) return;
         if (account.isShuttingDown) {
           console.log(`[WhatsApp:${account.name}] conexão fechada para encerramento gracioso do servidor.`);
           return;
@@ -830,7 +869,8 @@ class WhatsAppService {
         account.disconnectReason = disconnectReason;
         account.qrCode = null;
         account.initializing = false;
-        account.sock = null;
+        if (account.sock === sock) account.sock = null;
+        try { sock.ev.removeAllListeners(); } catch (_) {}
         console.warn(`[WhatsApp:${account.name}] conexão encerrada (código ${statusCode || 'desconhecido'}).`);
         this.emitAccounts();
         if (loggedOut) {
@@ -865,6 +905,9 @@ class WhatsAppService {
           this.saveConfigs().catch(() => {});
           this.emitAccounts();
         }
+      }
+      } catch (error) {
+        console.error(`[WhatsApp:${account.name}] falha ao processar atualização da conexão:`, error.message);
       }
     });
   }
@@ -1295,34 +1338,31 @@ class WhatsAppService {
     }
 
     try {
-      let buffer = null;
+      const mediaOptions = {
+        logger: pino({ level: 'silent' }),
+        reuploadRequest: account.sock.updateMediaMessage
+      };
+      let downloaded = null;
       try {
-        buffer = await downloadMediaMessage(msg, 'buffer', { proxy: false }, {
-          logger: pino({ level: 'silent' }),
-          reuploadRequest: account.sock.updateMediaMessage
-        });
+        downloaded = await downloadMediaMessage(msg, 'stream', { proxy: false }, mediaOptions);
       } catch (primaryError) {
         try {
           const refreshedMessage = await account.sock.updateMediaMessage(msg);
-          buffer = await downloadMediaMessage(refreshedMessage, 'buffer', { proxy: false }, {
-            logger: pino({ level: 'silent' }),
-            reuploadRequest: account.sock.updateMediaMessage
-          });
+          downloaded = await downloadMediaMessage(refreshedMessage, 'stream', { proxy: false }, mediaOptions);
         } catch (refreshError) {
           if (typeof downloadContentFromMessage !== 'function') throw primaryError;
           const refreshedContent = unwrapMessageContent(msg.message);
           const refreshedMedia = refreshedContent[`${type}Message`] || mediaMessage;
-          const stream = await downloadContentFromMessage(refreshedMedia, type, { proxy: false });
-          const chunks = [];
-          for await (const chunk of stream) chunks.push(chunk);
-          buffer = Buffer.concat(chunks);
+          downloaded = await downloadContentFromMessage(refreshedMedia, type, { proxy: false });
         }
       }
-      if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new Error('O WhatsApp retornou um arquivo vazio.');
-      if (buffer.length > this.maxMediaBytes) {
+      const bounded = await readBoundedMedia(downloaded, this.maxMediaBytes);
+      if (bounded.overflow) {
         const limitMb = Math.round(this.maxMediaBytes / (1024 * 1024));
-        return { type, fileName, url: null, fallbackText: `⚠️ [Mídia acima do limite de ${limitMb} MB]`, fileSize: buffer.length };
+        return { type, fileName, url: null, fallbackText: `⚠️ [Mídia acima do limite de ${limitMb} MB]`, fileSize: bounded.size };
       }
+      const buffer = bounded.buffer;
+      if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new Error('O WhatsApp retornou um arquivo vazio.');
       await fs.promises.mkdir(MEDIA_DIR, { recursive: true });
       await Promise.all([
         fs.promises.writeFile(path.join(MEDIA_DIR, fileName), buffer),
@@ -1564,7 +1604,8 @@ class WhatsAppService {
       user.department_id
     ].filter(Boolean).map(String));
 
-    const accounts = this.getAccounts(true).filter(acc => {
+    const includeQr = user.role === 'Supervisor';
+    const accounts = this.getAccounts(includeQr).filter(acc => {
       const accDept = acc.departmentId ? String(acc.departmentId) : null;
       const fallbackDept = acc.fallbackDepartmentId ? String(acc.fallbackDepartmentId) : null;
       return (accDept && userDepts.has(accDept)) || (fallbackDept && userDepts.has(fallbackDept));
@@ -1579,12 +1620,13 @@ class WhatsAppService {
   emitAccounts() {
     if (!this.io) return;
     const allAccountsWithQr = this.getAccounts(true);
+    const allAccounts = this.getAccounts(false);
     // Administradores recebem todas as contas com QR
     this.io.to('admins').emit('whatsapp_accounts_updated', { accounts: allAccountsWithQr });
 
-    // Departamentos recebem as contas vinculadas com QR
+    // O departamento recebe o status, sem o QR de pareamento.
     const deptMap = new Map();
-    for (const account of allAccountsWithQr) {
+    for (const account of allAccounts) {
       const depts = new Set([account.departmentId, account.fallbackDepartmentId].filter(Boolean).map(String));
       for (const deptId of depts) {
         if (!deptMap.has(deptId)) deptMap.set(deptId, []);

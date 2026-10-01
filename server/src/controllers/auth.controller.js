@@ -271,6 +271,10 @@ class AuthController {
       }
       const { error } = await supabase.from('users').update(updates).eq('id', id);
       if (error) throw error;
+      if (updates.password_hash) {
+        const { stampCredentialsChanged } = require('../middleware/auth.middleware');
+        await stampCredentialsChanged(id);
+      }
       const { data: refreshed, error: readError } = await supabase
         .from('users')
         .select('id, name, email, role, department_id, avatar_url, status, is_active, is_temporary, phone, departments!users_department_id_fkey(id, name, color)')
@@ -283,7 +287,7 @@ class AuthController {
       const publicUser = await enrichUserAccess(refreshed);
       await userCargoService.enrichUserWithCargo(publicUser);
       const token = jwt.sign(
-        { id: publicUser.id, email: publicUser.email, name: publicUser.name, role: publicUser.role, cargo: publicUser.cargo, avatar_url: publicUser.avatar_url || null, is_temporary: false, department_id: publicUser.department_id, department_name: publicUser.department_name },
+        { id: publicUser.id, email: publicUser.email, name: publicUser.name, role: publicUser.role, cargo: publicUser.cargo, is_temporary: false, department_id: publicUser.department_id, department_name: publicUser.department_name },
         JWT_SECRET,
         { expiresIn: JWT_EXPIRES }
       );

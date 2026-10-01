@@ -7,6 +7,7 @@ const { supabase, isSupabaseConfigured } = require('../config/supabase');
 const MEDIA_BUCKET = process.env.SUPABASE_MEDIA_BUCKET || 'chat-media';
 const SESSION_BUCKET = process.env.SUPABASE_SESSION_BUCKET || 'whatsapp-sessions';
 const SESSION_SNAPSHOT_FILE = '_session_snapshot.json.gz';
+const SESSION_BACKUP_SKIP = new Set(['message-retry-cache.json', 'lid-map.json']);
 const SESSION_CONCURRENCY = Math.max(2, Math.min(32, Number.parseInt(process.env.WHATSAPP_SESSION_STORAGE_CONCURRENCY, 10) || 12));
 
 async function mapWithConcurrency(items, concurrency, task) {
@@ -130,7 +131,7 @@ async function backupSession(accountId, sourceDir) {
   const entries = await fs.promises.readdir(sourceDir, { withFileTypes: true });
   const snapshots = [];
   for (const entry of entries) {
-    if (!entry.isFile() || !/\.json$/i.test(entry.name)) continue;
+    if (!entry.isFile() || !/\.json$/i.test(entry.name) || SESSION_BACKUP_SKIP.has(entry.name)) continue;
     try {
       snapshots.push({ name: entry.name, buffer: await fs.promises.readFile(path.join(sourceDir, entry.name)) });
     } catch (error) {

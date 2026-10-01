@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { useAuthStore } from '@/stores/auth.store'
+import { shouldIgnoreUnauthorized, useAuthStore } from '@/stores/auth.store'
 
 const http = axios.create({
   baseURL: '/api',
@@ -22,10 +22,14 @@ http.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      if (error.config?.url?.includes('/auth/login')) {
+      if (error.config?.url?.includes('/auth/login') || shouldIgnoreUnauthorized()) {
         return Promise.reject(error)
       }
       const auth = useAuthStore()
+      const failedToken = String(error.config?.headers?.Authorization || error.config?.headers?.authorization || '').replace(/^Bearer\s+/i, '')
+      if (auth.token && failedToken && failedToken !== auth.token) {
+        return Promise.reject(error)
+      }
       auth.clearSession()
       import('@/composables/useSocket').then(({ useSocket }) => useSocket().disconnect())
       if (window.location.pathname !== '/login') {

@@ -40,6 +40,17 @@ test('processa clientes diferentes em paralelo até o limite configurado', async
   assert.deepEqual(queue.stats(), { active: 0, pending: 0, clients: 0, concurrency: 3, maxPending: 10000 });
 });
 
+test('libera o slot quando a tarefa passa do tempo limite', async () => {
+  const queue = new KeyedTaskQueue({ concurrency: 1, taskTimeoutMs: 30 });
+  let releaseHang = () => {};
+  const hanging = queue.enqueue('cliente', () => new Promise(resolve => { releaseHang = resolve; }));
+  await assert.rejects(hanging, /excedeu 30ms/);
+  assert.equal(await queue.enqueue('outro', async () => 'ok'), 'ok');
+  await wait(20);
+  assert.equal(queue.stats().active, 0);
+  releaseHang();
+});
+
 test('recusa novas tarefas ao atingir o limite de pendências', async () => {
   const queue = new KeyedTaskQueue({ concurrency: 1, maxPending: 2 });
   let release;

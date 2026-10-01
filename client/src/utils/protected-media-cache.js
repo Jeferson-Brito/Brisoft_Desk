@@ -40,7 +40,10 @@ function trimCache() {
   const excess = Math.min(entries.length, mediaCache.size - MAX_CACHED_MEDIA)
   // Não revoga a Blob URL aqui: ela pode continuar sendo exibida por uma
   // mensagem já renderizada. O navegador libera todas ao sair da aplicação.
-  for (const [key] of entries.slice(0, excess)) mediaCache.delete(key)
+  for (const [key, entry] of entries.slice(0, excess)) {
+    if (entry.objectUrl) URL.revokeObjectURL(entry.objectUrl)
+    mediaCache.delete(key)
+  }
 }
 
 export async function loadProtectedMedia(source) {

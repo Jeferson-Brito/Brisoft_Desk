@@ -12,6 +12,7 @@ export const useTicketStore = defineStore('tickets', () => {
   const kpiRevision    = ref(0)
   const assumeRequests = new Map()
   let requireExplicitSelection = true
+  let queueRequestId = 0
   const initialQueueTab = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('brifdesk_queue_tab')) || 'aguardando'
   const activeQueueTab = ref(['aguardando', 'em_atendimento', 'grupos'].includes(initialQueueTab) ? initialQueueTab : 'aguardando')
 
@@ -81,10 +82,18 @@ export const useTicketStore = defineStore('tickets', () => {
 
   // ─── Actions ─────────────────────────────────────────────────────────────────
 
+  function resetLiveState() {
+    queue.value = []
+    activeTicketId.value = null
+    loadingMessageIds.value = []
+  }
+
   async function fetchQueue({ silent = false } = {}) {
+    const requestId = ++queueRequestId
     if (!silent) loading.value = true
     try {
       const { data } = await ticketsApi.list()
+      if (requestId !== queueRequestId) return
       if (data.success) {
         queue.value = (data.tickets || []).map(t => {
           const existing = queue.value.find(current => String(current.id) === String(t.id))
@@ -127,7 +136,7 @@ export const useTicketStore = defineStore('tickets', () => {
         }
       }
     } finally {
-      if (!silent) loading.value = false
+      if (!silent && requestId === queueRequestId) loading.value = false
     }
   }
 
@@ -356,7 +365,7 @@ export const useTicketStore = defineStore('tickets', () => {
     // getters
     visibleTickets, waitingTickets, inProgressTickets, chatbotTickets, groupTickets, activeTicket,
     // actions
-    fetchQueue, fetchTickets: fetchQueue, receiveTicket, appendMessage, patchMessage, removeTicket, removeTickets, patchTicket, notifyKpisUpdated, isLoadingMessages, loadTicketMessages,
+    fetchQueue, fetchTickets: fetchQueue, receiveTicket, appendMessage, patchMessage, removeTicket, removeTickets, patchTicket, notifyKpisUpdated, isLoadingMessages, loadTicketMessages, resetLiveState,
     selectTicket, minimizeActiveTicket, assume, close, setQueueTab, getTicketQueueTab
   }
 })

@@ -7,6 +7,9 @@ alter table if exists public.departments
 alter table if exists public.contacts
   add column if not exists avatar_url text;
 
+alter table if exists public.users
+  add column if not exists credentials_changed_at timestamptz;
+
 alter table if exists public.messages
   add column if not exists user_id uuid references public.users(id) on delete set null,
   add column if not exists media_url text,
@@ -194,7 +197,7 @@ values ('chat-media', 'chat-media', false, 26214400)
 on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit;
 
 insert into storage.buckets (id, name, public, file_size_limit)
-values ('whatsapp-sessions', 'whatsapp-sessions', false, 10485760)
+values ('whatsapp-sessions', 'whatsapp-sessions', false, 52428800)
 on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit;
 
 do $$

@@ -27,7 +27,8 @@ class WhatsAppController {
   }
 
   listAccounts(req, res) {
-    const allAccounts = whatsappService.getAccounts(true);
+    const includeQr = isAdmin(req.user) || req.user?.role === 'Supervisor';
+    const allAccounts = whatsappService.getAccounts(includeQr);
     if (isAdmin(req.user)) {
       return res.json({ success: true, accounts: allAccounts });
     }

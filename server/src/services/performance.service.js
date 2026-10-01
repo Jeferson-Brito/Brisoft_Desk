@@ -2,6 +2,7 @@ const { supabase, isSupabaseConfigured } = require('../config/supabase');
 const { isAdmin, isSupervisor, departmentIds, canAccessDepartment } = require('./access-control.service');
 
 const PAGE_SIZE = 1000;
+const MAX_FETCH_ROWS = 8000;
 let snapshotTableAvailable = null;
 let snapshotFallbackAvailable = null;
 const savedSnapshotKeys = new Set();
@@ -60,6 +61,10 @@ async function fetchAll(buildQuery) {
 
     const page = data || [];
     results.push(...page);
+    if (results.length >= MAX_FETCH_ROWS) {
+      console.warn(`Consulta de desempenho limitada a ${MAX_FETCH_ROWS} linhas.`);
+      return results.slice(0, MAX_FETCH_ROWS);
+    }
     if (page.length < PAGE_SIZE) return results;
     from += PAGE_SIZE;
   }
@@ -267,6 +272,10 @@ class PerformanceService {
       const result = { created, closed, active, ratings: ratings || [] };
       const ttl = period.isCurrent ? PERFORMANCE_CACHE_TTL_MS : PAST_MONTH_CACHE_TTL_MS;
       periodDataCache.set(cacheKey, { data: result, expiresAt: Date.now() + ttl });
+      if (periodDataCache.size > 12) {
+        const oldestKey = periodDataCache.keys().next().value;
+        if (oldestKey && oldestKey !== cacheKey) periodDataCache.delete(oldestKey);
+      }
       return result;
     } catch (err) {
       if (useFull && (err.code === '42703' || err.code === 'PGRST204' || /does not exist|schema cache|queued_at|started_at|first_response_at|finished_at|sla_minutes_target|sla_met/i.test(String(err.message || '')))) {

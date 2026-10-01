@@ -91,6 +91,7 @@ import { useSocket } from '@/composables/useSocket'
 import { useAuthStore } from '@/stores/auth.store'
 import { useTicketStore } from '@/stores/tickets.store'
 import { useUiStore } from '@/stores/ui.store'
+import { sharedAudioContext } from '@/utils/notification-sound'
 
 const router = useRouter()
 const socket = useSocket()
@@ -112,9 +113,8 @@ function isRelevantForUser(alert) {
 
 function playAlertChime() {
   try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext
-    if (!AudioContext) return
-    const ctx = new AudioContext()
+    const ctx = sharedAudioContext()
+    if (!ctx) return
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.connect(gain)

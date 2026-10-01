@@ -239,6 +239,8 @@ class UsersController {
         }
         await userCargoService.enrichUserWithCargo(data);
         if (is_active === false || password || role || department_id !== undefined) {
+          const { stampCredentialsChanged } = require('../middleware/auth.middleware');
+          await stampCredentialsChanged(id);
           req.app.get('io')?.in(`user:${id}`).disconnectSockets(true);
         }
         return res.json({ success: true, user: data, message: 'Usuário atualizado com sucesso.' });

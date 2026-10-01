@@ -78,6 +78,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_temporary BOOLEAN DEFAULT false;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(30);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS credentials_changed_at TIMESTAMP WITH TIME ZONE;
 
 CREATE TABLE IF NOT EXISTS supervisor_departments (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -334,5 +335,5 @@ VALUES ('chat-media', 'chat-media', false, 26214400)
 ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = EXCLUDED.file_size_limit;
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit)
-VALUES ('whatsapp-sessions', 'whatsapp-sessions', false, 10485760)
+VALUES ('whatsapp-sessions', 'whatsapp-sessions', false, 52428800)
 ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = EXCLUDED.file_size_limit;

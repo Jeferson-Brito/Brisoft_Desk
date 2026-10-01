@@ -13,6 +13,46 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 8;
 const AUTH_USER_CACHE_MS = 30 * 1000;
 const authenticatedUsers = new Map();
+const USER_COLUMNS = 'id, name, email, role, department_id, avatar_url, is_active, is_temporary, departments!users_department_id_fkey(name)';
+const USER_COLUMNS_WITH_CREDENTIALS = 'id, name, email, role, department_id, avatar_url, is_active, is_temporary, credentials_changed_at, departments!users_department_id_fkey(name)';
+let credentialsColumnAvailable = true;
+
+function invalidateAuthCache(userId) {
+  const prefix = `${userId}:`;
+  for (const key of authenticatedUsers.keys()) {
+    if (String(key).startsWith(prefix)) authenticatedUsers.delete(key);
+  }
+}
+
+async function stampCredentialsChanged(userId) {
+  if (!isSupabaseConfigured() || !userId) return;
+  const { error } = await supabase
+    .from('users')
+    .update({ credentials_changed_at: new Date().toISOString() })
+    .eq('id', userId);
+  if (error && !/credentials_changed_at/i.test(error.message || '')) {
+    console.warn('Não foi possível registrar a troca de credenciais:', error.message);
+  }
+  invalidateAuthCache(userId);
+}
+
+async function loadAuthenticatedUserRow(userId) {
+  const columns = credentialsColumnAvailable ? USER_COLUMNS_WITH_CREDENTIALS : USER_COLUMNS;
+  const result = await supabase.from('users').select(columns).eq('id', userId).single();
+  if (result.error && credentialsColumnAvailable && /credentials_changed_at/i.test(result.error.message || '')) {
+    credentialsColumnAvailable = false;
+    return supabase.from('users').select(USER_COLUMNS).eq('id', userId).single();
+  }
+  return result;
+}
+
+function assertCredentialsStillValid(payload, user) {
+  if (!user?.credentials_changed_at || !payload?.iat) return;
+  const changedMs = new Date(user.credentials_changed_at).getTime();
+  if (Number.isFinite(changedMs) && changedMs > payload.iat * 1000 + 2000) {
+    throw new Error('Sessão inválida ou expirada');
+  }
+}
 
 async function resolveAuthenticatedUser(token) {
   const payload = jwt.verify(token, JWT_SECRET);
@@ -29,13 +69,10 @@ async function resolveAuthenticatedUser(token) {
   const cached = authenticatedUsers.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return { ...payload, ...cached.user };
 
-  const { data: user, error } = await supabase
-    .from('users')
-    .select('id, name, email, role, department_id, avatar_url, is_active, is_temporary, departments!users_department_id_fkey(name)')
-    .eq('id', payload.id)
-    .single();
+  const { data: user, error } = await loadAuthenticatedUserRow(payload.id);
 
   if (error || !user || user.is_active === false) throw new Error('Usuário inativo ou inexistente');
+  assertCredentialsStillValid(payload, user);
   const resolvedUser = {
     ...payload,
     id: user.id,
@@ -116,4 +153,15 @@ function requireSupervisorOrAdmin(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireAdmin, requireSupervisorOrAdmin, resolveAuthenticatedUser, loginRateLimit, clearLoginAttempts };
+const loginRateCleanup = setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of loginAttempts) {
+    if (now - entry.startedAt >= LOGIN_WINDOW_MS) loginAttempts.delete(key);
+  }
+  for (const [key, entry] of authenticatedUsers) {
+    if (entry.expiresAt <= now) authenticatedUsers.delete(key);
+  }
+}, 60 * 1000);
+loginRateCleanup.unref?.();
+
+module.exports = { requireAuth, requireAdmin, requireSupervisorOrAdmin, resolveAuthenticatedUser, loginRateLimit, clearLoginAttempts, stampCredentialsChanged, invalidateAuthCache };

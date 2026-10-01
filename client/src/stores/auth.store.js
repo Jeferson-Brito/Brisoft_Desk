@@ -10,6 +10,11 @@ const ACTIVITY_THROTTLE_MS = 30 * 1000 // Grava no localStorage no máximo a cad
 let inactivityTimer = null
 let lastRecordedTime = 0
 let listenersAttached = false
+let ignoreUnauthorizedUntil = 0
+
+export function shouldIgnoreUnauthorized() {
+  return Date.now() < ignoreUnauthorizedUntil
+}
 
 function loadStoredToken() {
   const sharedToken = localStorage.getItem(TOKEN_KEY)
@@ -44,8 +49,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function handleInactivityLogout() {
+    clearLiveState()
     clearSession()
-    import('@/composables/useSocket').then(({ useSocket }) => useSocket().disconnect()).catch(() => {})
     if (window.location.pathname !== '/login') {
       const destination = `${window.location.pathname}${window.location.search}${window.location.hash}`
       window.location.assign(`/login?reason=inactivity&redirect=${encodeURIComponent(destination)}`)
@@ -107,6 +112,11 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
     lastRecordedTime = Date.now()
     startInactivityTracker()
+    import('@/composables/useSocket').then(({ useSocket }) => useSocket().connect()).catch(() => {})
+  }
+
+  function suppressUnauthorizedLogout(ms = 4000) {
+    ignoreUnauthorizedUntil = Date.now() + ms
   }
 
   function clearSession() {
@@ -140,8 +150,16 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function clearLiveState() {
+    import('@/composables/useSocket').then(({ useSocket }) => useSocket().disconnect()).catch(() => {})
+    import('@/utils/protected-media-cache').then(({ clearProtectedMediaCache }) => clearProtectedMediaCache()).catch(() => {})
+    import('@/stores/tickets.store').then(({ useTicketStore }) => useTicketStore().resetLiveState()).catch(() => {})
+    import('@/stores/internal-chat.store').then(({ useInternalChatStore }) => useInternalChatStore().resetLocalState()).catch(() => {})
+  }
+
   async function logout() {
     authApi.logout().catch(() => {})
+    clearLiveState()
     clearSession()
   }
 
@@ -174,8 +192,11 @@ export const useAuthStore = defineStore('auth', () => {
           startInactivityTracker()
           return true
         }
-      } catch {
-        // Token inválido ou servidor offline
+      } catch (err) {
+        const status = err?.response?.status
+        if (status === 401 || status === 403) clearSession()
+        initialized.value = true
+        return !status || status >= 500 ? Boolean(token.value) : false
       }
       clearSession()
       initialized.value = true
@@ -199,6 +220,6 @@ export const useAuthStore = defineStore('auth', () => {
     // getters
     isAuthenticated, isAdmin, isSupervisor, canManageTeam, isTemporary, departmentId, departmentName, departmentIds, userName, userEmail,
     // actions
-    login, logout, initAuth, refreshUser, setSession, clearSession, recordActivity
+    login, logout, initAuth, refreshUser, setSession, clearSession, recordActivity, suppressUnauthorizedLogout
   }
 })

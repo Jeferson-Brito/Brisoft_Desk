@@ -219,6 +219,7 @@ async function save() {
   }
   if (form.new_password !== confirmPassword.value) return ui.showToast('A confirmação da nova senha não confere.', 'error')
   saving.value = true
+  auth.suppressUnauthorizedLogout()
   try {
     const payload = {
       ...form,

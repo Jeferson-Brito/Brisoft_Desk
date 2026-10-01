@@ -105,23 +105,16 @@ async function initDisconnectedAccounts() {
       }
     }
 
-    // Se a conta está desconectada (sem telefone ou status desconectado),
-    // o timestamp real da desconexão é quando ela se desconectou (last_connected_at).
     const accounts = Array.isArray(savedAccounts.data?.value) ? savedAccounts.data.value : [];
     for (const acc of accounts) {
       const key = String(acc.id);
       const isDisconnected = !acc.phone || acc.status === 'disconnected';
-      if (isDisconnected) {
-        const discAt = acc.last_connected_at || acc.lastConnectedAt || acc.created_at;
-        const currentInMap = disconnectedAccountsMap.get(key);
-        // Se não estava no mapa ou se o timestamp no mapa for mais recente que last_connected_at
-        // (por causa de resets causados por loops de reconexão antigos), restaura o real:
-        if (!currentInMap || (discAt && new Date(discAt).getTime() < new Date(currentInMap.disconnected_at).getTime())) {
-          disconnectedAccountsMap.set(key, {
-            disconnected_at: discAt || new Date().toISOString(),
-            reason: currentInMap ? currentInMap.reason : 'connection_lost'
-          });
-        }
+      const discAt = acc.last_disconnected_at || acc.lastDisconnectedAt || null;
+      if (isDisconnected && discAt && !disconnectedAccountsMap.has(key)) {
+        disconnectedAccountsMap.set(key, {
+          disconnected_at: discAt,
+          reason: acc.disconnect_reason || acc.disconnectReason || 'connection_lost'
+        });
       }
     }
 
@@ -214,40 +207,33 @@ function isChannelDisconnected(channel) {
   return disconnectedAccountsMap.has(String(accountId));
 }
 
+function recordedDisconnectAt(account) {
+  return account?.last_disconnected_at || account?.lastDisconnectedAt || null;
+}
+
+function accountLooksConnected(account) {
+  if (!account) return false;
+  return account.status !== 'disconnected' && Boolean(account.phone);
+}
+
 function getChannelDisconnectInfo(channel, whatsappAccounts = null) {
   const accountId = getChannelAccountId(channel);
   const key = String(accountId);
+  const inMap = disconnectedAccountsMap.get(key);
 
-  // 1. Se temos a lista de contas WhatsApp conhecidas:
   if (Array.isArray(whatsappAccounts)) {
     const matchedAccount = whatsappAccounts.find(a => String(a.id) === key);
-    if (!matchedAccount) {
-      // Conta órfã/deletada do WhatsApp no passado: considera desconectada há bastante tempo
-      return {
-        disconnected_at: '2026-09-01T00:00:00.000Z',
-        reason: 'account_deleted'
-      };
-    }
-    if (matchedAccount.status === 'disconnected' || !matchedAccount.phone) {
-      const discAt = matchedAccount.last_connected_at || matchedAccount.lastConnectedAt || matchedAccount.created_at;
-      const inMap = disconnectedAccountsMap.get(key);
-      const chosenDiscAt = (discAt && inMap && new Date(discAt).getTime() < new Date(inMap.disconnected_at).getTime())
-        ? discAt
-        : (inMap?.disconnected_at || discAt || new Date().toISOString());
-
-      return {
-        disconnected_at: chosenDiscAt,
-        reason: inMap?.reason || 'connection_lost'
-      };
-    }
+    if (matchedAccount && accountLooksConnected(matchedAccount)) return null;
+    if (!matchedAccount) return inMap?.disconnected_at ? inMap : null;
+    const disconnectedAt = inMap?.disconnected_at || recordedDisconnectAt(matchedAccount);
+    if (!disconnectedAt) return null;
+    return {
+      disconnected_at: disconnectedAt,
+      reason: inMap?.reason || matchedAccount.disconnect_reason || matchedAccount.disconnectReason || 'connection_lost'
+    };
   }
 
-  // 2. Verifica no mapa ativo de contas desconectadas
-  const inMap = disconnectedAccountsMap.get(key);
-  if (inMap && inMap.disconnected_at) {
-    return inMap;
-  }
-
+  if (inMap?.disconnected_at) return inMap;
   return null;
 }
 
@@ -676,6 +662,22 @@ async function fetchAllMessagesForTicketIds(ticketIds = []) {
     }
   }
   return allMessages;
+}
+
+async function fetchAllTicketPages(buildQuery) {
+  const pageSize = 1000;
+  const maxPages = 20;
+  const rows = [];
+  for (let page = 0; page < maxPages; page += 1) {
+    const from = page * pageSize;
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+    if (error) throw error;
+    const batch = data || [];
+    rows.push(...batch);
+    if (batch.length < pageSize) break;
+    if (page === maxPages - 1) console.warn(`Listagem de tickets limitada a ${rows.length} linhas.`);
+  }
+  return rows;
 }
 
 async function fetchRatingsForTicketIds(ticketIds = []) {
@@ -2245,14 +2247,14 @@ ${rendered}`,
   async getTickets(user) {
     if (!isSupabaseConfigured()) return [];
     try {
-      let ticketQuery = supabase
-        .from('tickets')
-        .select('*, departments(id, name, color, allow_device_message_mutations)')
-        .in('status', ['aguardando', 'em_atendimento', 'grupo']);
-      ticketQuery = scopeTicketQuery(ticketQuery, user);
-      let { data: tickets, error } = await ticketQuery
-        .order('updated_at', { ascending: false });
-      if (error) throw error;
+      let tickets = await fetchAllTicketPages(() => {
+        let ticketQuery = supabase
+          .from('tickets')
+          .select('*, departments(id, name, color, allow_device_message_mutations)')
+          .in('status', ['aguardando', 'em_atendimento', 'grupo'])
+          .order('updated_at', { ascending: false });
+        return scopeTicketQuery(ticketQuery, user);
+      });
 
       // Participantes explícitos continuam vendo o atendimento mesmo quando ele
       // pertence a outro departamento.
@@ -2269,12 +2271,17 @@ ${rendered}`,
       const ticketIds = (tickets || []).map(t => t.id).filter(Boolean);
       let collaboratorsByTicket = new Map();
       if (ticketIds.length) {
-        const { data: colabData } = await supabase
-          .from('ticket_collaborators')
-          .select('ticket_id, user_id, created_at, users(id, name, role, department_id, avatar_url, is_active)')
-          .in('ticket_id', ticketIds)
-          .order('created_at');
-        if (colabData) {
+        const colabData = [];
+        for (let offset = 0; offset < ticketIds.length; offset += 80) {
+          const batch = ticketIds.slice(offset, offset + 80);
+          const { data } = await supabase
+            .from('ticket_collaborators')
+            .select('ticket_id, user_id, created_at, users(id, name, role, department_id, avatar_url, is_active)')
+            .in('ticket_id', batch)
+            .order('created_at');
+          if (data) colabData.push(...data);
+        }
+        if (colabData.length) {
           for (const row of colabData) {
             if (!collaboratorsByTicket.has(row.ticket_id)) {
               collaboratorsByTicket.set(row.ticket_id, []);
@@ -4069,14 +4076,9 @@ ${rendered}`,
     if (existing && existing.disconnected_at) {
       disconnectedAtStr = existing.disconnected_at;
     } else {
-      // Se não havia registro em memória, verifica se a conta possui last_connected_at no banco
       const accounts = await getKnownWhatsAppAccounts();
       const matched = accounts.find(a => String(a.id) === key);
-      if (matched && matched.last_connected_at && new Date(matched.last_connected_at).getTime() < now.getTime()) {
-        disconnectedAtStr = matched.last_connected_at;
-      } else {
-        disconnectedAtStr = now.toISOString();
-      }
+      disconnectedAtStr = recordedDisconnectAt(matched) || now.toISOString();
     }
 
     disconnectedAccountsMap.set(key, {
@@ -4155,12 +4157,13 @@ ${rendered}`,
       const discardMs = rules.discard_hours * 3600 * 1000;
       const nowMs = Date.now();
 
-      const { data: tickets, error } = await supabase
+      const tickets = await fetchAllTicketPages(() => supabase
         .from('tickets')
         .select('id, channel, is_group, status, updated_at, created_at')
-        .in('status', ['aguardando', 'em_atendimento', 'chatbot', 'grupo']);
+        .in('status', ['aguardando', 'em_atendimento', 'chatbot', 'grupo'])
+        .order('updated_at', { ascending: false }));
 
-      if (error || !tickets || tickets.length === 0) return { discarded: 0, retained: 0 };
+      if (!tickets.length) return { discarded: 0, retained: 0 };
 
       const expiredDiscardIds = [];
       const expiredGroupDiscardIds = [];

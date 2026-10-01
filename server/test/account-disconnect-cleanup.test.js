@@ -71,6 +71,27 @@ test('handleAccountDisconnected preserva o timestamp original de desconexão em 
   await ticketService.handleAccountReconnected(accountId, fakeIo);
 });
 
+test('desconexão não usa a hora em que a conta conectou nem uma data fixa', () => {
+  const { getChannelDisconnectInfo } = ticketService._test;
+  assert.equal(getChannelDisconnectInfo('whatsapp:conta-orfa', []), null);
+  assert.equal(getChannelDisconnectInfo('whatsapp:conta-antiga', [{
+    id: 'conta-antiga',
+    status: 'disconnected',
+    phone: null,
+    lastConnectedAt: '2020-01-01T00:00:00.000Z'
+  }]), null);
+
+  const disconnectedAt = '2026-10-01T12:00:00.000Z';
+  const info = getChannelDisconnectInfo('whatsapp:conta-nova', [{
+    id: 'conta-nova',
+    status: 'disconnected',
+    phone: null,
+    lastConnectedAt: '2020-01-01T00:00:00.000Z',
+    lastDisconnectedAt: disconnectedAt
+  }]);
+  assert.equal(info.disconnected_at, disconnectedAt);
+});
+
 test('cleanupExpiredDisconnectedTickets executa sem lançar exceções', async () => {
   const fakeIo = { emit() {}, to() { return this; } };
   const fakeWhatsapp = { getAccounts: () => [] };
